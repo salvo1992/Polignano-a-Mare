@@ -10,8 +10,8 @@ import { Users, Bed, Bath, Star, ArrowRight } from "lucide-react"
 const rooms = [
   {
     id: 1,
-    name: "Suite Panoramica",
-    description: "Camera matrimoniale con vista mozzafiato sulle colline toscane",
+    name: "Camera Matrimoniale ",
+    description: "Camera matrimoniale con Vasca Idromassaggio",
     image: "/images/room-1.jpg",
     price: "€180",
     guests: 2,
@@ -24,8 +24,8 @@ const rooms = [
   },
   {
     id: 2,
-    name: "Camera Deluxe",
-    description: "Elegante camera con arredi tradizionali toscani e comfort moderni",
+    name: "Camera Familiare con Balcone",
+    description: "Elegante camera con arredi tradizionali Pugliesi e comfort moderni",
     image: "/images/room-2.jpg",
     price: "€150",
     guests: 2,

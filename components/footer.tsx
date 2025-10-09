@@ -16,7 +16,7 @@ export function Footer() {
               <span className="font-display text-xl font-semibold">Villa Bella Vista</span>
             </div>
             <p className="text-background/80 mb-4 text-sm leading-relaxed">
-              Un'esperienza autentica nel cuore della Toscana, dove tradizione e comfort si incontrano per creare
+              Un'esperienza autentica nel cuore della Puglia, dove tradizione e comfort si incontrano per creare
               ricordi indimenticabili.
             </p>
             <div className="flex items-center gap-1 mb-2">
@@ -34,21 +34,21 @@ export function Footer() {
               <div className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 mt-1 text-primary flex-shrink-0" />
                 <div>
-                  <p>Via delle Colline, 123</p>
-                  <p>53024 Montalcino (SI)</p>
-                  <p>Toscana, Italia</p>
+                  <p>Vico Gelso I n 22</p>
+                  <p>70044 Polignano a Mare (BA)</p>
+                  <p>Puglia, Italia</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Phone className="w-4 h-4 text-primary" />
                 <a href="tel:+390577123456" className="hover:text-primary transition-colors">
-                  +39 0577 123 456
+                  +39 3283287303 
                 </a>
               </div>
               <div className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-primary" />
                 <a href="mailto:info@villabellavista.it" className="hover:text-primary transition-colors">
-                  info@villabellavista.it
+                  info@AL22Suite&SPALUXURYEXPERIENCE.it
                 </a>
               </div>
               <div className="flex items-center gap-3">
@@ -116,11 +116,11 @@ export function Footer() {
         <div className="border-t border-background/20 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-background/80">
             <div className="flex flex-col md:flex-row items-center gap-4">
-              <p>© 2025 Villa Bella Vista. Tutti i diritti riservati.</p>
+              <p>© COPYRIGHT 2024 - Tenuta Mosè . Tutti i diritti riservati.</p>
             </div>
 
             <div className="flex items-center gap-2">
-              <span>Sviluppato da</span>
+              <span>POWERED BY </span>
               <div className="flex items-center gap-1">
                 <Image src="/images/ekobit-logo.png" alt="EkoBit S.r.l." width={16} height={16} className="rounded" />
                 <span className="font-medium">EkoBit S.r.l.</span>

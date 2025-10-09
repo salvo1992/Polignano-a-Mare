@@ -8,21 +8,21 @@ import { ChevronLeft, ChevronRight, Star, MapPin } from "lucide-react"
 const heroImages = [
   {
     src: "/images/bb-hero.jpg",
-    alt: "Villa Bella Vista - Vista principale",
-    title: "Benvenuti a Villa Bella Vista",
-    subtitle: "Un'esperienza autentica nel cuore di Roma",
+    alt: "al 22 Suite & Spa Luxury Experience - Vista principale",
+    title: "Benvenuti al 22 Suite & Spa Luxury Experience",
+    subtitle: "Un'esperienza autentica nel cuore di Polignano a Mare",
   },
   {
     src: "/images/pool.jpg",
     alt: "Piscina panoramica",
     title: "Relax e Tranquillità",
-    subtitle: "Goditi la nostra piscina con vista mozzafiato",
+    subtitle: "Goditi la nostra Spa Luxury Experience",
   },
   {
     src: "/images/breakfast.jpg",
     alt: "Colazione tradizionale",
     title: "Sapori Autentici",
-    subtitle: "Inizia la giornata con la nostra colazione tipica romana",
+    subtitle: "Inizia la giornata con la nostra colazione tipica Pugliese",
   },
 ]
 
@@ -122,7 +122,7 @@ export function HeroSection() {
               <div className="bg-primary/20 backdrop-blur-sm rounded-full p-2">
                 <MapPin className="w-6 h-6 text-primary animate-pulse" />
               </div>
-              <span className="text-xl font-medium">Roma, Lazio, Italia</span>
+              <span className="text-xl font-medium">Polignano a Mare, Puglia, Italia</span>
             </div>
 
             {/* Enhanced CTA Buttons */}

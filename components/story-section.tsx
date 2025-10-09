@@ -45,25 +45,19 @@ export function StorySection() {
                 className="text-muted-foreground mb-6 text-lg leading-relaxed animate-fade-in-up"
                 style={{ animationDelay: "0.5s" }}
               >
-                Villa Bella Vista nasce dal sogno di Maria e Giuseppe Rossi, una coppia di appassionati dell'ospitalità
-                romana che nel 1985 ha trasformato questa antica villa del XVIII secolo in un rifugio di pace e bellezza
-                nel cuore della Città Eterna.
+                Benvenuti ad Al 22 Suite & Spa Luxury Experience Ciao a tutti! Mi chiamo Angelo e ho l'onore di essere il gestore dell'Al 22 Suite & Spa Luxury Experience, situato nella splendida Polignano a Mare. È un piacere potervi raccontare un po' di più su di noi e su cosa rende la nostra struttura così speciale. Sin da quando ho aperto le porte del nostro angolo di paradiso, ho voluto creare un ambiente dove gli ospiti si sentivano non solo accolti, ma anche coccolati. La mia filosofia è semplice: ogni persona che varca la soglia di Al 22 deve sentirsi come a casa. Sono una persona solare, sempre disponibile e pronta ad ascoltare le esigenze dei nostri visitatori. Credo fermamente che la cortesia e un sorriso autentico possano fare la differenza nel soggiorno di ogni ospite.
               </p>
               <p
                 className="text-muted-foreground mb-6 text-lg leading-relaxed animate-fade-in-up"
                 style={{ animationDelay: "0.7s" }}
               >
-                Situata tra i colli romani, la nostra villa è stata restaurata con amore e attenzione ai dettagli,
-                preservando il fascino storico mentre integra tutti i comfort moderni per un soggiorno indimenticabile
-                nella capitale.
+                La bellezza di Polignano a Mare, con le sue acque cristalline e le stradine pittoresche, è già di per sé un invito ad esplorare ea vivere esperienze indimenticabili. Ma qui ad Al 22, vogliamo offrirvi qualcosa di ancora più speciale. Le nostre suite sono arredate con gusto e dotate di ogni comfort. Ogni dettaglio è pensato per rendere il vostro soggiorno unico. Che si tratti di una fuga romantica, di una celebrazione o di un semplice weekend di relax, abbiamo tutto ciò che serve per rendere il vostro soggiorno memorabile. Una delle gemme del nostro hotel è sicuramente la Spa. 
               </p>
               <p
                 className="text-muted-foreground mb-8 text-lg leading-relaxed animate-fade-in-up"
                 style={{ animationDelay: "0.9s" }}
               >
-                Oggi, dopo tre generazioni, continuiamo a offrire ai nostri ospiti un'esperienza autentica di Roma, dove
-                tradizione e innovazione si incontrano in perfetta armonia tra storia millenaria e comfort
-                contemporaneo.
+                Qui potrete lasciarvi avvolgere dal benessere e dalla tranquillità. Massaggi rilassanti, trattamenti rigeneranti e momenti di pura serenità vi aspettano. Io stesso adoro trascorrere del tempo nella nostra Spa; è un vero toccasana per chi, come me, ama il lavoro ma ha anche bisogno di prendersi cura di sé. Inoltre, mi piace interagire con i nostri ospiti, scoprire le loro storie e consigliare le loro migliori attrazioni e ristoranti della zona. Polignano a Mare è famosa per la sua cucina deliziosa ei suoi luoghi incantevoli. Non posso resistere alla tentazione di suggerirvi di provare un gelato artigianale.
               </p>
             </div>
 
