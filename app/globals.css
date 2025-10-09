@@ -5,38 +5,38 @@
 
 :root {
   /* Updated color palette to sand theme instead of green */
-  --background: oklch(0.96 0.02 65); /* Light sand */
+  --background: oklch(100% 0.00011 271.152); /* Light sand */
   --foreground: oklch(0.15 0.02 25); /* Deep brown */
   --card: oklch(0.98 0.01 70);
   --card-foreground: oklch(0.15 0.02 25);
   --popover: oklch(0.98 0.01 85);
   --popover-foreground: oklch(0.15 0.02 25);
-  --primary: oklch(0.55 0.18 15); /* Roman red */
+  --primary: oklch(47.97% 0.18963 262.874); /* Roman red */
   --primary-foreground: oklch(0.98 0.01 85);
   --secondary: oklch(0.88 0.04 55); /* Warm sand color */
   --secondary-foreground: oklch(0.15 0.02 25);
   --muted: oklch(0.92 0.02 60);
   --muted-foreground: oklch(0.45 0.02 35);
-  --accent: oklch(0.75 0.12 45); /* Golden yellow accent */
+  --accent: oklch(60.642% 0.18442 278.003); /* Golden yellow accent */
   --accent-foreground: oklch(0.15 0.02 25);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: oklch(47.97% 0.18963 262.874);
   --destructive-foreground: oklch(0.98 0.01 85);
   --border: oklch(0.88 0.02 60);
   --input: oklch(0.94 0.02 65);
-  --ring: oklch(0.55 0.18 15);
-  --chart-1: oklch(0.55 0.18 15);
+  --ring: oklch(47.97% 0.18963 262.874);
+  --chart-1: oklch(47.97% 0.18963 262.874);
   --chart-2: oklch(0.75 0.08 45);
   --chart-3: oklch(0.85 0.03 65);
   --chart-4: oklch(0.65 0.12 35);
   --chart-5: oklch(0.45 0.08 55);
   --radius: 0.75rem;
-  --sidebar: oklch(0.55 0.18 15 / 0.95); /* Semi-transparent red */
+  --sidebar: oklch(47.97% 0.18963 262.874); /* Semi-transparent red */
   --sidebar-foreground: oklch(0.98 0.01 85);
   --sidebar-primary: oklch(0.75 0.12 45);
   --sidebar-primary-foreground: oklch(0.15 0.02 25);
   --sidebar-accent: oklch(0.65 0.15 20);
   --sidebar-accent-foreground: oklch(0.98 0.01 85);
-  --sidebar-border: oklch(0.45 0.15 15);
+  --sidebar-border: oklch(47.97% 0.18963 262.874);
   --sidebar-ring: oklch(0.75 0.12 45);
 }
 
@@ -53,21 +53,21 @@
   --secondary-foreground: oklch(0.95 0.01 80);
   --muted: oklch(0.18 0.02 30);
   --muted-foreground: oklch(0.65 0.02 50);
-  --accent: oklch(0.35 0.05 40);
+  --accent: oklch(30.537% 0.07581 294.33);
   --accent-foreground: oklch(0.95 0.01 80);
-  --destructive: oklch(0.65 0.15 15);
+  --destructive: oklch(63.466% 0.13322 265.297);
   --destructive-foreground: oklch(0.95 0.01 80);
   --border: oklch(0.22 0.02 30);
   --input: oklch(0.18 0.02 30);
-  --ring: oklch(0.65 0.15 15);
+  --ring: oklch(63.886% 0.1309 264.233);
   --sidebar: oklch(0.15 0.02 25);
   --sidebar-foreground: oklch(0.95 0.01 80);
-  --sidebar-primary: oklch(0.65 0.15 15);
+  --sidebar-primary: oklch(62.219% 0.1404 268.265);
   --sidebar-primary-foreground: oklch(0.12 0.02 25);
   --sidebar-accent: oklch(0.18 0.02 30);
   --sidebar-accent-foreground: oklch(0.95 0.01 80);
   --sidebar-border: oklch(0.22 0.02 30);
-  --sidebar-ring: oklch(0.65 0.15 15);
+  --sidebar-ring: oklch(62.632% 0.13797 267.312);
 }
 
 @theme inline {
@@ -360,7 +360,7 @@
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(12, 20, 133, 0.886), transparent);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
@@ -398,12 +398,12 @@
 .text-roman-gradient {
   background: linear-gradient(
     135deg,
-    oklch(0.55 0.18 15) 0%,
-    oklch(0.65 0.15 25) 20%,
-    oklch(0.75 0.12 45) 40%,
-    oklch(0.85 0.08 55) 60%,
-    oklch(0.75 0.12 35) 80%,
-    oklch(0.55 0.18 15) 100%
+    oklch(44.386% 0.20915 271.934) 0%,
+    oklch(67.616% 0.11557 251.66) 20%,
+    oklch(86.934% 0.11657 185.089) 40%,
+    oklch(91.846% 0.08953 186.198) 60%,
+    oklch(83.424% 0.09579 214.384) 80%,
+    oklch(44.858% 0.20596 271.518) 100%
   );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -484,9 +484,9 @@
   /* Made sidebar extremely transparent while keeping red color visible */
   background: linear-gradient(
     135deg,
-    rgba(220, 38, 38, 0.25) 0%,
-    rgba(185, 28, 28, 0.2) 50%,
-    rgba(153, 27, 27, 0.25) 100%
+    rgba(59, 38, 220, 0.25) 0%,
+    rgba(78, 28, 185, 0.2) 50%,
+    rgba(67, 27, 153, 0.25) 100%
   );
   backdrop-filter: blur(30px);
   border-left: 1px solid rgba(255, 255, 255, 0.2);

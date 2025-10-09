@@ -26,10 +26,10 @@ export function Header() {
             {/* Logo - Always visible with responsive text size */}
             <Link href="/" className="flex items-center space-x-2 group flex-shrink-0">
               <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
-                <span className="text-primary-foreground font-bold text-base md:text-lg font-cinzel">VB</span>
+                <span className="text-primary-foreground font-bold text-base md:text-lg font-cinzel">XXII</span>
               </div>
               <span className="font-cinzel text-sm sm:text-base md:text-xl font-bold text-roman-gradient whitespace-nowrap">
-                Villa Bella Vista
+                AL 22 Suite & SPA LUXURY EXPERIENCE
               </span>
             </Link>
 
