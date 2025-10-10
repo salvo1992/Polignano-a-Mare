@@ -11,9 +11,10 @@ export function Footer() {
           <div>
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm">VB</span>
+                <span className="text-primary-foreground font-bold text-sm"><img src="images/logo22.jpg" alt="Logo Al 22 Suite & Spa Luxury Experience"
+                 width={62} height={62} /></span>
               </div>
-              <span className="font-display text-xl font-semibold">Villa Bella Vista</span>
+              <span className="font-display text-xl font-semibold">Al 22 Suite & Spa Luxury Experience</span>
             </div>
             <p className="text-background/80 mb-4 text-sm leading-relaxed">
               Un'esperienza autentica nel cuore della Puglia, dove tradizione e comfort si incontrano per creare

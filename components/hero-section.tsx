@@ -17,13 +17,13 @@ const heroImages = [
     alt: "Piscina panoramica",
     title: "Relax e Tranquillità",
     subtitle: "Goditi la nostra Spa Luxury Experience",
-  },
-  {
+  }
+/*{
     src: "/images/breakfast.jpg",
     alt: "Colazione tradizionale",
     title: "Sapori Autentici",
     subtitle: "Inizia la giornata con la nostra colazione tipica Pugliese",
-  },
+  },*/
 ]
 
 export function HeroSection() {

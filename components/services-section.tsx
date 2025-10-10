@@ -1,19 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Wifi, Car, Coffee, Waves, Utensils, MapPin, Space as Spa, Wine, Mountain, Camera, Users } from "lucide-react"
+import { Wifi, Car, Coffee, Waves, Utensils, MapPin, Space as Spa, Wine, Mountain, Camera, Users, Bus } from "lucide-react"
 
 const services = [
-  {
-    icon: Coffee,
-    title: "Colazione Gourmet",
-    description: "Inizia la giornata con prodotti locali freschi e specialità toscane",
-    color: "bg-amber-100 text-amber-700",
-  },
+ 
   {
     icon: Waves,
-    title: "Piscina Panoramica",
-    description: "Rilassati nella nostra piscina infinity con vista sulle colline",
+    title: "Piscina Scoperta",
+    description: "Rilassati nella nostra piscina scoperta ",
     color: "bg-blue-100 text-blue-700",
   },
   {
@@ -36,22 +31,28 @@ const services = [
   },
   {
     icon: Wine,
-    title: "Degustazioni Vino",
-    description: "Scopri i migliori vini locali con le nostre degustazioni guidate",
+    title: "Bar",
+    description: " Come rilassarti e goderti il nostro soggiorno ",
     color: "bg-red-100 text-red-700",
   },
   {
     icon: Mountain,
     title: "Escursioni Guidate",
-    description: "Esplora la bellezza della Toscana con le nostre guide esperte",
+    description: "Esplora la bellezza di Polignano a Mare  ",
     color: "bg-emerald-100 text-emerald-700",
   },
   {
     icon: Camera,
-    title: "Tour Fotografici",
-    description: "Cattura i momenti più belli con i nostri tour fotografici",
+    title: "La nostra Terrazza ",
+    description: "Con vista sulla città ",
     color: "bg-indigo-100 text-indigo-700",
   },
+  {
+    icon: Bus,
+    title: "Navetta aeroportuale",
+    description: "Servizio navetta da/per l'aeroporto",
+    color: "bg-indigo-100 text-indigo-700",
+  }
 ]
 
 export function ServicesSection() {
@@ -100,14 +101,14 @@ export function ServicesSection() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
               <Users className="w-12 h-12 text-primary mx-auto mb-4" />
-              <h4 className="font-semibold text-lg mb-2">Eventi Privati</h4>
-              <p className="text-muted-foreground">Organizziamo eventi speciali e celebrazioni su misura</p>
+              <h4 className="font-semibold text-lg mb-2">Reception</h4>
+              <p className="text-muted-foreground">Disponibilità  24/24</p>
             </div>
             <div className="text-center">
               <Utensils className="w-12 h-12 text-primary mx-auto mb-4" />
               <h4 className="font-semibold text-lg mb-2">Cucina Tipica</h4>
               <p className="text-muted-foreground">
-                Cene con piatti tradizionali toscani preparati con ingredienti locali
+                 Ti consiglieremo posti unici per  Cene con piatti tradizionali Pugliesi preparati con ingredienti locali
               </p>
             </div>
             <div className="text-center">

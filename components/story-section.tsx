@@ -128,7 +128,7 @@ export function StorySection() {
                   style={{ animationDelay: "1.2s" }}
                 >
                   <Image
-                    src="/images/breakfast.jpg"
+                    src="/images/spa1.jpg"
                     alt="Colazione tradizionale"
                     width={300}
                     height={150}
