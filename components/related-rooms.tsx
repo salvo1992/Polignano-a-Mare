@@ -67,11 +67,11 @@ export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
   return (
     <div className="py-12">
       <div className="mb-8">
-        <h2 className="font-display text-3xl font-bold text-foreground mb-4">Altre Camere Disponibili</h2>
+        <h2 className="font-display text-2xl font-bold text-foreground mb-4">Altre Camere Disponibili</h2>
         <p className="text-muted-foreground text-lg">Scopri le altre eleganti sistemazioni del nostro B&B</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
         {filteredRooms.map((room) => (
           <Card key={room.id} className="group overflow-hidden hover:shadow-xl transition-all duration-300">
             <div className="relative overflow-hidden">

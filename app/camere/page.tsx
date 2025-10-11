@@ -53,7 +53,7 @@ export default function CamerePage() {
                 style={{ animationDelay: "0.5s" }}
               >
                 Scopri il comfort e l'eleganza delle nostre camere, ognuna progettata per offrirti un'esperienza di
-                soggiorno indimenticabile nel cuore della Città Eterna
+                soggiorno indimenticabile nel cuore di Polignano a Mare
               </p>
 
               <div
@@ -64,7 +64,7 @@ export default function CamerePage() {
                   <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex items-center justify-center group-hover:shadow-lg transition-shadow">
                     <MapPin className="w-6 h-6 text-primary" />
                   </div>
-                  <span className="text-sm font-medium">Centro Roma</span>
+                  <span className="text-sm font-medium">Centro Polignano a Mare</span>
                 </div>
                 <div className="flex flex-col items-center gap-2 group hover:scale-110 transition-transform duration-300">
                   <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex items-center justify-center group-hover:shadow-lg transition-shadow">

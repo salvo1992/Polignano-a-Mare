@@ -11,7 +11,7 @@
   --card-foreground: oklch(0.15 0.02 25);
   --popover: oklch(0.98 0.01 85);
   --popover-foreground: oklch(0.15 0.02 25);
-  --primary: oklch(47.97% 0.18963 262.874); /* Roman red */
+  --primary: rgb(42, 100, 115); /* Roman red */
   --primary-foreground: oklch(0.98 0.01 85);
   --secondary: oklch(84.241% 0.05601 249.365); /* Warm sand color */
   --secondary-foreground: oklch(0.15 0.02 25);
@@ -19,29 +19,29 @@
   --muted-foreground: oklch(0.45 0.02 35);
   --accent: oklch(60.642% 0.18442 278.003); /* Golden yellow accent */
   --accent-foreground: oklch(0.15 0.02 25);
-  --destructive: oklch(47.97% 0.18963 262.874);
+  --destructive: rgb(42, 100, 115);
   --destructive-foreground: oklch(0.98 0.01 85);
   --border: oklch(0.88 0.02 60);
   --input: oklch(0.94 0.02 65);
-  --ring: oklch(47.97% 0.18963 262.874);
-  --chart-1: oklch(47.97% 0.18963 262.874);
+  --ring: rgb(42, 100, 115);
+  --chart-1: rgb(42, 100, 115);
   --chart-2: oklch(82.259% 0.07954 199.823);
   --chart-3: oklch(84.072% 0.02931 238.418);
   --chart-4: oklch(55.688% 0.1561 275.498);
   --chart-5: oklch(34.616% 0.13122 290.354);
   --radius: 0.75rem;
-  --sidebar: oklch(47.97% 0.18963 262.874); /* Semi-transparent red */
+  --sidebar: rgb(42, 100, 115); /* Semi-transparent red */
   --sidebar-foreground: oklch(0.98 0.01 85);
-  --sidebar-primary: oklch(0.75 0.12 45);
-  --sidebar-primary-foreground: oklch(0.15 0.02 25);
+  --sidebar-primary: oklch(99.308% 0.0034 37.997);
+  --sidebar-primary-foreground: rgb(42, 100, 115);
   --sidebar-accent: oklch(81.934% 0.1094 185.002);
   --sidebar-accent-foreground: oklch(0.98 0.01 85);
-  --sidebar-border: oklch(47.97% 0.18963 262.874);
+  --sidebar-border: rgb(42, 100, 115);
   --sidebar-ring: oklch(87.182% 0.11464 190.479);
 }
 
 .dark {
-  --background: oklch(0.12 0.02 25);
+  --background: rgb(42, 100, 115);
   --foreground: oklch(0.95 0.01 80);
   --card: oklch(0.15 0.02 25);
   --card-foreground: oklch(0.95 0.01 80);
@@ -52,7 +52,7 @@
   --secondary: oklch(0.25 0.03 35);
   --secondary-foreground: oklch(0.95 0.01 80);
   --muted: oklch(0.18 0.02 30);
-  --muted-foreground: oklch(0.65 0.02 50);
+  --muted-foreground: oklch(69.799% 0.01962 218.646);
   --accent: oklch(30.537% 0.07581 294.33);
   --accent-foreground: oklch(0.95 0.01 80);
   --destructive: oklch(63.466% 0.13322 265.297);
@@ -60,13 +60,13 @@
   --border: oklch(0.22 0.02 30);
   --input: oklch(0.18 0.02 30);
   --ring: oklch(63.886% 0.1309 264.233);
-  --sidebar: oklch(0.15 0.02 25);
-  --sidebar-foreground: oklch(0.95 0.01 80);
+  --sidebar: rgb(42, 100, 115);
+  --sidebar-foreground: oklch(95.093% 0.01077 204.654);
   --sidebar-primary: oklch(62.219% 0.1404 268.265);
-  --sidebar-primary-foreground: oklch(0.12 0.02 25);
-  --sidebar-accent: oklch(0.18 0.02 30);
+  --sidebar-primary-foreground:rgb(42, 100, 115);
+  --sidebar-accent:rgb(42, 100, 115);
   --sidebar-accent-foreground: oklch(0.95 0.01 80);
-  --sidebar-border: oklch(0.22 0.02 30);
+  --sidebar-border: rgb(42, 100, 115);
   --sidebar-ring: oklch(62.632% 0.13797 267.312);
 }
 
@@ -360,7 +360,7 @@
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent, rgba(12, 20, 133, 0.886), transparent);
+  background: linear-gradient(90deg, transparent, rgb(42, 100, 115), transparent);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
@@ -398,12 +398,12 @@
 .text-roman-gradient {
   background: linear-gradient(
     135deg,
-    oklch(44.386% 0.20915 271.934) 0%,
+    rgb(42, 100, 115) 0%,
     oklch(67.616% 0.11557 251.66) 20%,
     oklch(86.934% 0.11657 185.089) 40%,
     oklch(91.846% 0.08953 186.198) 60%,
     oklch(83.424% 0.09579 214.384) 80%,
-    oklch(44.858% 0.20596 271.518) 100%
+    rgb(42, 100, 115) 100%
   );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -490,7 +490,7 @@
   );
   backdrop-filter: blur(30px);
   border-left: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.15);
+  box-shadow: -10px 0 30px rgb(42, 100, 115);
 }
 
 /* Enhanced white text shadow utility for maximum contrast on golden text */

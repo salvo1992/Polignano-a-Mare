@@ -47,13 +47,13 @@ export function RoomsPreview() {
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-6">Le Nostre Camere</h2>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto text-balance">
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto text-balance">
             Ogni camera è un rifugio di comfort e eleganza, progettata per offrirti un'esperienza di soggiorno
             indimenticabile
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
           {rooms.map((room, index) => (
             <div
               key={room.id}
