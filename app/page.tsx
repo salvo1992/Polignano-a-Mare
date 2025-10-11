@@ -3,6 +3,7 @@ import { HeroSection } from "@/components/hero-section"
 import { ServicesSection } from "@/components/services-section"
 import { RoomsPreview } from "@/components/rooms-preview"
 import { StorySection } from "@/components/story-section"
+import ReviewsSection from "@/components/ReviewsSection"
 import { Footer } from "@/components/footer"
 
 export default function HomePage() {
@@ -13,6 +14,7 @@ export default function HomePage() {
       <StorySection />
       <ServicesSection />
       <RoomsPreview />
+      <ReviewsSection className="mb-16" />
       <Footer />
     </main>
   )

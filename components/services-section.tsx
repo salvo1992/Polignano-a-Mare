@@ -64,7 +64,7 @@ export function ServicesSection() {
         <div className="text-center mb-16">
           <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-6">I Nostri Servizi</h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto text-balance">
-            Scopri tutti i servizi che rendono il tuo soggiorno a Villa Bella Vista un'esperienza indimenticabile
+            Scopri tutti i servizi che rendono il tuo soggiorno AL 22 Suite & SPA LUXURY EXPERIENCE un'esperienza indimenticabile
           </p>
         </div>
 

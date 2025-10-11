@@ -36,20 +36,7 @@ const rooms = [
     reviews: 32,
     featured: false,
   },
-  {
-    id: 3,
-    name: "Acies con 2 bagni e balconcino privato",
-    description: "Spaziosa suite ideale per famiglie con area living separata",
-    image: "/images/room-3.jpg",
-    price: "€150",
-    guests: 4,
-    beds: 2,
-    bathrooms: 2,
-    amenities: ["Area living", "Cucina attrezzata", "Terrazza privata", "WiFi gratuito"],
-    rating: 4.9,
-    reviews: 28,
-    featured: true,
-  },
+  
 ]
 
 export function RoomsPreview() {

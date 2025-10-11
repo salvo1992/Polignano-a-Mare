@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, Star, MapPin } from "lucide-react"
+import Link from "next/link"
 
 const heroImages = [
   {
@@ -101,17 +102,8 @@ export function HeroSection() {
               className="flex items-center justify-center gap-3 mb-10 animate-bounce-in"
               style={{ animationDelay: "0.5s" }}
             >
-              <div className="flex items-center gap-1 bg-black/30 backdrop-blur-sm rounded-full px-4 py-2">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className="w-6 h-6 fill-yellow-400 text-yellow-400 animate-pulse-slow"
-                    style={{ animationDelay: `${i * 0.1}s` }}
-                  />
-                ))}
-              </div>
-              <span className="text-2xl font-bold">4.9/5</span>
-              <span className="text-lg opacity-75">(127 recensioni)</span>
+              
+              
             </div>
 
             {/* Enhanced location */}
@@ -134,14 +126,14 @@ export function HeroSection() {
                 size="lg"
                 className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-xl px-12 py-4 rounded-full shadow-2xl hover:shadow-primary/25 transition-all duration-300 hover:scale-105 animate-shimmer"
               >
-                Prenota il Tuo Soggiorno
+                <Link href="/prenota">Prenota il Tuo Soggiorno</Link>
               </Button>
               <Button
                 size="lg"
                 variant="outline"
                 className="border-2 border-white text-white hover:bg-white hover:text-foreground text-xl px-12 py-4 rounded-full bg-white/10 backdrop-blur-sm transition-all duration-300 hover:scale-105"
               >
-                Scopri di Più
+                <Link href="/servizi">Scopri di Più</Link>
               </Button>
             </div>
           </div>
