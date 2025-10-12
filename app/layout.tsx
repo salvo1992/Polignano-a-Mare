@@ -9,6 +9,9 @@ import { LanguageProvider } from "@/components/language-provider"
 import { AuthProvider } from "@/components/auth-provider"
 import { CookieConsent } from "@/components/cookie-consent"
 import "./globals.css"
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 
 const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
