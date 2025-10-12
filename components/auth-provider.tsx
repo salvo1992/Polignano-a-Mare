@@ -1,137 +1,210 @@
-"use client"
+"use client";
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { onIdTokenChanged, type User as FirebaseUser } from "firebase/auth";
+import {
+  auth,
+  db,
+  registerWithEmail,
+  loginWithEmail,
+  loginWithGoogle,
+  logout as fbLogout,
+} from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
-interface User {
-  id: string
-  name: string
-  email: string
-  role: "user" | "admin"
-  avatar?: string
+export type AppRole = "user" | "admin";
+
+export interface AppUser {
+  uid: string;
+  email: string;
+  displayName?: string | null;
+  photoURL?: string | null;
+  role: AppRole;
+  idToken?: string;
 }
 
 interface AuthContextType {
-  user: User | null
-  login: (email: string, password: string) => Promise<boolean>
-  register: (name: string, email: string, password: string) => Promise<boolean>
-  logout: () => void
-  isLoading: boolean
+  user: AppUser | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<boolean>;
+  loginWithGoogleProvider: () => Promise<boolean>;
+  register: (name: string, email: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  refreshToken: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users for demonstration
-const mockUsers = [
-  {
-    id: "1",
-    name: "Marco Rossi",
-    email: "marco.rossi@email.com",
-    password: "password123",
-    role: "user" as const,
-    avatar: "/diverse-user-avatars.png",
-  },
-  {
-    id: "2",
-    name: "Admin Villa Bella Vista",
-    email: "admin@villabellavista.it",
-    password: "admin123",
-    role: "admin" as const,
-  },
-]
+// ---------- COOKIE HELPERS ----------
+function setRoleCookie(role: "user" | "admin" | "") {
+  // Persisto 7 giorni; SameSite=Lax per evitare loop.
+  const maxAge = 60 * 60 * 24 * 7;
+  const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+  const secure = isHttps ? "Secure; " : "";
+  if (role) {
+    document.cookie = `app_role=${role}; Path=/; Max-Age=${maxAge}; ${secure}SameSite=Lax`;
+  } else {
+    // clear
+    document.cookie = `app_role=; Path=/; Max-Age=0; ${secure}SameSite=Lax`;
+  }
+}
 
+// ---------- HELPERS ----------
+async function readUserRole(uid: string): Promise<AppRole> {
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (!snap.exists()) return "user";
+    const raw = (snap.data()?.role as string | undefined) ?? "user";
+    // normalizza: qualunque valore non "admin" diventa "user"
+    return raw === "admin" ? "admin" : "user";
+  } catch {
+    return "user";
+  }
+}
+
+function firebaseToAppUser(fbUser: FirebaseUser, idToken: string, role: AppRole): AppUser {
+  return {
+    uid: fbUser.uid,
+    email: fbUser.email ?? "",
+    displayName: fbUser.displayName,
+    photoURL: fbUser.photoURL,
+    role,
+    idToken,
+  };
+}
+
+// ---------- PROVIDER ----------
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Sottoscrizione token/utente
   useEffect(() => {
-    // Check for stored user session
-    const storedUser = localStorage.getItem("bb-user")
-    if (storedUser) {
+    const unsub = onIdTokenChanged(auth, async (fbUser) => {
       try {
-        setUser(JSON.parse(storedUser))
-      } catch (error) {
-        console.error("Error parsing stored user:", error)
-        localStorage.removeItem("bb-user")
+        if (!fbUser) {
+          setUser(null);
+          setRoleCookie(""); // <--- pulizia cookie
+          setIsLoading(false);
+          return;
+        }
+        const [idToken, role] = await Promise.all([
+          fbUser.getIdToken(/* forceRefresh */ false),
+          readUserRole(fbUser.uid),
+        ]);
+        setUser(firebaseToAppUser(fbUser, idToken, role));
+        setRoleCookie(role); // <--- cookie aggiornato
+      } catch (e) {
+        console.error("onIdTokenChanged error", e);
+        setUser(null);
+        setRoleCookie(""); // <--- pulizia cookie in errore
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false)
-  }, [])
+    });
+    return () => unsub();
+  }, []);
+
+  const refreshToken = async () => {
+    if (!auth.currentUser) return;
+    const [idToken, role] = await Promise.all([
+      auth.currentUser.getIdToken(true),
+      readUserRole(auth.currentUser.uid),
+    ]);
+    setUser(firebaseToAppUser(auth.currentUser, idToken, role));
+    setRoleCookie(role); // <--- cookie aggiornato
+  };
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    setIsLoading(true)
-
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    const foundUser = mockUsers.find((u) => u.email === email && u.password === password)
-
-    if (foundUser) {
-      const userSession = {
-        id: foundUser.id,
-        name: foundUser.name,
-        email: foundUser.email,
-        role: foundUser.role,
-        avatar: foundUser.avatar,
-      }
-      setUser(userSession)
-      localStorage.setItem("bb-user", JSON.stringify(userSession))
-      setIsLoading(false)
-      return true
+    try {
+      setIsLoading(true);
+      const fbUser = await loginWithEmail(email, password);
+      const [idToken, role] = await Promise.all([
+        fbUser.getIdToken(true),
+        readUserRole(fbUser.uid),
+      ]);
+      setUser(firebaseToAppUser(fbUser, idToken, role));
+      setRoleCookie(role); // <--- cookie aggiornato
+      return true;
+    } catch (e) {
+      console.error("login error", e);
+      return false;
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    setIsLoading(false)
-    return false
-  }
+  const loginWithGoogleProvider = async (): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      const fbUser = await loginWithGoogle();
+      const [idToken, role] = await Promise.all([
+        fbUser.getIdToken(true),
+        readUserRole(fbUser.uid),
+      ]);
+      setUser(firebaseToAppUser(fbUser, idToken, role));
+      setRoleCookie(role); // <--- cookie aggiornato
+      return true;
+    } catch (e) {
+      console.error("google login error", e);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const register = async (name: string, email: string, password: string): Promise<boolean> => {
-    setIsLoading(true)
-
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // Check if user already exists
-    const existingUser = mockUsers.find((u) => u.email === email)
-    if (existingUser) {
-      setIsLoading(false)
-      return false
+    try {
+      setIsLoading(true);
+      const fbUser = await registerWithEmail(email, password);
+      const [idToken, role] = await Promise.all([
+        fbUser.getIdToken(true),
+        readUserRole(fbUser.uid),
+      ]);
+      setUser(firebaseToAppUser(fbUser, idToken, role));
+      setRoleCookie(role); // <--- cookie aggiornato
+      return true;
+    } catch (e) {
+      console.error("register error", e);
+      return false;
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    // Create new user
-    const newUser = {
-      id: Date.now().toString(),
-      name,
-      email,
-      password,
-      role: "user" as const,
-    }
+  const logout = async () => {
+    await fbLogout();
+    setUser(null);
+    setRoleCookie(""); // <--- clear
+  };
 
-    mockUsers.push(newUser)
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      isLoading,
+      login,
+      loginWithGoogleProvider,
+      register,
+      logout,
+      refreshToken,
+    }),
+    [user, isLoading]
+  );
 
-    const userSession = {
-      id: newUser.id,
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-    }
-
-    setUser(userSession)
-    localStorage.setItem("bb-user", JSON.stringify(userSession))
-    setIsLoading(false)
-    return true
-  }
-
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem("bb-user")
-  }
-
-  return <AuthContext.Provider value={{ user, login, register, logout, isLoading }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
-  }
-  return context
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
+  return ctx;
 }
+
+

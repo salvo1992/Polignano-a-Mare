@@ -1,6 +1,5 @@
 "use client";
 
-import type React from "react";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -8,37 +7,36 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/components/auth-provider";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn, Shield } from "lucide-react";
 
-export default function LoginPage() {
-  const { login, isLoading, user } = useAuth();
+export default function AdminLoginPage() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/user";
+  const next = params.get("next") || "/admin";
 
+  const { login, isLoading, user } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const [error, setError] = useState("");
+  const [err, setErr] = useState("");
+  const [form, setForm] = useState({ email: "", password: "" });
 
+  // Redirect appena il ruolo è admin
   useEffect(() => {
-    if (!isLoading && user) {
+    if (!isLoading && user?.role === "admin") {
       router.replace(next);
     }
   }, [user, isLoading, next, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    const ok = await login(formData.email, formData.password);
-    if (!ok) setError("Email o password non corretti");
+    setErr("");
+    const ok = await login(form.email, form.password);
+    if (!ok) {
+      setErr("Credenziali non valide o privilegi insufficienti");
+      return;
+    }
     // redirect gestito dall'useEffect
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   return (
@@ -48,58 +46,59 @@ export default function LoginPage() {
         <div className="container mx-auto px-4">
           <div className="max-w-md mx-auto">
             <div className="text-center mb-8 animate-fade-in-up">
-              <h1 className="text-3xl font-cinzel font-bold text-roman-gradient mb-2">Accedi</h1>
-              <p className="text-muted-foreground">Benvenuto di nuovo a Villa Bella Vista</p>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Shield className="h-5 w-5 text-primary" />
+                <h1 className="text-3xl font-cinzel font-bold text-roman-gradient">Accesso Amministratore</h1>
+              </div>
+              <p className="text-muted-foreground">Area riservata. Solo credenziali admin valide possono entrare.</p>
             </div>
 
             <Card className="card-enhanced animate-bounce-in">
               <CardHeader className="text-center">
-                <CardTitle className="text-2xl font-cinzel text-primary">Accedi al tuo Account</CardTitle>
-                <CardDescription>Inserisci le tue credenziali per continuare</CardDescription>
+                <CardTitle className="text-2xl font-cinzel text-primary">Pannello Admin</CardTitle>
+                <CardDescription>Inserisci le credenziali amministratore</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={onSubmit} className="space-y-4">
                   <div>
-                    <Label htmlFor="email">Email</Label>
+                    <label htmlFor="email" className="text-sm">Email</label>
                     <Input
                       id="email"
-                      name="email"
                       type="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
+                      placeholder="ekobit.cloud@gmail.com"
+                      value={form.email}
+                      onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
                       required
                       className="mt-1"
-                      placeholder="marco.rossi@email.com"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="password">Password</Label>
+                    <label htmlFor="password" className="text-sm">Password</label>
                     <div className="relative mt-1">
                       <Input
                         id="password"
-                        name="password"
                         type={showPassword ? "text" : "password"}
-                        value={formData.password}
-                        onChange={handleInputChange}
-                        required
                         placeholder="••••••••"
+                        value={form.password}
+                        onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
+                        required
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
+                        onClick={() => setShowPassword((s) => !s)}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
 
-                  {error && (
+                  {err && (
                     <div className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-md p-3 animate-fade-in-up">
-                      {error}
+                      {err}
                     </div>
                   )}
 
@@ -122,18 +121,10 @@ export default function LoginPage() {
                   </Button>
                 </form>
 
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Non hai un account?{" "}
-                    <Link href="/register" className="text-primary hover:underline font-medium">
-                      Registrati qui
-                    </Link>
-                  </p>
-                </div>
-
-                <div className="mt-4 text-center">
-                  <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-                    Hai dimenticato la password?
+                <div className="mt-6 text-center text-xs text-muted-foreground">
+                  Non sei admin?{" "}
+                  <Link href="/login" className="text-primary hover:underline font-medium">
+                    Torna al login utenti
                   </Link>
                 </div>
               </CardContent>
@@ -141,8 +132,9 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-
-      <Footer />
+      
+    <Footer />
     </main>
+    
   );
 }
