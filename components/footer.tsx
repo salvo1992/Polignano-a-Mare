@@ -117,7 +117,7 @@ export function Footer() {
         <div className="border-t border-background/20 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-background/80">
             <div className="flex flex-col md:flex-row items-center gap-4">
-              <p>© COPYRIGHT 2024 - Tenuta Mosè . Tutti i diritti riservati.</p>
+              <p>© COPYRIGHT 2025 - AL 22 Suite & SPA LUXURY EXPERIENCE Tutti i diritti riservati.</p>
             </div>
 
             <div className="flex items-center gap-2">

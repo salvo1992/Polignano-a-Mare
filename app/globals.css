@@ -5,13 +5,13 @@
 
 :root {
   /* Updated color palette to sand theme instead of green */
-  --background: oklch(100% 0.00011 271.152); /* Light sand */
+  --background: #e3f0f3; /* Light sand */
   --foreground: oklch(0.15 0.02 25); /* Deep brown */
-  --card: oklch(0.98 0.01 70);
+  --card: oklch(98.12% 0.01096 211.546);
   --card-foreground: oklch(0.15 0.02 25);
-  --popover: oklch(0.98 0.01 85);
+  --popover: oklch(97.501% 0.00926 232.797);
   --popover-foreground: oklch(0.15 0.02 25);
-  --primary: rgb(42, 100, 115); /* Roman red */
+  --primary: rgb(67, 137, 184); /* Roman red */
   --primary-foreground: oklch(0.98 0.01 85);
   --secondary: oklch(84.241% 0.05601 249.365); /* Warm sand color */
   --secondary-foreground: oklch(0.15 0.02 25);
@@ -20,9 +20,9 @@
   --accent: oklch(60.642% 0.18442 278.003); /* Golden yellow accent */
   --accent-foreground: oklch(0.15 0.02 25);
   --destructive: rgb(42, 100, 115);
-  --destructive-foreground: oklch(0.98 0.01 85);
-  --border: oklch(0.88 0.02 60);
-  --input: oklch(0.94 0.02 65);
+  --destructive-foreground: oklch(98.092% 0.01069 204.678);
+  --border: oklch(69.824% 0.10463 219.238);
+  --input: oklch(93.728% 0.01939 230.911);
   --ring: rgb(42, 100, 115);
   --chart-1: rgb(42, 100, 115);
   --chart-2: oklch(82.259% 0.07954 199.823);
@@ -33,16 +33,16 @@
   --sidebar: rgb(42, 100, 115); /* Semi-transparent red */
   --sidebar-foreground: oklch(0.98 0.01 85);
   --sidebar-primary: oklch(99.308% 0.0034 37.997);
-  --sidebar-primary-foreground: rgb(42, 100, 115);
+  --sidebar-primary-foreground: rgb(235, 235, 235);
   --sidebar-accent: oklch(81.934% 0.1094 185.002);
-  --sidebar-accent-foreground: oklch(0.98 0.01 85);
-  --sidebar-border: rgb(42, 100, 115);
+  --sidebar-accent-foreground: oklch(97.895% 0.00996 213.071);
+  --sidebar-border: rgb(195, 232, 241);
   --sidebar-ring: oklch(87.182% 0.11464 190.479);
 }
 
 .dark {
   --background: rgb(42, 100, 115);
-  --foreground: oklch(0.95 0.01 80);
+  --foreground: oklch(0% 0 0);
   --card: oklch(0.15 0.02 25);
   --card-foreground: oklch(0.95 0.01 80);
   --popover: oklch(0.12 0.02 25);
@@ -64,8 +64,8 @@
   --sidebar-foreground: oklch(95.093% 0.01077 204.654);
   --sidebar-primary: oklch(62.219% 0.1404 268.265);
   --sidebar-primary-foreground:rgb(42, 100, 115);
-  --sidebar-accent:rgb(42, 100, 115);
-  --sidebar-accent-foreground: oklch(0.95 0.01 80);
+  --sidebar-accent:rgb(238, 238, 238);
+  --sidebar-accent-foreground: oklch(15.434% 0.00002 271.152);
   --sidebar-border: rgb(42, 100, 115);
   --sidebar-ring: oklch(62.632% 0.13797 267.312);
 }
@@ -118,6 +118,7 @@
   }
   body {
     @apply bg-background text-foreground relative overflow-x-hidden;
+        background-color: #daf5fb;
   }
 
   /* Updated to sand background with subtle texture animation */
@@ -128,7 +129,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: radial-gradient(circle at 20% 80%, rgba(194, 154, 108, 0.1) 0%, transparent 50%),
+    background: radial-gradient(circle at 20% 80%, #e3f0f3 0%, transparent 50%),
       radial-gradient(circle at 80% 20%, rgba(218, 165, 32, 0.08) 0%, transparent 50%),
       linear-gradient(135deg, rgba(222, 184, 135, 0.05) 0%, rgba(245, 222, 179, 0.05) 100%);
     z-index: -2;
@@ -147,8 +148,8 @@
         45deg,
         transparent,
         transparent 3px,
-        rgba(194, 154, 108, 0.02) 3px,
-        rgba(194, 154, 108, 0.02) 6px
+        rgba(169, 229, 240, 0.02) 3px,
+        rgba(238, 242, 243, 0.02) 6px
       ),
       repeating-linear-gradient(
         -45deg,
@@ -409,7 +410,7 @@
   -webkit-text-fill-color: transparent;
   background-clip: text;
   background-size: 200% 200%;
-  animation: shimmer 4s ease-in-out infinite;
+  animation: shimmer 6s ease-in-out infinite;
 }
 
 .text-balance {
@@ -481,18 +482,23 @@
 }
 
 .sidebar-menu-enhanced {
-  /* Made sidebar extremely transparent while keeping red color visible */
-  background: linear-gradient(
-    135deg,
-    rgba(59, 38, 220, 0.25) 0%,
-    rgba(78, 28, 185, 0.2) 50%,
-    rgba(67, 27, 153, 0.25) 100%
-  );
-  backdrop-filter: blur(30px);
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: -10px 0 30px rgb(42, 100, 115);
+  background: var(--color-sidebar) !important;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.2);
+  border-left: 1px solid rgba(255,255,255,0.2);
 }
-
+.bg-black\/80 {
+  background-color: rgba(42, 100, 115, 0.8);
+}
+.text-yellow-900 {
+  color: white;
+}
+.to-yellow-600 {
+  --tw-gradient-from: rgba(42, 100, 115, 0.8);
+  --tw-gradient-to: transparent;
+}
+.from-yellow-400 {
+  --tw-gradient-from: transparent;
+} 
 /* Enhanced white text shadow utility for maximum contrast on golden text */
 .text-shadow-white {
   /* Maximum text shadow for perfect visibility on transparent background */

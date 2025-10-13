@@ -11,38 +11,37 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Users, ChevronLeft, ChevronRight, Star, MapPin, Clock, CreditCard, Wallet } from "lucide-react";
-import { useLanguage } from "@/components/language-provider";
+import { Calendar, Users, MapPin, Clock, CreditCard } from "lucide-react";
 import { useScrollAnimation } from "@/hooks/use-scroll-animation";
 import { createBooking, type BookingPayload } from "@/lib/firebase";
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-const roomImages = [
-  { src: "/images/room-1.jpg", alt: "Camera Deluxe con vista panoramica", title: "Camera Deluxe" },
-  { src: "/images/room-2.jpg", alt: "Suite Panoramica con terrazza privata", title: "Suite Panoramica" },
-  { src: "/luxury-family-room-with-multiple-beds.jpg", alt: "Camera Familiare spaziosa", title: "Camera Familiare" },
-  { src: "/romantic-room-with-candles-and-rose-petals.jpg", alt: "Camera Romantica con atmosfera intima", title: "Camera Romantica" },
-];
-
-// prezzi base per notte
+/* =========================
+   PREZZI BASE PER NOTTE
+   ========================= */
 const ROOM_PRICES: Record<string, number> = {
   deluxe: 120,
   suite: 180,
-  family: 160,
-  romantic: 140,
 };
 
 type PayMethod = "stripe" | "paypal" | "satispay";
 
 export default function BookingPage() {
-  const { t } = useLanguage();
   const router = useRouter();
   const search = useSearchParams();
-
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation();
-  const { ref: carouselRef, isVisible: carouselVisible } = useScrollAnimation();
 
+  /* -------------------------
+     FORM STATE
+     ------------------------- */
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -62,6 +61,9 @@ export default function BookingPage() {
     if (hasError) setShowErrorModal(true);
   }, [hasError]);
 
+  /* -------------------------
+     Notti & Totale
+     ------------------------- */
   const nights = useMemo(() => {
     const ci = formData.checkIn ? new Date(formData.checkIn) : null;
     const co = formData.checkOut ? new Date(formData.checkOut) : null;
@@ -70,16 +72,17 @@ export default function BookingPage() {
     return diff > 0 ? diff : 0;
   }, [formData.checkIn, formData.checkOut]);
 
-  // prezzo visibile sempre in overlay
   const basePrice = ROOM_PRICES[formData.roomType] ?? 0;
   const extraGuests = Math.max(0, Number(formData.guests || "1") - 2);
-  const extraFee = extraGuests * 20; // 20€/notte per ospite extra
-  const total = nights * (basePrice + extraFee);
+  const extraFeePerNight = extraGuests * 20; // €20/notte per ospite extra
+  const total = nights * (basePrice + extraFeePerNight);
 
+  /* -------------------------
+     Submit
+     ------------------------- */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // crea prenotazione "pending" su Firestore
     const payload: BookingPayload = {
       checkIn: formData.checkIn,
       checkOut: formData.checkOut,
@@ -88,7 +91,7 @@ export default function BookingPage() {
       email: formData.email,
       phone: formData.phone,
       notes: formData.specialRequests,
-      totalAmount: total * 100, // in cents
+      totalAmount: Math.round(total * 100), // cents
       currency: "EUR",
       status: "pending",
       source: "site",
@@ -96,11 +99,7 @@ export default function BookingPage() {
 
     try {
       const bookingId = await createBooking(payload);
-      // passa i dati essenziali al checkout via query
-      const qs = new URLSearchParams({
-        bookingId,
-        method: payMethod,
-      }).toString();
+      const qs = new URLSearchParams({ bookingId, method: payMethod }).toString();
       router.push(`/checkout?${qs}`);
     } catch (err) {
       console.error("Create booking error:", err);
@@ -108,233 +107,331 @@ export default function BookingPage() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const nextImage = () => setCurrentImageIndex((prev) => (prev + 1) % roomImages.length);
-  const prevImage = () => setCurrentImageIndex((prev) => (prev - 1 + roomImages.length) % roomImages.length);
-
+  /* -------------------------
+     UI
+     ------------------------- */
   return (
     <main className="min-h-screen">
       <Header />
 
       <div className="pt-20 pb-16">
         <div className="container mx-auto px-4">
+          {/* HERO */}
           <div
             ref={heroRef}
-            className={`text-center mb-12 transition-all duration-1000 ${heroVisible ? "animate-fade-in-up opacity-100" : "opacity-0 translate-y-[50px]"}`}
+            className={`text-center mb-10 transition-all duration-1000 ${
+              heroVisible ? "animate-fade-in-up opacity-100" : "opacity-0 translate-y-[50px]"
+            }`}
           >
             <h1 className="text-4xl md:text-6xl font-cinzel font-bold text-roman-gradient mb-4 animate-text-shimmer">
               Prenota il Tuo Soggiorno
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">Vivi un'esperienza indimenticabile nel cuore di Roma</p>
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+              Vivi un&apos;esperienza indimenticabile nel cuore di <strong>Polignano a Mare</strong>
+            </p>
           </div>
 
-          <div
-            ref={carouselRef}
-            className={`mb-12 transition-all duration-1000 delay-300 ${carouselVisible ? "animate-slide-in-up opacity-100" : "opacity-0 translate-y-[30px]"}`}
-          >
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-cinzel font-bold text-roman-gradient mb-2">Le Nostre Camere</h2>
-              <p className="text-sm text-muted-foreground">Scopri dove soggiornerai</p>
-            </div>
-
-            <div className="max-w-2xl mx-auto">
-              <div className="relative rounded-xl overflow-hidden shadow-lg">
-                <div className="relative h-56 md:h-64">
-                  <Image
-                    src={
-                      roomImages[currentImageIndex]?.src ||
-                      `/placeholder.svg?height=400&width=800&query=${roomImages[currentImageIndex]?.title || "/placeholder.svg"} luxury room`
-                    }
-                    alt={roomImages[currentImageIndex]?.alt || "Camera di lusso"}
-                    fill
-                    className="object-cover"
-                  />
-
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                  {/* Prezzo in sovra-impressione */}
-                  <div className="absolute top-3 right-3">
-                    <span className="rounded-full bg-black/60 text-white text-xs px-3 py-1">
-                      {formData.roomType ? `da €${basePrice}/notte` : "scegli una camera"}
-                    </span>
-                  </div>
-
-                  <div className="absolute bottom-4 left-4 text-white">
-                    <h3 className="text-xl font-cinzel font-bold">{roomImages[currentImageIndex]?.title}</h3>
-                    <div className="flex items-center gap-1 mt-1">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white"
-                  onClick={prevImage}
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white"
-                  onClick={nextImage}
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </Button>
-
-                <div className="absolute bottom-4 right-4 flex gap-2">
-                  {roomImages.map((_, index) => (
-                    <button
-                      key={index}
-                      className={`w-2 h-2 rounded-full transition-all duration-300 ${index === currentImageIndex ? "bg-white scale-125" : "bg-white/50"}`}
-                      onClick={() => setCurrentImageIndex(index)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <Card className="card-semi-transparent animate-slide-in-left bg-[#f5e6d3]/30 max-w-2xl">
-                <CardHeader>
-                  <CardTitle className="text-2xl font-cinzel text-primary">Dettagli Prenotazione</CardTitle>
-                  <CardDescription>Compila il modulo per prenotare il tuo soggiorno</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-5">
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="name" className="mb-2 block">Nome Completo</Label>
-                        <Input id="name" name="name" value={formData.name} onChange={handleInputChange} required />
-                      </div>
-                      <div>
-                        <Label htmlFor="email" className="mb-2 block">Email</Label>
-                        <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
-                      </div>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="phone" className="mb-2 block">Telefono</Label>
-                        <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} />
-                      </div>
-                      <div>
-                        <Label htmlFor="guests" className="mb-2 block">Numero Ospiti</Label>
-                        <select id="guests" name="guests" value={formData.guests} onChange={handleInputChange} className="w-full px-3 py-2 border border-input rounded-md bg-background">
-                          <option value="1">1 Ospite</option>
-                          <option value="2">2 Ospiti</option>
-                          <option value="3">3 Ospiti</option>
-                          <option value="4">4 Ospiti</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="checkIn" className="mb-2 block">Check-in</Label>
-                        <Input id="checkIn" name="checkIn" type="date" value={formData.checkIn} onChange={handleInputChange} required />
-                      </div>
-                      <div>
-                        <Label htmlFor="checkOut" className="mb-2 block">Check-out</Label>
-                        <Input id="checkOut" name="checkOut" type="date" value={formData.checkOut} onChange={handleInputChange} required />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="roomType" className="mb-2 block">Tipo Camera</Label>
-                      <select id="roomType" name="roomType" value={formData.roomType} onChange={handleInputChange} className="w-full px-3 py-2 border border-input rounded-md bg-background" required>
-                        <option value="">Seleziona una camera</option>
-                        <option value="deluxe">Camera Deluxe</option>
-                        <option value="suite">Suite Panoramica</option>
-                        <option value="family">Camera Familiare</option>
-                        <option value="romantic">Camera Romantica</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="specialRequests" className="mb-2 block">Richieste Speciali</Label>
-                      <Textarea id="specialRequests" name="specialRequests" value={formData.specialRequests} onChange={handleInputChange} placeholder="Eventuali richieste particolari..." rows={3} />
-                    </div>
-
-                    {/* Metodi di pagamento */}
-                    <div className="border rounded-lg p-4 bg-background/50">
-                      <p className="font-medium mb-3">Metodo di Pagamento</p>
-                      <div className="grid sm:grid-cols-3 gap-2">
-                        <label className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer ${payMethod === "stripe" ? "border-primary" : "border-muted"}`}>
-                          <input type="radio" name="payMethod" className="hidden" checked={payMethod === "stripe"} onChange={() => setPayMethod("stripe")} />
-                          <CreditCard className="w-4 h-4" /> Carta (Stripe)
-                        </label>
-                        <label className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer ${payMethod === "paypal" ? "border-primary" : "border-muted"}`}>
-                          <input type="radio" name="payMethod" className="hidden" checked={payMethod === "paypal"} onChange={() => setPayMethod("paypal")} />
-                          <Wallet className="w-4 h-4" /> PayPal
-                        </label>
-                        <label className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer ${payMethod === "satispay" ? "border-primary" : "border-muted"}`}>
-                          <input type="radio" name="payMethod" className="hidden" checked={payMethod === "satispay"} onChange={() => setPayMethod("satispay")} />
-                          <Wallet className="w-4 h-4" /> Satispay
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Totale visibile */}
-                    <div className="flex items-center justify-between bg-muted/40 rounded-lg px-4 py-3">
-                      <div className="text-sm text-muted-foreground">
-                        {nights > 0 ? `${nights} notte${nights > 1 ? "i" : ""} • ${formData.guests} ospite/i` : "Completa date e camera"}
-                      </div>
-                      <div className="text-xl font-semibold">Totale: €{isFinite(total) ? total.toFixed(2) : "0.00"}</div>
-                    </div>
-
-                    <Button type="submit" className="w-full text-lg py-6">Conferma Prenotazione</Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-6 animate-slide-in-right">
-              <div className="card-invisible p-4">
-                <div className="flex items-start gap-3 mb-3">
-                  <Clock className="h-4 w-4 text-primary mt-1 flex-shrink-0" />
-                  <div>
-                    <h3 className="font-cinzel font-semibold text-primary text-sm mb-2">Check-in/Check-out</h3>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex items-center gap-2"><Calendar className="h-3 w-3 text-primary" /><span className="font-medium">Check-in: 15:00 - 20:00</span></div>
-                      <div className="flex items-center gap-2"><Calendar className="h-3 w-3 text-primary" /><span className="font-medium">Check-out: 08:00 - 11:00</span></div>
-                      <div className="flex items-center gap-2"><Users className="h-3 w-3 text-primary" /><span className="text-muted-foreground">Max 4 ospiti per camera</span></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="card-invisible p-4">
+          {/* TRE CARD INFO (responsive, centrate) */}
+          <div className="mx-auto max-w-5xl grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-10">
+            {/* Check-in / out */}
+            <Card className="h-full">
+              <CardContent className="p-5">
                 <div className="flex items-start gap-3">
-                  <MapPin className="h-4 w-4 text-primary mt-1 flex-shrink-0" />
+                  <Clock className="h-5 w-5 text-primary mt-1" />
                   <div>
-                    <h3 className="font-cinzel font-semibold text-primary text-sm mb-2">Come Raggiungerci</h3>
-                    <div className="space-y-1 text-xs text-muted-foreground">
-                      <p>Via dei Colli Romani, 123</p>
-                      <p>00100 Roma, Italia</p>
-                      <p className="pt-1"><strong className="text-foreground">Aeroporto:</strong> 45 min</p>
-                      <p><strong className="text-foreground">Termini:</strong> 20 min</p>
-                      <p><strong className="text-foreground">Colosseo:</strong> 15 min a piedi</p>
+                    <h3 className="font-cinzel font-semibold text-primary mb-2">Check-in / Check-out</h3>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-primary" />
+                        <span className="font-medium">Check-in: 15:00 – 20:00</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-primary" />
+                        <span className="font-medium">Check-out: 08:00 – 11:00</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-primary" />
+                        <span className="text-muted-foreground">Max 4 ospiti per camera</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              {/* riepilogo mini sempre visibile */}
-              <div className="rounded-lg border p-4">
-                <p className="text-sm text-muted-foreground mb-1">Prezzo stimato</p>
-                <div className="text-2xl font-bold">€{isFinite(total) ? total.toFixed(2) : "0.00"}</div>
-                <p className="text-xs text-muted-foreground mt-1">Tasse incluse dove applicabili.</p>
+            {/* Come raggiungerci */}
+            <Card className="h-full">
+              <CardContent className="p-5">
+                <div className="flex items-start gap-3">
+                  <MapPin className="h-5 w-5 text-primary mt-1" />
+                  <div>
+                    <h3 className="font-cinzel font-semibold text-primary mb-2">Come Raggiungerci</h3>
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <p>Centro storico, Polignano a Mare (BA)</p>
+                      <p><strong className="text-foreground">Aeroporto Bari:</strong> ~45 min</p>
+                      <p><strong className="text-foreground">Stazione FS:</strong> ~10 min a piedi</p>
+                      <p><strong className="text-foreground">Lama Monachile:</strong> ~5 min a piedi</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Prezzo stimato */}
+            <Card className="h-full">
+              <CardContent className="p-5">
+                <h3 className="font-cinzel font-semibold text-primary mb-2">Prezzo stimato</h3>
+                <p className="text-sm text-muted-foreground mb-1">
+                  {nights > 0
+                    ? `${nights} notte${nights > 1 ? "i" : ""} • ${formData.guests} ospite/i`
+                    : "Inserisci date e ospiti"}
+                </p>
+                <div className="text-3xl font-bold">
+                  €{isFinite(total) ? total.toFixed(2) : "0.00"}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Tasse incluse dove applicabili.</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* DETTAGLI PRENOTAZIONE */}
+          <Card className="card-semi-transparent bg-[#f5e6d3]/30 max-w-5xl mx-auto mb-14">
+            <CardHeader>
+              <CardTitle className="text-2xl font-cinzel text-primary">Dettagli Prenotazione</CardTitle>
+              <CardDescription>Compila il modulo per prenotare il tuo soggiorno</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name" className="mb-2 block">Nome Completo</Label>
+                    <Input id="name" name="name" value={formData.name} onChange={handleInputChange} required />
+                  </div>
+                  <div>
+                    <Label htmlFor="email" className="mb-2 block">Email</Label>
+                    <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="phone" className="mb-2 block">Telefono</Label>
+                    <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} />
+                  </div>
+                  <div>
+                    <Label htmlFor="guests" className="mb-2 block">Numero Ospiti</Label>
+                    <select
+                      id="guests"
+                      name="guests"
+                      value={formData.guests}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                    >
+                      <option value="1">1 Ospite</option>
+                      <option value="2">2 Ospiti</option>
+                      <option value="3">3 Ospiti</option>
+                      <option value="4">4 Ospiti</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="checkIn" className="mb-2 block">Check-in</Label>
+                    <Input id="checkIn" name="checkIn" type="date" value={formData.checkIn} onChange={handleInputChange} required />
+                  </div>
+                  <div>
+                    <Label htmlFor="checkOut" className="mb-2 block">Check-out</Label>
+                    <Input id="checkOut" name="checkOut" type="date" value={formData.checkOut} onChange={handleInputChange} required />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="roomType" className="mb-2 block">Tipo Camera</Label>
+                    <select
+                      id="roomType"
+                      name="roomType"
+                      value={formData.roomType}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                      required
+                    >
+                      <option value="">Seleziona una camera</option>
+                      <option value="deluxe">Camera Deluxe</option>
+                      <option value="suite">Suite Panoramica</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <div className="w-full text-right text-sm text-muted-foreground">
+                      {formData.roomType
+                        ? `Tariffa base: €${ROOM_PRICES[formData.roomType]}/notte`
+                        : "Seleziona una camera per vedere il prezzo base"}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="specialRequests" className="mb-2 block">Richieste Speciali</Label>
+                  <Textarea
+                    id="specialRequests"
+                    name="specialRequests"
+                    value={formData.specialRequests}
+                    onChange={handleInputChange}
+                    placeholder="Eventuali richieste particolari…"
+                    rows={3}
+                  />
+                </div>
+
+               {/* Metodi di pagamento (brand ufficiali) */}
+<div className="border rounded-lg p-4 bg-background/50">
+  <p className="font-medium mb-3">Metodo di Pagamento</p>
+
+  <div className="grid sm:grid-cols-3 gap-3">
+    {/* STRIPE */}
+    <button
+      type="button"
+      onClick={() => setPayMethod("stripe")}
+      aria-pressed={payMethod === "stripe"}
+      aria-label="Paga con Stripe"
+      className={[
+        "flex items-center justify-center gap-2 rounded-md px-3 py-3 transition-all",
+        payMethod === "stripe"
+          ? "bg-[#635BFF] text-white ring-2 ring-[#635BFF]/30"
+          : "border border-[#635BFF]/40 text-[#635BFF] hover:bg-[#635BFF]/10",
+      ].join(" ")}
+    >
+      {/* Stripe wordmark */}
+      <svg width="84" height="24" viewBox="0 0 88 24" role="img" aria-hidden="true"
+           fill={payMethod === "stripe" ? "#FFFFFF" : "#635BFF"}>
+        <path d="M7.7 10.3c0-1.6 1.3-2.3 3.6-2.6l3.2-.4V5.7c0-1.7-1-2.7-3-2.7-1.8 0-3 .8-3.5 2.4l-3.3-1C5.5 1.7 8 0 11.5 0c4.1 0 6.5 2 6.5 5.6v12.4h-3.5l-.3-1.6c-.9 1.2-2.4 1.9-4.2 1.9-3 0-5.2-1.8-5.2-4.7 0-2.7 1.7-4.2 5-4.6l3.7-.5v-.4c0-1.3-.8-2-2.3-2-1.4 0-2.2.6-2.6 1.9l-3.1-.7z"/>
+        <path d="M27.4 3.2h3.6v15h-3.6zM29.2 0c1.2 0 2 .8 2 2s-.8 2-2 2-2-.8-2-2 .8-2 2-2z"/>
+        <path d="M45.3 7.8c-2.4 0-3.9 1.1-4.7 2V3.2h-3.6v15h3.6v-7.6c.8-.8 1.9-1.5 3.1-1.5 1.8 0 2.7 1.1 2.7 2.9v6.2H50V11c0-2.8-1.6-3.2-4.7-3.2z"/>
+        <path d="M62.9 8.1c-1-1.5-2.7-2.3-4.8-2.3-3.7 0-6.2 2.7-6.2 6.3s2.5 6.3 6.2 6.3c2.1 0 3.8-.8 4.8-2.3v1.8h3.6V3.2h-3.6v4.9zm-4.2 7.1c-1.9 0-3.2-1.4-3.2-3.1s1.3-3.1 3.2-3.1 3.2 1.4 3.2 3.1-1.3 3.1-3.2 3.1z"/>
+        <path d="M78.8 5.8c-2.2 0-3.6 1.1-4.3 2.2l-.2-1.9h-3.4v12.1h3.6V12c.5-.9 1.7-1.9 3.1-1.9 1.9 0 2.9 1.2 2.9 3.1v5h3.6v-5.9c0-3.3-1.9-6.5-5.3-6.5z"/>
+      </svg>
+    </button>
+
+    {/* PAYPAL */}
+    <button
+      type="button"
+      onClick={() => setPayMethod("paypal")}
+      aria-pressed={payMethod === "paypal"}
+      aria-label="Paga con PayPal"
+      className={[
+        "flex items-center justify-center gap-2 rounded-md px-3 py-3 transition-all",
+        payMethod === "paypal"
+          ? "bg-[#003087] text-white ring-2 ring-[#003087]/30"
+          : "border border-[#003087]/40 text-[#003087] hover:bg-[#003087]/10",
+      ].join(" ")}
+    >
+      {/* Monogram + wordmark semplificato, colori ufficiali */}
+      <svg width="112" height="26" viewBox="0 0 256 64" role="img" aria-hidden="true">
+        <path fill="#009CDE" d="M78 10h22a10 10 0 010 20h-17l-4 20H62L70 10h8z"/>
+        <path fill={payMethod === "paypal" ? "#FFFFFF" : "#003087"} d="M120 10h20a10 10 0 010 20h-15l-4 20h-16l8-40h7z"/>
+        <text x="152" y="34" fontFamily="ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial"
+              fontWeight="700" fontSize="26"
+              fill={payMethod === "paypal" ? "#FFFFFF" : "#003087"}>
+          PayPal
+        </text>
+      </svg>
+    </button>
+
+    {/* SATISPAY */}
+    <button
+      type="button"
+      onClick={() => setPayMethod("satispay")}
+      aria-pressed={payMethod === "satispay"}
+      aria-label="Paga con Satispay"
+      className={[
+        "flex items-center justify-center gap-2 rounded-md px-3 py-3 transition-all",
+        payMethod === "satispay"
+          ? "bg-[#FF2D2E] text-white ring-2 ring-[#FF2D2E]/30"
+          : "border border-[#FF2D2E]/40 text-[#FF2D2E] hover:bg-[#FF2D2E]/10",
+      ].join(" ")}
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" role="img" aria-hidden="true"
+           fill={payMethod === "satispay" ? "#FFFFFF" : "#FF2D2E"}>
+        <path d="M12 2l4 6 6 4-6 4-4 6-4-6-6-4 6-4 4-6z"/>
+      </svg>
+      <span className="font-semibold">Satispay</span>
+    </button>
+  </div>
+</div>
+
+                {/* Totale visibile */}
+                <div className="flex items-center justify-between bg-muted/40 rounded-lg px-4 py-3">
+                  <div className="text-sm text-muted-foreground">
+                    {nights > 0
+                      ? `${nights} notte${nights > 1 ? "i" : ""} • ${formData.guests} ospite/i`
+                      : "Completa date e camera"}
+                  </div>
+                  <div className="text-xl font-semibold">
+                    Totale: €{isFinite(total) ? total.toFixed(2) : "0.00"}
+                  </div>
+                </div>
+
+                <Button type="submit" className="w-full text-lg py-6">
+                  Conferma Prenotazione
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* SEZIONE CAMERE (solo 2, nessun carosello) */}
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-cinzel font-bold text-roman-gradient mb-2">Le Nostre Camere</h2>
+            <p className="text-sm text-muted-foreground">Scopri dove soggiornerai</p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 max-w-5xl mx-auto">
+            {/* Camera Deluxe */}
+            <Card className="overflow-hidden">
+              <div className="relative h-56">
+                <Image src="/images/room-1.jpg" alt="Camera Deluxe con vista panoramica" fill className="object-cover" />
               </div>
-            </div>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Camera Deluxe</CardTitle>
+                    <p className="text-xs text-muted-foreground">Da €{ROOM_PRICES.deluxe}/notte</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setFormData((s) => ({ ...s, roomType: "deluxe" }))}
+                  >
+                    Seleziona
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Suite Panoramica */}
+            <Card className="overflow-hidden">
+              <div className="relative h-56">
+                <Image src="/images/room-2.jpg" alt="Suite Panoramica con terrazza privata" fill className="object-cover" />
+              </div>
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Suite Panoramica</CardTitle>
+                    <p className="text-xs text-muted-foreground">Da €{ROOM_PRICES.suite}/notte</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => setFormData((s) => ({ ...s, roomType: "suite" }))}
+                  >
+                    Seleziona
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

@@ -26,10 +26,10 @@ const cinzel = Cinzel({
 })
 
 export const metadata: Metadata = {
-  title: "Villa Bella Vista - Luxury B&B in Rome",
+  title: "AL 22 Suite & SPA LUXURY EXPERIENCE",
   description:
-    "Experience authentic Italian hospitality at Villa Bella Vista, a luxury bed & breakfast in the heart of Rome",
-  generator: "v0.app",
+    "Experience authentic Italian hospitality at AL 22 Suite & SPA, a luxury bed & breakfast in the heart of Polignano a Mare",
+  generator: "next.js",
 }
 
 export default function RootLayout({
