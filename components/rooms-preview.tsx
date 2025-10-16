@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Users, Bed, Bath, Star, ArrowRight } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
 
 const rooms = [
   {
@@ -36,21 +37,18 @@ const rooms = [
     reviews: 32,
     featured: false,
   },
-  
 ]
 
 export function RoomsPreview() {
   const [hoveredRoom, setHoveredRoom] = useState<number | null>(null)
+  const { t } = useLanguage()
 
   return (
     <section className="py-20 bg-background">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-6">Le Nostre Camere</h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto text-balance">
-            Ogni camera è un rifugio di comfort e eleganza, progettata per offrirti un'esperienza di soggiorno
-            indimenticabile
-          </p>
+          <h2 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-6">{t("roomsTitle")}</h2>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto text-balance">{t("roomsDescription")}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
@@ -72,10 +70,10 @@ export function RoomsPreview() {
                   className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-500"
                 />
                 {room.featured && (
-                  <Badge className="absolute top-4 left-4 bg-primary text-primary-foreground">Più Richiesta</Badge>
+                  <Badge className="absolute top-4 left-4 bg-primary text-primary-foreground">{t("featured")}</Badge>
                 )}
                 <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                  {room.price}/notte
+                  {room.price}/{t("perNight")}
                 </div>
               </div>
 
@@ -91,23 +89,27 @@ export function RoomsPreview() {
 
                 <p className="text-muted-foreground mb-4 text-sm">{room.description}</p>
 
-                {/* Room Details */}
                 <div className="flex items-center gap-4 mb-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Users className="w-4 h-4" />
-                    <span>{room.guests} ospiti</span>
+                    <span>
+                      {room.guests} {t("guests")}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Bed className="w-4 h-4" />
-                    <span>{room.beds} letto</span>
+                    <span>
+                      {room.beds} {t("bed")}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Bath className="w-4 h-4" />
-                    <span>{room.bathrooms} bagno</span>
+                    <span>
+                      {room.bathrooms} {t("bathroom")}
+                    </span>
                   </div>
                 </div>
 
-                {/* Amenities */}
                 <div className="flex flex-wrap gap-2 mb-6">
                   {room.amenities.slice(0, 3).map((amenity, i) => (
                     <Badge key={i} variant="secondary" className="text-xs">
@@ -116,17 +118,17 @@ export function RoomsPreview() {
                   ))}
                   {room.amenities.length > 3 && (
                     <Badge variant="outline" className="text-xs">
-                      +{room.amenities.length - 3} altri
+                      +{room.amenities.length - 3} {t("moreAmenities")}
                     </Badge>
                   )}
                 </div>
 
                 <div className="flex gap-2">
                   <Button asChild className="flex-1">
-                    <Link href={`/camere/${room.id}`}>Dettagli</Link>
+                    <Link href={`/camere/${room.id}`}>{t("viewDetails")}</Link>
                   </Button>
                   <Button asChild variant="outline" className="flex-1 bg-transparent">
-                    <Link href="/prenota">Prenota</Link>
+                    <Link href="/prenota">{t("bookRoom")}</Link>
                   </Button>
                 </div>
               </div>
@@ -137,7 +139,7 @@ export function RoomsPreview() {
         <div className="text-center">
           <Button asChild size="lg" variant="outline" className="group bg-transparent">
             <Link href="/camere" className="flex items-center gap-2">
-              Vedi Tutte le Camere
+              {t("viewAllRooms")}
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </Button>

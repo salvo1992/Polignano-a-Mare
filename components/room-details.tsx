@@ -2,6 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Users, Bed, Bath, Mountain, Star, Wifi, Car, Coffee, Tv, Wind, Shield, MapPin, Clock } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
 
 // Sample room data - in a real app this would come from props or API
 const roomData = {
@@ -47,6 +48,8 @@ interface RoomDetailsProps {
 }
 
 export function RoomDetails({ roomId }: RoomDetailsProps) {
+  const { t } = useLanguage()
+
   return (
     <div className="space-y-8">
       {/* Room Header */}
@@ -57,12 +60,16 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
             <div className="flex items-center gap-4 text-muted-foreground">
               <div className="flex items-center gap-1">
                 <MapPin className="w-4 h-4" />
-                <span>Camera {roomId}</span>
+                <span>
+                  {t("room")} {roomId}
+                </span>
               </div>
               <div className="flex items-center gap-1">
                 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                 <span className="font-medium">{roomData.rating}</span>
-                <span>({roomData.reviews} recensioni)</span>
+                <span>
+                  ({roomData.reviews} {t("reviews")})
+                </span>
               </div>
             </div>
           </div>
@@ -76,7 +83,7 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Mountain className="w-5 h-5" />
-            Dettagli Camera
+            {t("roomDetails")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -84,22 +91,22 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
             <div className="text-center">
               <Users className="w-8 h-8 mx-auto mb-2 text-primary" />
               <div className="font-semibold">{roomData.guests}</div>
-              <div className="text-sm text-muted-foreground">Ospiti</div>
+              <div className="text-sm text-muted-foreground">{t("guests")}</div>
             </div>
             <div className="text-center">
               <Bed className="w-8 h-8 mx-auto mb-2 text-primary" />
               <div className="font-semibold">{roomData.beds}</div>
-              <div className="text-sm text-muted-foreground">Letto</div>
+              <div className="text-sm text-muted-foreground">{t("bed")}</div>
             </div>
             <div className="text-center">
               <Bath className="w-8 h-8 mx-auto mb-2 text-primary" />
               <div className="font-semibold">{roomData.bathrooms}</div>
-              <div className="text-sm text-muted-foreground">Bagno</div>
+              <div className="text-sm text-muted-foreground">{t("bathroom")}</div>
             </div>
             <div className="text-center">
               <Mountain className="w-8 h-8 mx-auto mb-2 text-primary" />
               <div className="font-semibold">{roomData.size} m²</div>
-              <div className="text-sm text-muted-foreground">Superficie</div>
+              <div className="text-sm text-muted-foreground">{t("size")}</div>
             </div>
           </div>
         </CardContent>
@@ -108,7 +115,7 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
       {/* Amenities */}
       <Card>
         <CardHeader>
-          <CardTitle>Servizi e Comfort</CardTitle>
+          <CardTitle>{t("amenitiesAndComfort")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -128,7 +135,7 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
       {/* Features */}
       <Card>
         <CardHeader>
-          <CardTitle>Caratteristiche Speciali</CardTitle>
+          <CardTitle>{t("specialFeatures")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -147,17 +154,17 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="w-5 h-5" />
-            Politiche e Orari
+            {t("policiesAndHours")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-semibold mb-2">Check-in</h4>
+              <h4 className="font-semibold mb-2">{t("checkIn")}</h4>
               <p className="text-muted-foreground">{roomData.policies.checkIn}</p>
             </div>
             <div>
-              <h4 className="font-semibold mb-2">Check-out</h4>
+              <h4 className="font-semibold mb-2">{t("checkOut")}</h4>
               <p className="text-muted-foreground">{roomData.policies.checkOut}</p>
             </div>
           </div>
@@ -166,19 +173,19 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
 
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="font-medium">Cancellazione:</span>
+              <span className="font-medium">{t("cancellation")}:</span>
               <span className="text-muted-foreground">{roomData.policies.cancellation}</span>
             </div>
             <div className="flex justify-between">
-              <span className="font-medium">Fumo:</span>
+              <span className="font-medium">{t("smoking")}:</span>
               <span className="text-muted-foreground">{roomData.policies.smoking}</span>
             </div>
             <div className="flex justify-between">
-              <span className="font-medium">Animali:</span>
+              <span className="font-medium">{t("pets")}:</span>
               <span className="text-muted-foreground">{roomData.policies.pets}</span>
             </div>
             <div className="flex justify-between">
-              <span className="font-medium">Bambini:</span>
+              <span className="font-medium">{t("children")}:</span>
               <span className="text-muted-foreground">{roomData.policies.children}</span>
             </div>
           </div>
@@ -188,7 +195,7 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
       {/* Long Description */}
       <Card>
         <CardHeader>
-          <CardTitle>Descrizione Completa</CardTitle>
+          <CardTitle>{t("fullDescription")}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground leading-relaxed">{roomData.longDescription}</p>

@@ -1,8 +1,13 @@
+"use client"
+
 import Link from "next/link"
 import Image from "next/image"
 import { MapPin, Phone, Mail, Facebook, Instagram, Twitter, Clock, Star } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
 
 export function Footer() {
+  const { t } = useLanguage()
+
   return (
     <footer className="bg-foreground text-background">
       <div className="container mx-auto px-4 py-12">
@@ -11,26 +16,24 @@ export function Footer() {
           <div>
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-sm"><img src="images/logo22.jpg" alt="Logo Al 22 Suite & Spa Luxury Experience"
-                 width={62} height={62} /></span>
+                <span className="text-primary-foreground font-bold text-sm">
+                  <img src="images/logo22.jpg" alt="Logo Al 22 Suite & Spa Luxury Experience" width={62} height={62} />
+                </span>
               </div>
               <span className="font-display text-xl font-semibold">Al 22 Suite & Spa Luxury Experience</span>
             </div>
-            <p className="text-background/80 mb-4 text-sm leading-relaxed">
-              Un'esperienza autentica nel cuore della Puglia, dove tradizione e comfort si incontrano per creare
-              ricordi indimenticabili.
-            </p>
+            <p className="text-background/80 mb-4 text-sm leading-relaxed">{t("footerDescription")}</p>
             <div className="flex items-center gap-1 mb-2">
               {[...Array(5)].map((_, i) => (
                 <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
               ))}
-              <span className="text-sm ml-2">4.9/5 (127 recensioni)</span>
+              <span className="text-sm ml-2">4.9/5 (127 {t("reviewsTitle").toLowerCase()})</span>
             </div>
           </div>
 
           {/* Contact Info */}
           <div>
-            <h3 className="font-semibold text-lg mb-4">Contatti</h3>
+            <h3 className="font-semibold text-lg mb-4">{t("contacts")}</h3>
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 mt-1 text-primary flex-shrink-0" />
@@ -43,7 +46,7 @@ export function Footer() {
               <div className="flex items-center gap-3">
                 <Phone className="w-4 h-4 text-primary" />
                 <a href="tel:+390577123456" className="hover:text-primary transition-colors">
-                  +39 3283287303 
+                  +39 3283287303
                 </a>
               </div>
               <div className="flex items-center gap-3">
@@ -54,39 +57,41 @@ export function Footer() {
               </div>
               <div className="flex items-center gap-3">
                 <Clock className="w-4 h-4 text-primary" />
-                <span>Check-in: 15:00 - Check-out: 11:00</span>
+                <span>
+                  {t("checkIn")}: 15:00 - {t("checkOut")}: 11:00
+                </span>
               </div>
             </div>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h3 className="font-semibold text-lg mb-4">Link Utili</h3>
+            <h3 className="font-semibold text-lg mb-4">{t("quickLinks")}</h3>
             <div className="space-y-2 text-sm">
               <Link href="/camere" className="block hover:text-primary transition-colors">
-                Le Nostre Camere
+                {t("rooms")}
               </Link>
               <Link href="/servizi" className="block hover:text-primary transition-colors">
-                I Nostri Servizi
+                {t("services")}
               </Link>
               <Link href="/prenota" className="block hover:text-primary transition-colors">
-                Prenota Ora
+                {t("bookNow")}
               </Link>
               <Link href="/contatti" className="block hover:text-primary transition-colors">
-                Contatti
+                {t("contacts")}
               </Link>
               <Link href="/admin" className="block hover:text-primary transition-colors">
-                Area Admin
+                {t("admin")}
               </Link>
               <Link href="/user" className="block hover:text-primary transition-colors">
-                Area Utente
+                {t("user")}
               </Link>
             </div>
           </div>
 
           {/* Social & Legal */}
           <div>
-            <h3 className="font-semibold text-lg mb-4">Seguici</h3>
+            <h3 className="font-semibold text-lg mb-4">{t("followUs")}</h3>
             <div className="flex gap-4 mb-6">
               <a href="#" className="text-background/80 hover:text-primary transition-colors">
                 <Facebook className="w-5 h-5" />
@@ -101,13 +106,13 @@ export function Footer() {
 
             <div className="space-y-2 text-sm">
               <Link href="/privacy" className="block hover:text-primary transition-colors">
-                Privacy Policy
+                {t("privacyPolicy")}
               </Link>
               <Link href="/cookies" className="block hover:text-primary transition-colors">
-                Cookie Policy
+                {t("cookiePolicy")}
               </Link>
               <Link href="/termini" className="block hover:text-primary transition-colors">
-                Termini e Condizioni
+                {t("termsOfService")}
               </Link>
             </div>
           </div>
@@ -117,7 +122,7 @@ export function Footer() {
         <div className="border-t border-background/20 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-background/80">
             <div className="flex flex-col md:flex-row items-center gap-4">
-              <p>© COPYRIGHT 2025 - AL 22 Suite & SPA LUXURY EXPERIENCE Tutti i diritti riservati.</p>
+              <p>© COPYRIGHT 2025 - AL 22 Suite & SPA LUXURY EXPERIENCE {t("allRightsReserved")}.</p>
             </div>
 
             <div className="flex items-center gap-2">

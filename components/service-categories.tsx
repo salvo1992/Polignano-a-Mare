@@ -2,47 +2,48 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Waves, Utensils, Mountain, Dumbbell } from "lucide-react"
-
-const categories = [
-  {
-    icon: Waves,
-    name: "Benessere",
-    description: "Rilassati con i nostri trattamenti spa e massaggi",
-    count: 8,
-    color: "bg-blue-100 text-blue-700",
-  },
-  {
-    icon: Utensils,
-    name: "Gastronomia",
-    description: "Scopri i sapori autentici della Toscana",
-    count: 6,
-    color: "bg-orange-100 text-orange-700",
-  },
-  {
-    icon: Mountain,
-    name: "Attività",
-    description: "Esplora la bellezza del territorio toscano",
-    count: 12,
-    color: "bg-green-100 text-green-700",
-  },
-  {
-    icon: Dumbbell,
-    name: "Fitness",
-    description: "Mantieniti in forma durante il soggiorno",
-    count: 4,
-    color: "bg-purple-100 text-purple-700",
-  },
-]
+import { useLanguage } from "@/components/language-provider"
 
 export function ServiceCategories() {
+  const { t } = useLanguage()
+
+  const categories = [
+    {
+      icon: Waves,
+      name: t("wellnessCategory"),
+      description: t("wellnessCategoryDesc"),
+      count: 8,
+      color: "bg-blue-100 text-blue-700",
+    },
+    {
+      icon: Utensils,
+      name: t("gastronomyCategory"),
+      description: t("gastronomyCategoryDesc"),
+      count: 6,
+      color: "bg-orange-100 text-orange-700",
+    },
+    {
+      icon: Mountain,
+      name: t("activitiesCategory"),
+      description: t("activitiesCategoryDesc"),
+      count: 12,
+      color: "bg-green-100 text-green-700",
+    },
+    {
+      icon: Dumbbell,
+      name: t("fitnessCategory"),
+      description: t("fitnessCategoryDesc"),
+      count: 4,
+      color: "bg-purple-100 text-purple-700",
+    },
+  ]
+
   return (
     <section className="py-12 bg-secondary/20">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
-          <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">Categorie di Servizi</h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            Scopri tutte le categorie di servizi disponibili per rendere il tuo soggiorno indimenticabile
-          </p>
+          <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">{t("serviceCategories")}</h2>
+          <p className="text-muted-foreground max-w-2xl mx-auto">{t("serviceCategoriesDesc")}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -61,7 +62,9 @@ export function ServiceCategories() {
                   </div>
                   <h3 className="font-semibold text-lg mb-2 text-foreground">{category.name}</h3>
                   <p className="text-muted-foreground text-sm mb-3">{category.description}</p>
-                  <div className="text-xs text-primary font-medium">{category.count} servizi disponibili</div>
+                  <div className="text-xs text-primary font-medium">
+                    {category.count} {t("servicesAvailable")}
+                  </div>
                 </CardContent>
               </Card>
             )

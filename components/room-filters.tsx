@@ -8,8 +8,11 @@ import { Slider } from "@/components/ui/slider"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Filter, X, Users, Euro, Star } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
 
 export function RoomFilters() {
+  const { t } = useLanguage()
+
   const [isOpen, setIsOpen] = useState(false)
   const [priceRange, setPriceRange] = useState([100, 300])
   const [guests, setGuests] = useState("")
@@ -17,14 +20,14 @@ export function RoomFilters() {
   const [amenities, setAmenities] = useState<string[]>([])
 
   const amenityOptions = [
-    "Vista panoramica",
-    "Balcone privato",
-    "WiFi gratuito",
-    "Aria condizionata",
-    "Minibar",
-    "TV satellitare",
-    "Vasca idromassaggio",
-    "Patio privato",
+    t("panoramicView"),
+    t("privateBalcony"),
+    t("freeWifi"),
+    t("airConditioning"),
+    t("minibar"),
+    t("satelliteTV"),
+    t("jacuzzi"),
+    t("privatePatio"),
   ]
 
   const toggleAmenity = (amenity: string) => {
@@ -43,11 +46,10 @@ export function RoomFilters() {
 
   return (
     <div className="mb-8">
-      {/* Filter Toggle */}
       <div className="flex items-center justify-between mb-4">
         <Button variant="outline" onClick={() => setIsOpen(!isOpen)} className="flex items-center gap-2">
           <Filter className="w-4 h-4" />
-          Filtri
+          {t("filters")}
           {activeFiltersCount > 0 && (
             <Badge variant="secondary" className="ml-2">
               {activeFiltersCount}
@@ -57,12 +59,11 @@ export function RoomFilters() {
 
         {activeFiltersCount > 0 && (
           <Button variant="ghost" onClick={clearFilters} className="text-sm">
-            Cancella filtri
+            {t("clearFilters")}
           </Button>
         )}
       </div>
 
-      {/* Active Filters */}
       {activeFiltersCount > 0 && (
         <div className="flex flex-wrap gap-2 mb-4">
           {(priceRange[0] !== 100 || priceRange[1] !== 300) && (
@@ -74,14 +75,14 @@ export function RoomFilters() {
           {guests && (
             <Badge variant="secondary" className="flex items-center gap-1">
               <Users className="w-3 h-3" />
-              {guests} ospiti
+              {guests} {t("guests")}
               <X className="w-3 h-3 cursor-pointer" onClick={() => setGuests("")} />
             </Badge>
           )}
           {rating && (
             <Badge variant="secondary" className="flex items-center gap-1">
               <Star className="w-3 h-3" />
-              {rating}+ stelle
+              {rating}+ {t("stars")}
               <X className="w-3 h-3 cursor-pointer" onClick={() => setRating("")} />
             </Badge>
           )}
@@ -94,14 +95,12 @@ export function RoomFilters() {
         </div>
       )}
 
-      {/* Filter Panel */}
       {isOpen && (
         <Card className="mb-6">
           <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Price Range */}
               <div>
-                <label className="text-sm font-medium mb-3 block">Prezzo per notte</label>
+                <label className="text-sm font-medium mb-3 block">{t("pricePerNight")}</label>
                 <div className="px-2">
                   <Slider
                     value={priceRange}
@@ -118,41 +117,38 @@ export function RoomFilters() {
                 </div>
               </div>
 
-              {/* Guests */}
               <div>
-                <label className="text-sm font-medium mb-3 block">Numero ospiti</label>
+                <label className="text-sm font-medium mb-3 block">{t("numberOfGuests")}</label>
                 <Select value={guests} onValueChange={setGuests}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleziona ospiti" />
+                    <SelectValue placeholder={t("selectGuests")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">1 ospite</SelectItem>
-                    <SelectItem value="2">2 ospiti</SelectItem>
-                    <SelectItem value="3">3 ospiti</SelectItem>
-                    <SelectItem value="4">4+ ospiti</SelectItem>
+                    <SelectItem value="1">1 {t("guest")}</SelectItem>
+                    <SelectItem value="2">2 {t("guests")}</SelectItem>
+                    <SelectItem value="3">3 {t("guests")}</SelectItem>
+                    <SelectItem value="4">4+ {t("guests")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Rating */}
               <div>
-                <label className="text-sm font-medium mb-3 block">Valutazione minima</label>
+                <label className="text-sm font-medium mb-3 block">{t("minRating")}</label>
                 <Select value={rating} onValueChange={setRating}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleziona rating" />
+                    <SelectValue placeholder={t("selectRating")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="4.5">4.5+ stelle</SelectItem>
-                    <SelectItem value="4.0">4.0+ stelle</SelectItem>
-                    <SelectItem value="3.5">3.5+ stelle</SelectItem>
-                    <SelectItem value="3.0">3.0+ stelle</SelectItem>
+                    <SelectItem value="4.5">4.5+ {t("stars")}</SelectItem>
+                    <SelectItem value="4.0">4.0+ {t("stars")}</SelectItem>
+                    <SelectItem value="3.5">3.5+ {t("stars")}</SelectItem>
+                    <SelectItem value="3.0">3.0+ {t("stars")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Amenities */}
               <div>
-                <label className="text-sm font-medium mb-3 block">Servizi</label>
+                <label className="text-sm font-medium mb-3 block">{t("amenities")}</label>
                 <div className="space-y-2 max-h-32 overflow-y-auto">
                   {amenityOptions.map((amenity) => (
                     <div key={amenity} className="flex items-center space-x-2">

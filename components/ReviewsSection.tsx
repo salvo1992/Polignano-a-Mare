@@ -1,58 +1,88 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import type { Review } from "@/lib/reviews";
-import { getTop4Reviews } from "@/lib/reviews";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Star, MessageCircle } from "lucide-react";
-import Link from "next/link";
+import { useEffect, useState } from "react"
+import type { Review } from "@/lib/reviews"
+import { getTop4Reviews } from "@/lib/reviews"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Star, MessageCircle } from "lucide-react"
+import Link from "next/link"
+import { useLanguage } from "@/components/language-provider"
 
 type Props = {
-  className?: string;
-  title?: string;
-  subtitle?: string;
-};
+  className?: string
+  title?: string
+  subtitle?: string
+}
 
-/** Fallback locale: mai crash, mostra 4 predefinite */
 const DEFAULT_REVIEWS: Review[] = [
-  { id: "d1", name: "Marco Rossi", location: "Milano", rating: 5,
+  {
+    id: "d1",
+    name: "Marco Rossi",
+    location: "Milano",
+    rating: 5,
     comment: "Esperienza fantastica! Il servizio è impeccabile e la vista mozzafiato. Torneremo sicuramente!",
-    date: "Dicembre 2024", verified: true, source: "default" },
-  { id: "d2", name: "Sarah Johnson", location: "London, UK", rating: 5,
-    comment: "Perfect location in Rome! The staff was incredibly helpful and the rooms are beautiful. Highly recommended!",
-    date: "Novembre 2024", verified: true, source: "default" },
-  { id: "d3", name: "Giuseppe Bianchi", location: "Roma", rating: 4,
+    date: "Dicembre 2024",
+    verified: true,
+    source: "default",
+  },
+  {
+    id: "d2",
+    name: "Sarah Johnson",
+    location: "London, UK",
+    rating: 5,
+    comment:
+      "Perfect location in Rome! The staff was incredibly helpful and the rooms are beautiful. Highly recommended!",
+    date: "Novembre 2024",
+    verified: true,
+    source: "default",
+  },
+  {
+    id: "d3",
+    name: "Giuseppe Bianchi",
+    location: "Roma",
+    rating: 4,
     comment: "Ottima struttura nel cuore di Roma. Colazione eccellente e personale molto cortese.",
-    date: "Ottobre 2024", verified: true, source: "default" },
-  { id: "d4", name: "Marie Dubois", location: "Paris, France", rating: 5,
+    date: "Ottobre 2024",
+    verified: true,
+    source: "default",
+  },
+  {
+    id: "d4",
+    name: "Marie Dubois",
+    location: "Paris, France",
+    rating: 5,
     comment: "Un séjour merveilleux! L'emplacement est parfait pour visiter Rome et le service est exceptionnel.",
-    date: "Settembre 2024", verified: true, source: "default" },
-];
+    date: "Settembre 2024",
+    verified: true,
+    source: "default",
+  },
+]
 
-export default function ReviewsSection({ className, title = "Cosa Dicono i Nostri Ospiti", subtitle = "Le recensioni autentiche dei nostri ospiti sono la nostra migliore pubblicità", }: { className?: string; title?: string; subtitle?: string; }) {
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function ReviewsSection({ className }: Props) {
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [loading, setLoading] = useState(true)
+  const { t } = useLanguage()
 
   useEffect(() => {
-    (async () => {
+    ;(async () => {
       try {
-        const top = await getTop4Reviews();
-        setReviews(top.length ? top : DEFAULT_REVIEWS);
+        const top = await getTop4Reviews()
+        setReviews(top.length ? top : DEFAULT_REVIEWS)
       } catch {
-        setReviews(DEFAULT_REVIEWS); // se Firestore fallisce
+        setReviews(DEFAULT_REVIEWS)
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    })();
-  }, []);
+    })()
+  }, [])
 
   return (
     <section className={className}>
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-cinzel font-bold text-roman-gradient mb-4">{title}</h2>
-        <p className="text-muted-foreground max-w-2xl mx-auto">{subtitle}</p>
+        <h2 className="text-3xl font-cinzel font-bold text-roman-gradient mb-4">{t("reviewsTitle")}</h2>
+        <p className="text-muted-foreground max-w-2xl mx-auto">{t("reviewsDescription")}</p>
       </div>
 
       {loading ? (
@@ -77,7 +107,7 @@ export default function ReviewsSection({ className, title = "Cosa Dicono i Nostr
                   </div>
                   {review.verified && (
                     <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 px-1.5 py-0">
-                      Verificata
+                      {t("verified")}
                     </Badge>
                   )}
                 </div>
@@ -104,29 +134,29 @@ export default function ReviewsSection({ className, title = "Cosa Dicono i Nostr
                 <Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
               ))}
             </div>
-            <div className="text-xs text-muted-foreground">Valutazione Media</div>
+            <div className="text-xs text-muted-foreground">{t("averageRating")}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-primary">250+</div>
-            <div className="text-xs text-muted-foreground">Recensioni</div>
+            <div className="text-xs text-muted-foreground">{t("totalReviews")}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-primary">98%</div>
-            <div className="text-xs text-muted-foreground">Soddisfazione</div>
+            <div className="text-xs text-muted-foreground">{t("satisfaction")}</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-primary">85%</div>
-            <div className="text-xs text-muted-foreground">Ritornano</div>
+            <div className="text-xs text-muted-foreground">{t("returnRate")}</div>
           </div>
         </div>
 
         <Button asChild variant="outline" size="sm" className="bg-transparent hover:bg-primary/10">
           <Link href="/recensioni">
             <MessageCircle className="w-4 h-4 mr-2" />
-            Leggi Tutte le Recensioni
+            {t("readAllReviews")}
           </Link>
         </Button>
       </div>
     </section>
-  );
+  )
 }

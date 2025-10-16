@@ -1,43 +1,45 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { Header } from "@/components/header";
-import { Footer } from "@/components/footer";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/components/auth-provider";
-import { Eye, EyeOff, LogIn, Shield } from "lucide-react";
+import type React from "react"
+
+import { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
+import { Header } from "@/components/header"
+import { Footer } from "@/components/footer"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useAuth } from "@/components/auth-provider"
+import { Eye, EyeOff, LogIn, Shield } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
 
 export default function AdminLoginPage() {
-  const router = useRouter();
-  const params = useSearchParams();
-  const next = params.get("next") || "/admin";
+  const { t } = useLanguage()
+  const router = useRouter()
+  const params = useSearchParams()
+  const next = params.get("next") || "/admin"
 
-  const { login, isLoading, user } = useAuth();
-  const [showPassword, setShowPassword] = useState(false);
-  const [err, setErr] = useState("");
-  const [form, setForm] = useState({ email: "", password: "" });
+  const { login, isLoading, user } = useAuth()
+  const [showPassword, setShowPassword] = useState(false)
+  const [err, setErr] = useState("")
+  const [form, setForm] = useState({ email: "", password: "" })
 
-  // Redirect appena il ruolo è admin
   useEffect(() => {
     if (!isLoading && user?.role === "admin") {
-      router.replace(next);
+      router.replace(next)
     }
-  }, [user, isLoading, next, router]);
+  }, [user, isLoading, next, router])
 
   const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr("");
-    const ok = await login(form.email, form.password);
+    e.preventDefault()
+    setErr("")
+    const ok = await login(form.email, form.password)
     if (!ok) {
-      setErr("Credenziali non valide o privilegi insufficienti");
-      return;
+      setErr(t("invalidOrInsufficient"))
+      return
     }
-    // redirect gestito dall'useEffect
-  };
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -48,20 +50,22 @@ export default function AdminLoginPage() {
             <div className="text-center mb-8 animate-fade-in-up">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Shield className="h-5 w-5 text-primary" />
-                <h1 className="text-3xl font-cinzel font-bold text-roman-gradient">Accesso Amministratore</h1>
+                <h1 className="text-3xl font-cinzel font-bold text-roman-gradient">{t("adminAccess")}</h1>
               </div>
-              <p className="text-muted-foreground">Area riservata. Solo credenziali admin valide possono entrare.</p>
+              <p className="text-muted-foreground">{t("restrictedArea")}</p>
             </div>
 
             <Card className="card-enhanced animate-bounce-in">
               <CardHeader className="text-center">
-                <CardTitle className="text-2xl font-cinzel text-primary">Pannello Admin</CardTitle>
-                <CardDescription>Inserisci le credenziali amministratore</CardDescription>
+                <CardTitle className="text-2xl font-cinzel text-primary">{t("adminPanel")}</CardTitle>
+                <CardDescription>{t("enterAdminCredentials")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={onSubmit} className="space-y-4">
                   <div>
-                    <label htmlFor="email" className="text-sm">Email</label>
+                    <label htmlFor="email" className="text-sm">
+                      {t("email")}
+                    </label>
                     <Input
                       id="email"
                       type="email"
@@ -74,7 +78,9 @@ export default function AdminLoginPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="password" className="text-sm">Password</label>
+                    <label htmlFor="password" className="text-sm">
+                      {t("password")}
+                    </label>
                     <div className="relative mt-1">
                       <Input
                         id="password"
@@ -110,21 +116,21 @@ export default function AdminLoginPage() {
                     {isLoading ? (
                       <div className="flex items-center gap-2">
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Accesso in corso...
+                        {t("loggingIn")}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         <LogIn className="h-4 w-4" />
-                        Accedi
+                        {t("login")}
                       </div>
                     )}
                   </Button>
                 </form>
 
                 <div className="mt-6 text-center text-xs text-muted-foreground">
-                  Non sei admin?{" "}
+                  {t("notAdmin")}{" "}
                   <Link href="/login" className="text-primary hover:underline font-medium">
-                    Torna al login utenti
+                    {t("backToUserLogin")}
                   </Link>
                 </div>
               </CardContent>
@@ -132,9 +138,8 @@ export default function AdminLoginPage() {
           </div>
         </div>
       </div>
-      
-    <Footer />
+
+      <Footer />
     </main>
-    
-  );
+  )
 }

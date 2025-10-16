@@ -6,10 +6,12 @@ import { RoomsGrid } from "@/components/rooms-grid"
 import { RoomFilters } from "@/components/room-filters"
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
 import { Sparkles, MapPin, Wifi, Car } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
 
 export default function CamerePage() {
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
   const { ref: descRef, isVisible: descVisible } = useScrollAnimation()
+  const { t } = useLanguage()
 
   return (
     <main className="min-h-screen">
@@ -38,7 +40,7 @@ export default function CamerePage() {
               <div className="flex items-center justify-center gap-3 mb-4">
                 <Sparkles className="w-8 h-8 text-primary animate-pulse" />
                 <h1 className="font-cinzel text-4xl md:text-6xl font-bold text-roman-gradient animate-text-shimmer">
-                  Le Nostre Camere
+                  {t("roomsPageTitle")}
                 </h1>
                 <Sparkles className="w-8 h-8 text-accent animate-pulse" style={{ animationDelay: "0.5s" }} />
               </div>
@@ -52,8 +54,7 @@ export default function CamerePage() {
                 className="text-xl text-muted-foreground text-balance mb-8 animate-fade-in-up"
                 style={{ animationDelay: "0.5s" }}
               >
-                Scopri il comfort e l'eleganza delle nostre camere, ognuna progettata per offrirti un'esperienza di
-                soggiorno indimenticabile nel cuore di Polignano a Mare
+                {t("roomsPageSubtitle")}
               </p>
 
               <div
@@ -64,25 +65,25 @@ export default function CamerePage() {
                   <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex items-center justify-center group-hover:shadow-lg transition-shadow">
                     <MapPin className="w-6 h-6 text-primary" />
                   </div>
-                  <span className="text-sm font-medium">Centro Polignano a Mare</span>
+                  <span className="text-sm font-medium">{t("centerPolignano")}</span>
                 </div>
                 <div className="flex flex-col items-center gap-2 group hover:scale-110 transition-transform duration-300">
                   <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex items-center justify-center group-hover:shadow-lg transition-shadow">
                     <Wifi className="w-6 h-6 text-primary" />
                   </div>
-                  <span className="text-sm font-medium">WiFi Gratuito</span>
+                  <span className="text-sm font-medium">{t("freeWifiShort")}</span>
                 </div>
                 <div className="flex flex-col items-center gap-2 group hover:scale-110 transition-transform duration-300">
                   <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex items-center justify-center group-hover:shadow-lg transition-shadow">
                     <Car className="w-6 h-6 text-primary" />
                   </div>
-                  <span className="text-sm font-medium">Parcheggio</span>
+                  <span className="text-sm font-medium">{t("parking")}</span>
                 </div>
                 <div className="flex flex-col items-center gap-2 group hover:scale-110 transition-transform duration-300">
                   <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex items-center justify-center group-hover:shadow-lg transition-shadow">
                     <Sparkles className="w-6 h-6 text-primary" />
                   </div>
-                  <span className="text-sm font-medium">Servizio 5★</span>
+                  <span className="text-sm font-medium">{t("service5Star")}</span>
                 </div>
               </div>
             </div>
@@ -93,14 +94,11 @@ export default function CamerePage() {
       <section className="py-8 bg-gradient-to-r from-primary/5 to-accent/5">
         <div className="container mx-auto px-4">
           <div className="text-center animate-fade-in-up">
-            <p className="text-lg font-medium text-roman-gradient italic">
-              "Ogni camera racconta una storia, ogni soggiorno diventa un ricordo indimenticabile"
-            </p>
+            <p className="text-lg font-medium text-roman-gradient italic">"{t("roomsQuote")}"</p>
           </div>
         </div>
       </section>
 
-      {/* Filters and Rooms */}
       <section className="py-12">
         <div className="container mx-auto px-4">
           <RoomFilters />

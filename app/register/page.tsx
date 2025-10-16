@@ -34,12 +34,12 @@ export default function RegisterPage() {
     setError("")
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Le password non coincidono")
+      setError(t("passwordsDoNotMatch"))
       return
     }
 
     if (formData.password.length < 6) {
-      setError("La password deve essere di almeno 6 caratteri")
+      setError(t("passwordMinLength"))
       return
     }
 
@@ -47,7 +47,7 @@ export default function RegisterPage() {
     if (success) {
       router.push("/user")
     } else {
-      setError("Email già registrata o errore durante la registrazione")
+      setError(t("emailAlreadyRegistered"))
     }
   }
 
@@ -65,21 +65,20 @@ export default function RegisterPage() {
       <div className="pt-20 pb-16">
         <div className="container mx-auto px-4">
           <div className="max-w-md mx-auto">
-            {/* Header */}
             <div className="text-center mb-8 animate-fade-in-up">
-              <h1 className="text-3xl font-cinzel font-bold text-roman-gradient mb-2">Registrati</h1>
-              <p className="text-muted-foreground">Crea il tuo account per prenotare con noi</p>
+              <h1 className="text-3xl font-cinzel font-bold text-roman-gradient mb-2">{t("registerTitle")}</h1>
+              <p className="text-muted-foreground">{t("registerSubtitle")}</p>
             </div>
 
             <Card className="card-enhanced animate-bounce-in">
               <CardHeader className="text-center">
-                <CardTitle className="text-2xl font-cinzel text-primary">Crea un Account</CardTitle>
-                <CardDescription>Compila i campi per registrarti</CardDescription>
+                <CardTitle className="text-2xl font-cinzel text-primary">{t("createAccount")}</CardTitle>
+                <CardDescription>{t("fillFormToRegister")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <Label htmlFor="name">Nome Completo</Label>
+                    <Label htmlFor="name">{t("fullName")}</Label>
                     <Input
                       id="name"
                       name="name"
@@ -93,7 +92,7 @@ export default function RegisterPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">{t("email")}</Label>
                     <Input
                       id="email"
                       name="email"
@@ -107,7 +106,7 @@ export default function RegisterPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">{t("password")}</Label>
                     <div className="relative mt-1">
                       <Input
                         id="password"
@@ -132,7 +131,7 @@ export default function RegisterPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="confirmPassword">Conferma Password</Label>
+                    <Label htmlFor="confirmPassword">{t("confirmPassword")}</Label>
                     <div className="relative mt-1">
                       <Input
                         id="confirmPassword"
@@ -169,12 +168,12 @@ export default function RegisterPage() {
                     {isLoading ? (
                       <div className="flex items-center gap-2">
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Registrazione in corso...
+                        {t("registering")}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         <UserPlus className="h-4 w-4" />
-                        Registrati
+                        {t("register")}
                       </div>
                     )}
                   </Button>
@@ -182,21 +181,21 @@ export default function RegisterPage() {
 
                 <div className="mt-6 text-center">
                   <p className="text-sm text-muted-foreground">
-                    Hai già un account?{" "}
+                    {t("alreadyHaveAccount")}{" "}
                     <Link href="/login" className="text-primary hover:underline font-medium">
-                      Accedi qui
+                      {t("loginHere")}
                     </Link>
                   </p>
                 </div>
 
                 <div className="mt-4 text-xs text-muted-foreground text-center">
-                  Registrandoti accetti i nostri{" "}
+                  {t("byRegisteringYouAccept")}{" "}
                   <Link href="/terms" className="text-primary hover:underline">
-                    Termini di Servizio
+                    {t("termsOfService")}
                   </Link>{" "}
-                  e la{" "}
+                  {t("and")}{" "}
                   <Link href="/privacy" className="text-primary hover:underline">
-                    Privacy Policy
+                    {t("privacyPolicy")}
                   </Link>
                 </div>
               </CardContent>

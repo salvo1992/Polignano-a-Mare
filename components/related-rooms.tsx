@@ -6,8 +6,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Users, Bed, Bath, Mountain, Star } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
 
-// Sample related rooms data - in a real app this would come from props or API
 const relatedRooms = [
   {
     id: 2,
@@ -61,14 +61,15 @@ interface RelatedRoomsProps {
 }
 
 export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
-  // Filter out the current room
+  const { t } = useLanguage()
+
   const filteredRooms = relatedRooms.filter((room) => room.id.toString() !== currentRoomId)
 
   return (
     <div className="py-12">
       <div className="mb-8">
-        <h2 className="font-display text-2xl font-bold text-foreground mb-4">Altre Camere Disponibili</h2>
-        <p className="text-muted-foreground text-lg">Scopri le altre eleganti sistemazioni del nostro B&B</p>
+        <h2 className="font-display text-2xl font-bold text-foreground mb-4">{t("otherRoomsAvailable")}</h2>
+        <p className="text-muted-foreground text-lg">{t("discoverOtherRooms")}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
@@ -83,19 +84,20 @@ export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
                 className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500"
               />
 
-              {/* Price Badge */}
               <div className="absolute bottom-4 right-4 bg-black/80 text-white px-3 py-2 rounded-lg">
                 <div className="text-right">
                   {room.originalPrice > room.price && (
                     <div className="text-xs line-through opacity-75">€{room.originalPrice}</div>
                   )}
-                  <div className="font-bold">€{room.price}/notte</div>
+                  <div className="font-bold">
+                    €{room.price}
+                    {t("perNight")}
+                  </div>
                 </div>
               </div>
 
-              {/* Discount Badge */}
               {room.originalPrice > room.price && (
-                <Badge className="absolute top-4 left-4 bg-green-600 text-white">Offerta Speciale</Badge>
+                <Badge className="absolute top-4 left-4 bg-green-600 text-white">{t("specialOffer")}</Badge>
               )}
             </div>
 
@@ -113,19 +115,24 @@ export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
 
               <p className="text-muted-foreground mb-4 text-sm line-clamp-2">{room.description}</p>
 
-              {/* Room Details */}
               <div className="grid grid-cols-2 gap-4 mb-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Users className="w-4 h-4" />
-                  <span>{room.guests} ospiti</span>
+                  <span>
+                    {room.guests} {t("guests")}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Bed className="w-4 h-4" />
-                  <span>{room.beds} letto</span>
+                  <span>
+                    {room.beds} {t("bed")}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Bath className="w-4 h-4" />
-                  <span>{room.bathrooms} bagno</span>
+                  <span>
+                    {room.bathrooms} {t("bathroom")}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Mountain className="w-4 h-4" />
@@ -135,10 +142,10 @@ export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
 
               <div className="flex gap-2">
                 <Button asChild className="flex-1" disabled={!room.available}>
-                  <Link href={`/camere/${room.id}`}>{room.available ? "Dettagli" : "Non Disponibile"}</Link>
+                  <Link href={`/camere/${room.id}`}>{room.available ? t("details") : t("notAvailable")}</Link>
                 </Button>
                 <Button asChild variant="outline" className="flex-1 bg-transparent" disabled={!room.available}>
-                  <Link href={`/prenota?room=${room.id}`}>Prenota</Link>
+                  <Link href={`/prenota?room=${room.id}`}>{t("book")}</Link>
                 </Button>
               </div>
             </CardContent>
@@ -146,10 +153,9 @@ export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
         ))}
       </div>
 
-      {/* View All Rooms Button */}
       <div className="text-center mt-8">
         <Button asChild variant="outline" size="lg">
-          <Link href="/camere">Vedi Tutte le Camere</Link>
+          <Link href="/camere">{t("viewAllRooms")}</Link>
         </Button>
       </div>
     </div>

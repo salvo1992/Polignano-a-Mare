@@ -5,10 +5,12 @@ import { Footer } from "@/components/footer"
 import { ServicesGrid } from "@/components/services-grid"
 import { ServiceCategories } from "@/components/service-categories"
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
+import { useLanguage } from "@/components/language-provider"
 
 export default function ServiziPage() {
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
   const { ref: categoriesRef, isVisible: categoriesVisible } = useScrollAnimation()
+  const { t } = useLanguage()
 
   return (
     <main className="min-h-screen">
@@ -33,14 +35,13 @@ export default function ServiziPage() {
             className={`text-center max-w-5xl mx-auto transition-all duration-1000 ${heroVisible ? "animate-fade-in-up" : "opacity-0 translate-y-10"}`}
           >
             <h1 className="font-roman text-5xl md:text-7xl font-bold text-roman-gradient mb-8 animate-shimmer">
-              I Nostri Servizi Esclusivi
+              {t("servicesPageTitle")}
             </h1>
             <p className="text-2xl md:text-3xl text-muted-foreground text-balance mb-8 font-light">
-              Scopri un mondo di lusso e relax nel cuore di Roma
+              {t("servicesPageSubtitle")}
             </p>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto text-balance leading-relaxed">
-              Ogni servizio è pensato per offrirti un'esperienza indimenticabile, combinando la tradizione romana con il
-              comfort moderno
+              {t("servicesPageDescription")}
             </p>
           </div>
         </div>

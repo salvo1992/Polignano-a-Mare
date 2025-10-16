@@ -3,33 +3,29 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Star, MapPin } from "lucide-react"
+import { ChevronLeft, ChevronRight, MapPin } from "lucide-react"
 import Link from "next/link"
-
-const heroImages = [
-  {
-    src: "/images/bb-hero.jpg",
-    alt: "al 22 Suite & Spa Luxury Experience - Vista principale",
-    title: "Benvenuti al 22 Suite & Spa Luxury Experience",
-    subtitle: "Un'esperienza autentica nel cuore di Polignano a Mare",
-  },
-  {
-    src: "/images/pool.jpg",
-    alt: "Piscina panoramica",
-    title: "Relax e Tranquillità",
-    subtitle: "Goditi la nostra Spa Luxury Experience",
-  }
-/*{
-    src: "/images/breakfast.jpg",
-    alt: "Colazione tradizionale",
-    title: "Sapori Autentici",
-    subtitle: "Inizia la giornata con la nostra colazione tipica Pugliese",
-  },*/
-]
+import { useLanguage } from "@/components/language-provider"
 
 export function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isLoaded, setIsLoaded] = useState(false)
+  const { t } = useLanguage()
+
+  const heroImages = [
+    {
+      src: "/images/bb-hero.jpg",
+      alt: "al 22 Suite & Spa Luxury Experience - Vista principale",
+      titleKey: "heroTitle",
+      subtitleKey: "heroSubtitle",
+    },
+    {
+      src: "/images/pool.jpg",
+      alt: "Piscina panoramica",
+      titleKey: "heroTitle2",
+      subtitleKey: "heroSubtitle2",
+    },
+  ]
 
   useEffect(() => {
     setIsLoaded(true)
@@ -49,7 +45,6 @@ export function HeroSection() {
 
   return (
     <section className="relative h-screen overflow-hidden">
-      {/* Background Images with enhanced transitions */}
       {heroImages.map((image, index) => (
         <div
           key={index}
@@ -68,7 +63,6 @@ export function HeroSection() {
         </div>
       ))}
 
-      {/* Floating particles animation */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {[...Array(20)].map((_, i) => (
           <div
@@ -84,29 +78,18 @@ export function HeroSection() {
         ))}
       </div>
 
-      {/* Content with enhanced animations */}
       <div className="relative z-10 h-full flex items-center justify-center">
         <div className="text-center text-white px-4 max-w-5xl mx-auto">
           <div
             className={`transition-all duration-1500 ${isLoaded ? "animate-fade-in-up" : "opacity-0 translate-y-10"}`}
           >
             <h1 className="font-roman text-6xl md:text-8xl font-bold mb-8 text-balance text-roman-gradient animate-shimmer">
-              {heroImages[currentSlide].title}
+              {t(heroImages[currentSlide].titleKey)}
             </h1>
             <p className="text-2xl md:text-3xl mb-10 text-balance opacity-90 font-light tracking-wide">
-              {heroImages[currentSlide].subtitle}
+              {t(heroImages[currentSlide].subtitleKey)}
             </p>
 
-            {/* Enhanced rating section */}
-            <div
-              className="flex items-center justify-center gap-3 mb-10 animate-bounce-in"
-              style={{ animationDelay: "0.5s" }}
-            >
-              
-              
-            </div>
-
-            {/* Enhanced location */}
             <div
               className="flex items-center justify-center gap-3 mb-12 animate-slide-in-up"
               style={{ animationDelay: "0.8s" }}
@@ -117,7 +100,6 @@ export function HeroSection() {
               <span className="text-xl font-medium">Polignano a Mare, Puglia, Italia</span>
             </div>
 
-            {/* Enhanced CTA Buttons */}
             <div
               className="flex flex-col sm:flex-row gap-6 justify-center animate-slide-in-up"
               style={{ animationDelay: "1s" }}
@@ -126,21 +108,20 @@ export function HeroSection() {
                 size="lg"
                 className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-xl px-12 py-4 rounded-full shadow-2xl hover:shadow-primary/25 transition-all duration-300 hover:scale-105 animate-shimmer"
               >
-                <Link href="/prenota">Prenota il Tuo Soggiorno</Link>
+                <Link href="/prenota">{t("bookYourStay")}</Link>
               </Button>
               <Button
                 size="lg"
                 variant="outline"
                 className="border-2 border-white text-white hover:bg-white hover:text-foreground text-xl px-12 py-4 rounded-full bg-white/10 backdrop-blur-sm transition-all duration-300 hover:scale-105"
               >
-                <Link href="/servizi">Scopri di Più</Link>
+                <Link href="/servizi">{t("discoverMore")}</Link>
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Enhanced Navigation Arrows */}
       <Button
         variant="ghost"
         size="icon"
@@ -158,7 +139,6 @@ export function HeroSection() {
         <ChevronRight className="w-8 h-8" />
       </Button>
 
-      {/* Enhanced Slide Indicators */}
       <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 flex gap-3">
         {heroImages.map((_, index) => (
           <button
@@ -171,7 +151,6 @@ export function HeroSection() {
         ))}
       </div>
 
-      {/* Scroll indicator */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 animate-bounce">
         <div className="w-6 h-10 border-2 border-white/50 rounded-full flex justify-center">
           <div className="w-1 h-3 bg-white/70 rounded-full mt-2 animate-pulse"></div>

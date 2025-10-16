@@ -1,45 +1,46 @@
-"use client";
+"use client"
 
-import type React from "react";
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { Header } from "@/components/header";
-import { Footer } from "@/components/footer";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/components/auth-provider";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import type React from "react"
+import { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
+import { Header } from "@/components/header"
+import { Footer } from "@/components/footer"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useAuth } from "@/components/auth-provider"
+import { Eye, EyeOff, LogIn } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
 
 export default function LoginPage() {
-  const { login, isLoading, user } = useAuth();
-  const router = useRouter();
-  const params = useSearchParams();
-  const next = params.get("next") || "/user";
+  const { login, isLoading, user } = useAuth()
+  const router = useRouter()
+  const params = useSearchParams()
+  const next = params.get("next") || "/user"
+  const { t } = useLanguage()
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false)
+  const [formData, setFormData] = useState({ email: "", password: "" })
+  const [error, setError] = useState("")
 
   useEffect(() => {
     if (!isLoading && user) {
-      router.replace(next);
+      router.replace(next)
     }
-  }, [user, isLoading, next, router]);
+  }, [user, isLoading, next, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    const ok = await login(formData.email, formData.password);
-    if (!ok) setError("Email o password non corretti");
-    // redirect gestito dall'useEffect
-  };
+    e.preventDefault()
+    setError("")
+    const ok = await login(formData.email, formData.password)
+    if (!ok) setError(t("invalidCredentials"))
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -48,19 +49,19 @@ export default function LoginPage() {
         <div className="container mx-auto px-4">
           <div className="max-w-md mx-auto">
             <div className="text-center mb-8 animate-fade-in-up">
-              <h1 className="text-3xl font-cinzel font-bold text-roman-gradient mb-2">Accedi</h1>
-              <p className="text-muted-foreground">Benvenuto di nuovo a Villa Bella Vista</p>
+              <h1 className="text-3xl font-cinzel font-bold text-roman-gradient mb-2">{t("loginTitle")}</h1>
+              <p className="text-muted-foreground">{t("loginSubtitle")}</p>
             </div>
 
             <Card className="card-enhanced animate-bounce-in">
               <CardHeader className="text-center">
-                <CardTitle className="text-2xl font-cinzel text-primary">Accedi al tuo Account</CardTitle>
-                <CardDescription>Inserisci le tue credenziali per continuare</CardDescription>
+                <CardTitle className="text-2xl font-cinzel text-primary">{t("loginToAccount")}</CardTitle>
+                <CardDescription>{t("enterCredentials")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">{t("email")}</Label>
                     <Input
                       id="email"
                       name="email"
@@ -74,7 +75,7 @@ export default function LoginPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">{t("password")}</Label>
                     <div className="relative mt-1">
                       <Input
                         id="password"
@@ -111,12 +112,12 @@ export default function LoginPage() {
                     {isLoading ? (
                       <div className="flex items-center gap-2">
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Accesso in corso...
+                        {t("loggingIn")}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         <LogIn className="h-4 w-4" />
-                        Accedi
+                        {t("login")}
                       </div>
                     )}
                   </Button>
@@ -124,16 +125,16 @@ export default function LoginPage() {
 
                 <div className="mt-6 text-center">
                   <p className="text-sm text-muted-foreground">
-                    Non hai un account?{" "}
+                    {t("dontHaveAccount")}{" "}
                     <Link href="/register" className="text-primary hover:underline font-medium">
-                      Registrati qui
+                      {t("register")}
                     </Link>
                   </p>
                 </div>
 
                 <div className="mt-4 text-center">
                   <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-                    Hai dimenticato la password?
+                    {t("forgotPassword")}
                   </Link>
                 </div>
               </CardContent>
@@ -144,5 +145,6 @@ export default function LoginPage() {
 
       <Footer />
     </main>
-  );
+  )
 }
+

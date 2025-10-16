@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Users } from "lucide-react"
 import { toast } from "sonner"
+import { useLanguage } from "@/components/language-provider"
 
 const roomPricing = {
   basePrice: 180,
@@ -26,6 +27,7 @@ interface BookingWidgetProps {
 }
 
 export function BookingWidget({ roomId }: BookingWidgetProps) {
+  const { t } = useLanguage()
   const router = useRouter()
 
   const [checkIn, setCheckIn] = useState("")
@@ -47,14 +49,13 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
 
   const handleBooking = () => {
     if (!checkIn || !checkOut) {
-      toast.error("Seleziona le date di soggiorno")
+      toast.error(t("selectDates"))
       return
     }
     if (nights <= 0) {
-      toast.error("Le date non sono valide: il check-out deve essere dopo il check-in")
+      toast.error(t("invalidDates"))
       return
     }
-    // redirect alla pagina prenotazioni con i parametri scelti
     const qs = new URLSearchParams({
       checkIn,
       checkOut,
@@ -73,32 +74,31 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
       <Card className="sticky top-24">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Prenota Ora</span>
+            <span>{t("bookNow")}</span>
             <div className="text-right">
               {roomPricing.originalPrice > roomPricing.basePrice && (
                 <div className="text-sm line-through text-muted-foreground">
-                  {formatMoney(roomPricing.originalPrice)}/notte
+                  {formatMoney(roomPricing.originalPrice)}/{t("night")}
                 </div>
               )}
               <div className="text-2xl font-bold text-primary">
                 {formatMoney(roomPricing.basePrice)}
-                <span className="text-sm font-normal text-muted-foreground">/notte</span>
+                <span className="text-sm font-normal text-muted-foreground">/{t("night")}</span>
               </div>
             </div>
           </CardTitle>
 
           {roomPricing.originalPrice > roomPricing.basePrice && (
             <Badge className="w-fit bg-green-600 text-white">
-              Risparmia {formatMoney(roomPricing.discount)}
+              {t("save")} {formatMoney(roomPricing.discount)}
             </Badge>
           )}
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Date */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label htmlFor="checkin">Check-in</Label>
+              <Label htmlFor="checkin">{t("checkIn")}</Label>
               <div className="relative">
                 <Input
                   id="checkin"
@@ -111,7 +111,7 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
               </div>
             </div>
             <div>
-              <Label htmlFor="checkout">Check-out</Label>
+              <Label htmlFor="checkout">{t("checkOut")}</Label>
               <div className="relative">
                 <Input
                   id="checkout"
@@ -125,9 +125,8 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
             </div>
           </div>
 
-          {/* Ospiti */}
           <div>
-            <Label htmlFor="guests">Ospiti</Label>
+            <Label htmlFor="guests">{t("guests")}</Label>
             <div className="relative">
               <Input
                 id="guests"
@@ -142,46 +141,41 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
             </div>
           </div>
 
-          {/* Notti (calcolate, non editabili) */}
           <div>
-            <Label htmlFor="nights">Notti</Label>
+            <Label htmlFor="nights">{t("nights")}</Label>
             <Input id="nights" value={nights || ""} readOnly placeholder="—" />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Le notti sono calcolate automaticamente in base alle date.
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("nightsCalculated")}</p>
           </div>
 
           <Separator />
 
-          {/* Riepilogo prezzo */}
           <div className="space-y-2">
             <div className="flex justify-between">
               <span>
-                {formatMoney(roomPricing.basePrice)} × {nights || 0} notti
+                {formatMoney(roomPricing.basePrice)} × {nights || 0} {t("nights")}
               </span>
               <span>{formatMoney(subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Tasse e imposte</span>
+              <span>{t("taxesAndFees")}</span>
               <span>{formatMoney(roomPricing.taxes)}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Commissione servizio</span>
+              <span>{t("serviceFee")}</span>
               <span>{formatMoney(roomPricing.serviceFee)}</span>
             </div>
             <Separator />
             <div className="flex justify-between font-bold text-lg">
-              <span>Totale</span>
+              <span>{t("total")}</span>
               <span className="text-primary">{formatMoney(total)}</span>
             </div>
           </div>
 
-          {/* CTA */}
           <Button onClick={handleBooking} className="w-full" size="lg" disabled={!roomPricing.available}>
-            {roomPricing.available ? "Prenota Ora" : "Non Disponibile"}
+            {roomPricing.available ? t("bookNow") : t("notAvailable")}
           </Button>
 
-          <p className="text-xs text-muted-foreground text-center">Non verrai addebitato subito</p>
+          <p className="text-xs text-muted-foreground text-center">{t("noChargeYet")}</p>
         </CardContent>
       </Card>
     </div>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Cookie, Settings, BarChart, Eye } from "lucide-react"
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
 import { useState, useEffect } from "react"
+import { useLanguage } from "@/components/language-provider"
 
 interface CookiePreferences {
   necessary: boolean
@@ -15,6 +16,7 @@ interface CookiePreferences {
 }
 
 export default function CookiePage() {
+  const { t } = useLanguage()
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
   const [preferences, setPreferences] = useState<CookiePreferences>({
     necessary: true,
@@ -77,9 +79,9 @@ export default function CookiePage() {
     }
 
     if (savePreferences(allAccepted)) {
-      showNotification("✅ Tutte le preferenze cookie sono state salvate!")
+      showNotification(t("allPreferencesSaved"))
     } else {
-      showNotification("❌ Errore nel salvare le preferenze")
+      showNotification(t("errorSavingPreferences"))
     }
   }
 
@@ -91,9 +93,9 @@ export default function CookiePage() {
     }
 
     if (savePreferences(necessaryOnly)) {
-      showNotification("✅ Solo i cookie necessari sono stati accettati!")
+      showNotification(t("onlyNecessaryAccepted"))
     } else {
-      showNotification("❌ Errore nel salvare le preferenze")
+      showNotification(t("errorSavingPreferences"))
     }
   }
 
@@ -110,9 +112,9 @@ export default function CookiePage() {
 
   const saveCustomPreferences = () => {
     if (savePreferences(preferences)) {
-      showNotification("✅ Le tue preferenze cookie sono state salvate!")
+      showNotification(t("yourPreferencesSaved"))
     } else {
-      showNotification("❌ Errore nel salvare le preferenze")
+      showNotification(t("errorSavingPreferences"))
     }
   }
 
@@ -144,12 +146,10 @@ export default function CookiePage() {
             <div className="flex items-center justify-center gap-3 mb-4">
               <Cookie className="w-8 h-8 text-primary animate-pulse" />
               <h1 className="text-4xl md:text-6xl font-cinzel font-bold text-roman-gradient animate-text-shimmer">
-                Cookie Policy
+                {t("cookiePolicy")}
               </h1>
             </div>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Scopri come utilizziamo i cookie per migliorare la tua esperienza sul nostro sito.
-            </p>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">{t("cookiePolicySubtitle")}</p>
           </div>
 
           <div className="space-y-8">
@@ -157,20 +157,18 @@ export default function CookiePage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <Settings className="w-5 h-5" />
-                  Gestisci le Tue Preferenze Cookie
+                  {t("manageCookiePreferences")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <p className="text-muted-foreground">
-                  Personalizza le tue preferenze sui cookie. Puoi modificarle in qualsiasi momento.
-                </p>
+                <p className="text-muted-foreground">{t("customizeCookiePreferences")}</p>
 
                 <div className="grid gap-4">
                   {/* Necessary Cookies */}
                   <div className="flex items-center justify-between p-4 border border-border/50 rounded-lg bg-green-50/50">
                     <div>
-                      <h4 className="font-semibold text-green-800">Cookie Necessari</h4>
-                      <p className="text-sm text-green-600">Sempre attivi - Essenziali per il funzionamento</p>
+                      <h4 className="font-semibold text-green-800">{t("necessaryCookiesTitle")}</h4>
+                      <p className="text-sm text-green-600">{t("necessaryCookiesAlwaysActive")}</p>
                     </div>
                     <div className="w-12 h-6 bg-green-500 rounded-full flex items-center justify-end px-1">
                       <div className="w-4 h-4 bg-white rounded-full shadow-sm"></div>
@@ -180,8 +178,8 @@ export default function CookiePage() {
                   {/* Analytics Cookies */}
                   <div className="flex items-center justify-between p-4 border border-border/50 rounded-lg hover:bg-muted/20 transition-colors">
                     <div>
-                      <h4 className="font-semibold">Cookie Analitici</h4>
-                      <p className="text-sm text-muted-foreground">Ci aiutano a migliorare il sito</p>
+                      <h4 className="font-semibold">{t("analyticsCookiesTitle")}</h4>
+                      <p className="text-sm text-muted-foreground">{t("analyticsCookiesHelp")}</p>
                     </div>
                     <button
                       onClick={() => togglePreference("analytics")}
@@ -196,8 +194,8 @@ export default function CookiePage() {
                   {/* Marketing Cookies */}
                   <div className="flex items-center justify-between p-4 border border-border/50 rounded-lg hover:bg-muted/20 transition-colors">
                     <div>
-                      <h4 className="font-semibold">Cookie Marketing</h4>
-                      <p className="text-sm text-muted-foreground">Per pubblicità personalizzata</p>
+                      <h4 className="font-semibold">{t("marketingCookiesTitle")}</h4>
+                      <p className="text-sm text-muted-foreground">{t("marketingCookiesAds")}</p>
                     </div>
                     <button
                       onClick={() => togglePreference("marketing")}
@@ -216,19 +214,19 @@ export default function CookiePage() {
                     variant="outline"
                     className="flex-1 bg-transparent hover:bg-muted/50 transition-all duration-300"
                   >
-                    Solo Necessari
+                    {t("onlyNecessaryButton")}
                   </Button>
                   <Button
                     onClick={saveCustomPreferences}
                     className="flex-1 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transition-all duration-300 hover:scale-105"
                   >
-                    Salva Preferenze
+                    {t("savePreferencesButton")}
                   </Button>
                   <Button
                     onClick={acceptAll}
                     className="flex-1 bg-gradient-to-r from-accent to-primary hover:from-accent/90 hover:to-primary/90 transition-all duration-300 hover:scale-105"
                   >
-                    Accetta Tutti
+                    {t("acceptAllButton")}
                   </Button>
                 </div>
               </CardContent>
@@ -238,15 +236,11 @@ export default function CookiePage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <Cookie className="w-5 h-5" />
-                  Cosa Sono i Cookie
+                  {t("whatAreCookies")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p>
-                  I cookie sono piccoli file di testo che vengono memorizzati sul tuo dispositivo quando visiti il
-                  nostro sito web. Ci aiutano a fornire una migliore esperienza utente e a capire come utilizzi il
-                  nostro sito.
-                </p>
+                <p>{t("whatAreCookiesDesc")}</p>
               </CardContent>
             </Card>
 
@@ -254,19 +248,19 @@ export default function CookiePage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <Settings className="w-5 h-5" />
-                  Cookie Tecnici (Necessari)
+                  {t("technicalCookies")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p>Questi cookie sono essenziali per il funzionamento del sito:</p>
+                <p>{t("technicalCookiesDesc")}</p>
                 <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-                  <li>Gestione delle sessioni utente</li>
-                  <li>Preferenze di lingua</li>
-                  <li>Sicurezza e autenticazione</li>
-                  <li>Funzionalità del carrello prenotazioni</li>
+                  <li>{t("sessionManagement")}</li>
+                  <li>{t("languagePreferences")}</li>
+                  <li>{t("securityAuth")}</li>
+                  <li>{t("bookingCart")}</li>
                 </ul>
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-green-800 font-medium">✓ Sempre attivi - Non richiedono consenso</p>
+                  <p className="text-green-800 font-medium">{t("alwaysActiveNoConsent")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -275,19 +269,19 @@ export default function CookiePage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <BarChart className="w-5 h-5" />
-                  Cookie Analitici
+                  {t("analyticsCookiesSection")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p>Ci aiutano a capire come i visitatori interagiscono con il sito:</p>
+                <p>{t("analyticsCookiesHelps")}</p>
                 <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-                  <li>Google Analytics (anonimizzato)</li>
-                  <li>Statistiche di utilizzo delle pagine</li>
-                  <li>Tempo di permanenza sul sito</li>
-                  <li>Dispositivi e browser utilizzati</li>
+                  <li>{t("googleAnalytics")}</li>
+                  <li>{t("usageStats")}</li>
+                  <li>{t("timeOnSite")}</li>
+                  <li>{t("devicesUsed")}</li>
                 </ul>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-blue-800 font-medium">ℹ️ Richiedono il tuo consenso</p>
+                  <p className="text-blue-800 font-medium">{t("requiresConsent")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -296,19 +290,19 @@ export default function CookiePage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <Eye className="w-5 h-5" />
-                  Cookie di Marketing
+                  {t("marketingCookiesSection")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p>Utilizzati per personalizzare la pubblicità e misurarne l'efficacia:</p>
+                <p>{t("marketingCookiesUsed")}</p>
                 <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-                  <li>Remarketing e retargeting</li>
-                  <li>Personalizzazione degli annunci</li>
-                  <li>Tracciamento delle conversioni</li>
-                  <li>Social media integration</li>
+                  <li>{t("remarketing")}</li>
+                  <li>{t("adPersonalization")}</li>
+                  <li>{t("conversionTracking")}</li>
+                  <li>{t("socialMediaIntegration")}</li>
                 </ul>
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <p className="text-orange-800 font-medium">⚠️ Richiedono il tuo consenso esplicito</p>
+                  <p className="text-orange-800 font-medium">{t("requiresExplicitConsent")}</p>
                 </div>
               </CardContent>
             </Card>
@@ -316,15 +310,13 @@ export default function CookiePage() {
             <Card className="card-invisible bg-gradient-to-br from-primary/5 to-accent/5">
               <CardContent className="p-6">
                 <div className="text-center">
-                  <h3 className="font-cinzel text-lg font-semibold text-primary mb-3">Hai Domande sui Cookie?</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Contattaci per qualsiasi chiarimento sulla nostra Cookie Policy
-                  </p>
+                  <h3 className="font-cinzel text-lg font-semibold text-primary mb-3">{t("questionsAboutCookies")}</h3>
+                  <p className="text-muted-foreground mb-4">{t("contactForClarifications")}</p>
                   <Button variant="outline" className="bg-transparent hover:bg-primary/10">
-                    Contattaci
+                    {t("contactUs")}
                   </Button>
                 </div>
-                <p className="text-sm text-muted-foreground text-center mt-4">Ultimo aggiornamento: Gennaio 2025</p>
+                <p className="text-sm text-muted-foreground text-center mt-4">{t("lastUpdated")}</p>
               </CardContent>
             </Card>
           </div>
