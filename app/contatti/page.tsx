@@ -107,60 +107,9 @@ export default function ContactsPage() {
               </Button>
             </div>
           </div>
-
-          <div className="mb-12 max-w-3xl mx-auto">
-            <Card className="card-semi-transparent border-primary/20">
-              <CardContent className="p-5">
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <Mail className="w-5 h-5 text-primary" />
-                    <h2 className="text-lg font-cinzel font-bold text-primary">{t("exclusiveNewsletter")}</h2>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-4">{t("newsletterDescription")}</p>
-
-                  {!isSubscribed ? (
-                    <form
-                      onSubmit={handleNewsletterSubmit}
-                      className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto"
-                    >
-                      <Input
-                        type="email"
-                        placeholder={t("yourEmail")}
-                        value={newsletterEmail}
-                        onChange={(e) => setNewsletterEmail(e.target.value)}
-                        required
-                        className="flex-1 h-10"
-                      />
-                      <Button type="submit" size="sm" className="h-10">
-                        {t("subscribe")}
-                      </Button>
-                    </form>
-                  ) : (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 max-w-md mx-auto">
-                      <div className="flex items-center justify-center gap-2 text-green-800">
-                        <Heart className="w-4 h-4 fill-current" />
-                        <span className="text-sm font-medium">{t("thanksForSubscribing")}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      <span>2.500+ {t("subscribers")}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Award className="w-3 h-3" />
-                      <span>{t("exclusiveOffers")}</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-3">
+              <div className="mx-auto w-full max-w-3xl">
               <Card className="card-semi-transparent animate-slide-in-left">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-xl font-cinzel text-primary">{t("sendMessage")}</CardTitle>
@@ -235,7 +184,61 @@ export default function ContactsPage() {
                   </form>
                 </CardContent>
               </Card>
+              </div>
             </div>
+          </div>
+
+
+          <div className="mt-8 sm:mt-12 mb-12 max-w-3xl mx-auto animate-fade-in-up">
+
+            <Card className="card-semi-transparent border-primary/20">
+              <CardContent className="p-5">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Mail className="w-5 h-5 text-primary" />
+                    <h2 className="text-lg font-cinzel font-bold text-primary">{t("exclusiveNewsletter")}</h2>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">{t("newsletterDescription")}</p>
+
+                  {!isSubscribed ? (
+                    <form
+                      onSubmit={handleNewsletterSubmit}
+                      className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto"
+                    >
+                      <Input
+                        type="email"
+                        placeholder={t("yourEmail")}
+                        value={newsletterEmail}
+                        onChange={(e) => setNewsletterEmail(e.target.value)}
+                        required
+                        className="flex-1 h-10"
+                      />
+                      <Button type="submit" size="sm" className="h-10">
+                        {t("subscribe")}
+                      </Button>
+                    </form>
+                  ) : (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 max-w-md mx-auto">
+                      <div className="flex items-center justify-center gap-2 text-green-800">
+                        <Heart className="w-4 h-4 fill-current" />
+                        <span className="text-sm font-medium">{t("thanksForSubscribing")}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      <span>2.500+ {t("subscribers")}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Award className="w-3 h-3" />
+                      <span>{t("exclusiveOffers")}</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

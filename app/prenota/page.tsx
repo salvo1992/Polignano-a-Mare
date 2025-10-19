@@ -29,7 +29,7 @@ import {
    PREZZI BASE PER NOTTE
    ========================= */
 const ROOM_PRICES: Record<string, number> = {
-  deluxe: 120,
+  deluxe: 180,
   suite: 180,
 }
 
@@ -133,7 +133,7 @@ export default function BookingPage() {
               {t("bookYourStay")}
             </h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              {t("unforgettableExperience")} {t("polignanoAMare")}
+              {t("bookingSubtitle")} {t("polignanoAMare")}
             </p>
           </div>
 
@@ -145,7 +145,7 @@ export default function BookingPage() {
                 <div className="flex items-start gap-3">
                   <Clock className="h-5 w-5 text-primary mt-1" />
                   <div>
-                    <h3 className="font-cinzel font-semibold text-primary mb-2">{t("checkInCheckOut")}</h3>
+                    <h3 className="font-cinzel font-semibold text-primary mb-2">{t("checkIn-CheckOut")}</h3>
                     <div className="space-y-1 text-sm">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-primary" />
@@ -171,17 +171,17 @@ export default function BookingPage() {
                 <div className="flex items-start gap-3">
                   <MapPin className="h-5 w-5 text-primary mt-1" />
                   <div>
-                    <h3 className="font-cinzel font-semibold text-primary mb-2">{t("howToReachUs")}</h3>
+                    <h3 className="font-cinzel font-semibold text-primary mb-2">{t("howToReach")}</h3>
                     <div className="space-y-1 text-sm text-muted-foreground">
                       <p>{t("historicCenter")}</p>
                       <p>
-                        <strong className="text-foreground">{t("bariAirport")}</strong> 40 {t("minutes")}
+                        <strong className="text-foreground">{t("airport")}</strong> 40 {t("minutes")}
                       </p>
                       <p>
-                        <strong className="text-foreground">{t("trainStation")}</strong> 5 {t("walkingMinutes")}
+                        <strong className="text-foreground">{t("trainStation")}</strong> 5 {t("bookingStation")}
                       </p>
                       <p>
-                        <strong className="text-foreground">{t("lamaMonachile")}</strong> 2 {t("walkingMinutes")}
+                        <strong className="text-foreground">{t("beach")}</strong> 2 {t("bookingBeach")}
                       </p>
                     </div>
                   </div>
@@ -237,13 +237,13 @@ export default function BookingPage() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="phone" className="mb-2 block">
-                      {t("phoneNumber")}
+                      {t("bookingFormPhone")}
                     </Label>
                     <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} />
                   </div>
                   <div>
                     <Label htmlFor="guests" className="mb-2 block">
-                      {t("numberOfGuestsLabel")}
+                      {t("bookingFormGuests")}
                     </Label>
                     <select
                       id="guests"
@@ -252,10 +252,10 @@ export default function BookingPage() {
                       onChange={handleInputChange}
                       className="w-full px-3 py-2 border border-input rounded-md bg-background"
                     >
-                      <option value="1">{t("oneGuest")}</option>
-                      <option value="2">{t("twoGuests")}</option>
-                      <option value="3">{t("threeGuests")}</option>
-                      <option value="4">{t("fourGuests")}</option>
+                      <option value="1">{t("1")}</option>
+                      <option value="2">{t("2")}</option>
+                      <option value="3">{t("3")}</option>
+                      <option value="4">{t("4")}</option>
                     </select>
                   </div>
                 </div>
@@ -263,7 +263,7 @@ export default function BookingPage() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="checkIn" className="mb-2 block">
-                      {t("checkInDate")}
+                      {t("bookingFormCheckIn")}
                     </Label>
                     <Input
                       id="checkIn"
@@ -276,7 +276,7 @@ export default function BookingPage() {
                   </div>
                   <div>
                     <Label htmlFor="checkOut" className="mb-2 block">
-                      {t("checkOutDate")}
+                      {t("bookingFormCheckOut")}
                     </Label>
                     <Input
                       id="checkOut"
@@ -303,8 +303,8 @@ export default function BookingPage() {
                       required
                     >
                       <option value="">{t("selectRoom")}</option>
-                      <option value="deluxe">{t("deluxeRoom")}</option>
-                      <option value="suite">{t("panoramicSuite")}</option>
+                      <option value="jacuzi">{t("bookingFormjacuziRoom")}</option>
+                      <option value="suite">{t("bookingFormPanoramicSuite")}</option>
                     </select>
                   </div>
                   <div className="flex items-end">
@@ -457,7 +457,7 @@ export default function BookingPage() {
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg">{t("deluxeRoom")}</CardTitle>
+                    <CardTitle className="text-lg">{t("Camera Matrimoniale con Vasca Idromassaggio")}</CardTitle>
                     <p className="text-xs text-muted-foreground">
                       {t("from")} €{ROOM_PRICES.deluxe}/{t("night")}
                     </p>
@@ -477,7 +477,7 @@ export default function BookingPage() {
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg">{t("panoramicSuite")}</CardTitle>
+                    <CardTitle className="text-lg">{t("Camera Familiare con Balcone")}</CardTitle>
                     <p className="text-xs text-muted-foreground">
                       {t("from")} €{ROOM_PRICES.suite}/{t("night")}
                     </p>

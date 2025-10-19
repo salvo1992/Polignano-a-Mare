@@ -6,15 +6,15 @@ import { useLanguage } from "@/components/language-provider"
 
 // Sample room data - in a real app this would come from props or API
 const roomData = {
-  name: "Suite Panoramica",
+  name: "le nostre suite nel dettaglio con jacuzzi privata e sauna offrono questo e molto altro",
   description:
-    "Una magnifica suite con vista mozzafiato sulle colline toscane. Questa elegante camera matrimoniale offre un'esperienza di soggiorno indimenticabile con il suo design raffinato e i comfort moderni. Il balcone privato permette di godere di tramonti spettacolari e della tranquillità della campagna toscana.",
+    "Una magnifica suite con jacuzzi privata e sauna. Questa elegante camera matrimoniale offre un'esperienza di soggiorno indimenticabile con il suo design raffinato e i comfort moderni. Il terrazzo privato permette di godere di tramonti spettacolari e della tranquillità di Polignano a Mare.",
   longDescription:
-    "Immersa nella bellezza della campagna toscana, questa suite rappresenta il perfetto equilibrio tra eleganza classica e comfort contemporaneo. Gli arredi sono stati selezionati con cura per riflettere lo stile tradizionale della regione, mentre i servizi moderni garantiscono un soggiorno confortevole e rilassante.",
-  guests: 2,
-  beds: 1,
+    "Immersa nella bellezza di Polignano a Mare, questa suite rappresenta il perfetto equilibrio tra eleganza classica e comfort contemporaneo. Gli arredi sono stati selezionati con cura per riflettere lo stile tradizionale della regione, mentre i servizi moderni garantiscono un soggiorno confortevole e rilassante.",
+  guests: 4,
+  beds: 2,
   bathrooms: 1,
-  size: 35,
+  size: 33,
   rating: 4.9,
   reviews: 45,
   amenities: [
@@ -26,7 +26,7 @@ const roomData = {
     { icon: Car, name: "Parcheggio", description: "Posto auto gratuito" },
   ],
   features: [
-    "Vista panoramica sulle colline",
+    "Vista panoramica su Polignano a Mare",
     "Balcone privato arredato",
     "Bagno in marmo con doccia",
     "Biancheria di lusso",
