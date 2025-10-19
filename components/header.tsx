@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/components/language-provider"
@@ -30,24 +31,29 @@ export function Header() {
   return (
     <>
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-border/50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16 gap-2">
-            {/* Logo - Always visible with responsive text size */}
-            <Link href="/" className="flex items-center space-x-2 group flex-shrink-0">
-              <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
-                <span className="text-primary-foreground font-bold text-base md:text-lg font-cinzel">
-                  <img
-                    src="images/logo22.jpg"
-                    alt="Logo Al 22 Suite & Spa Luxury Experience"
-                    width={100}
-                    height={100}
-                  />
-                </span>
-              </div>
-              <span className="font-cinzel text-sm sm:text-base md:text-xl font-bold text-roman-gradient whitespace-nowrap">
-                AL 22 Suite & SPA LUXURY EXPERIENCE
-              </span>
-            </Link>
+  <div className="container mx-auto px-3 sm:px-4">
+    <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
+      <Link href="/" className="flex items-center gap-2 group shrink-0">
+  {/* Solo immagine, nessun cerchio dietro */}
+  <div className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14">
+    <Image
+      src="/images/logo22.jpg"
+      alt="Logo Al 22 Suite & Spa Luxury Experience"
+      fill
+      className="object-contain"
+      priority
+      sizes="(max-width: 640px) 40px, (max-width: 768px) 48px, 56px"
+    />
+  </div>
+
+  {/* Testo come già impostato */}
+  <span className="font-cinzel text-xs sm:hidden font-bold text-roman-gradient max-w-[55vw] overflow-hidden text-ellipsis whitespace-nowrap">
+    AL 22 Suite & SPA
+  </span>
+  <span className="hidden sm:inline font-cinzel text-sm md:text-xl font-bold text-roman-gradient whitespace-nowrap">
+    AL 22 Suite & SPA LUXURY EXPERIENCE
+  </span>
+</Link>
 
             <div className="flex items-center gap-2 md:gap-4">
               <div className="md:hidden flex items-center">
