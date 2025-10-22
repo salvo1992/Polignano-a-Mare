@@ -1,0 +1,216 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Users, UserCheck, UserX, Calendar, Mail, Phone, Home } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
+import { db } from "@/lib/firebase"
+import { collection, query, onSnapshot, orderBy } from "firebase/firestore"
+import type { Booking } from "@/lib/booking-utils"
+
+export function GuestsTracking() {
+  const { t } = useLanguage()
+  const [bookings, setBookings] = useState<Booking[]>([])
+
+  useEffect(() => {
+    const q = query(collection(db, "bookings"), orderBy("checkIn", "desc"))
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const bookingsData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Booking[]
+      setBookings(bookingsData)
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const currentGuests = bookings.filter((b) => {
+    const checkIn = new Date(b.checkIn)
+    const checkOut = new Date(b.checkOut)
+    return today >= checkIn && today <= checkOut && b.status === "confirmed"
+  })
+
+  const upcomingGuests = bookings.filter((b) => {
+    const checkIn = new Date(b.checkIn)
+    return checkIn > today && b.status === "confirmed"
+  })
+
+  const pastGuests = bookings.filter((b) => {
+    const checkOut = new Date(b.checkOut)
+    return checkOut < today
+  })
+
+  const GuestCard = ({ booking, status }: { booking: Booking; status: "current" | "upcoming" | "past" }) => {
+    const checkInDate = new Date(booking.checkIn).toLocaleDateString("it-IT")
+    const checkOutDate = new Date(booking.checkOut).toLocaleDateString("it-IT")
+
+    return (
+      <Card className="mb-3">
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Users className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-lg">
+                  {booking.guestFirst} {booking.guestLast}
+                </h4>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge
+                    className={
+                      booking.origin === "booking"
+                        ? "bg-blue-600"
+                        : booking.origin === "airbnb"
+                          ? "bg-pink-600"
+                          : "bg-emerald-600"
+                    }
+                  >
+                    {booking.origin}
+                  </Badge>
+                  {status === "current" && <Badge className="bg-green-600">{t("inHouse")}</Badge>}
+                  {status === "upcoming" && <Badge className="bg-orange-600">{t("upcoming")}</Badge>}
+                  {status === "past" && <Badge variant="secondary">{t("past")}</Badge>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Mail className="w-4 h-4" />
+              <span>{booking.email}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Phone className="w-4 h-4" />
+              <span>{booking.phone}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Home className="w-4 h-4" />
+              <span>{booking.roomName}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Calendar className="w-4 h-4" />
+              <span>
+                {checkInDate} → {checkOutDate}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-3 pt-3 border-t flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              {t("total")}: <strong className="text-foreground">€{booking.total}</strong>
+            </span>
+            <Badge variant={booking.status === "confirmed" ? "default" : "secondary"}>{t(booking.status)}</Badge>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-green-600" />
+              {t("currentGuests")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{currentGuests.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">{t("guestsInHouse")}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-orange-600" />
+              {t("upcomingGuests")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{upcomingGuests.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">{t("futureBookings")}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <UserX className="w-4 h-4 text-gray-600" />
+              {t("pastGuests")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{pastGuests.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">{t("totalPastGuests")}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-cinzel text-primary">{t("guestsManagement")}</CardTitle>
+          <CardDescription>{t("trackAllGuests")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="current" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="current">
+                {t("current")} ({currentGuests.length})
+              </TabsTrigger>
+              <TabsTrigger value="upcoming">
+                {t("upcoming")} ({upcomingGuests.length})
+              </TabsTrigger>
+              <TabsTrigger value="past">
+                {t("past")} ({pastGuests.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="current" className="space-y-3">
+              {currentGuests.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>{t("noCurrentGuests")}</p>
+                </div>
+              ) : (
+                currentGuests.map((booking) => <GuestCard key={booking.id} booking={booking} status="current" />)
+              )}
+            </TabsContent>
+
+            <TabsContent value="upcoming" className="space-y-3">
+              {upcomingGuests.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>{t("noUpcomingGuests")}</p>
+                </div>
+              ) : (
+                upcomingGuests.map((booking) => <GuestCard key={booking.id} booking={booking} status="upcoming" />)
+              )}
+            </TabsContent>
+
+            <TabsContent value="past" className="space-y-3">
+              {pastGuests.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <UserX className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>{t("noPastGuests")}</p>
+                </div>
+              ) : (
+                pastGuests.map((booking) => <GuestCard key={booking.id} booking={booking} status="past" />)
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

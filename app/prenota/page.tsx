@@ -11,10 +11,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, Users, MapPin, Clock } from "lucide-react"
+import { Calendar, Users, MapPin, Clock, AlertCircle } from "lucide-react"
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
 import { createBooking, type BookingPayload } from "@/lib/firebase"
 import { useLanguage } from "@/components/language-provider"
+import { checkRoomAvailability } from "@/lib/booking-utils"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,13 +25,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-/* =========================
-   PREZZI BASE PER NOTTE
-   ========================= */
 const ROOM_PRICES: Record<string, number> = {
-  deluxe: 180,
+  deluxe: 120,
   suite: 180,
+}
+
+const ROOM_IDS: Record<string, string> = {
+  deluxe: "1", // Camera Familiare con Balcone
+  suite: "2", // Camera Matrimoniale con Vasca Idromassaggio
+}
+
+const ROOM_NAMES: Record<string, string> = {
+  deluxe: "Camera Familiare con Balcone",
+  suite: "Camera Matrimoniale con Vasca Idromassaggio",
 }
 
 type PayMethod = "stripe" | "paypal" | "satispay"
@@ -41,9 +50,6 @@ export default function BookingPage() {
   const { t } = useLanguage()
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
 
-  /* -------------------------
-     FORM STATE
-     ------------------------- */
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -57,15 +63,55 @@ export default function BookingPage() {
 
   const [payMethod, setPayMethod] = useState<PayMethod>("stripe")
   const [showErrorModal, setShowErrorModal] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
+  const [availabilityStatus, setAvailabilityStatus] = useState<{
+    available: boolean
+    message: string
+  } | null>(null)
+
   const hasError = search.get("error") === "payment_failed"
 
   useEffect(() => {
-    if (hasError) setShowErrorModal(true)
-  }, [hasError])
+    if (hasError) {
+      setErrorMessage(t("paymentProblem"))
+      setShowErrorModal(true)
+    }
+  }, [hasError, t])
 
-  /* -------------------------
-     Notti & Totale
-     ------------------------- */
+  useEffect(() => {
+    const checkAvailability = async () => {
+      if (formData.checkIn && formData.checkOut && formData.roomType) {
+        setIsCheckingAvailability(true)
+        try {
+          const roomId = ROOM_IDS[formData.roomType]
+          const isAvailable = await checkRoomAvailability(roomId, formData.checkIn, formData.checkOut)
+
+          if (isAvailable) {
+            setAvailabilityStatus({
+              available: true,
+              message: t("roomAvailable"),
+            })
+          } else {
+            setAvailabilityStatus({
+              available: false,
+              message: t("roomNotAvailable"),
+            })
+          }
+        } catch (error) {
+          console.error("[v0] Error checking availability:", error)
+          setAvailabilityStatus(null)
+        } finally {
+          setIsCheckingAvailability(false)
+        }
+      } else {
+        setAvailabilityStatus(null)
+      }
+    }
+
+    checkAvailability()
+  }, [formData.checkIn, formData.checkOut, formData.roomType, t])
+
   const nights = useMemo(() => {
     const ci = formData.checkIn ? new Date(formData.checkIn) : null
     const co = formData.checkOut ? new Date(formData.checkOut) : null
@@ -76,14 +122,17 @@ export default function BookingPage() {
 
   const basePrice = ROOM_PRICES[formData.roomType] ?? 0
   const extraGuests = Math.max(0, Number(formData.guests || "1") - 2)
-  const extraFeePerNight = extraGuests * 20 // €20/notte per ospite extra
+  const extraFeePerNight = extraGuests * 20
   const total = nights * (basePrice + extraFeePerNight)
 
-  /* -------------------------
-     Submit
-     ------------------------- */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!availabilityStatus?.available) {
+      setErrorMessage(t("roomNotAvailableError"))
+      setShowErrorModal(true)
+      return
+    }
 
     const payload: BookingPayload = {
       checkIn: formData.checkIn,
@@ -93,10 +142,12 @@ export default function BookingPage() {
       email: formData.email,
       phone: formData.phone,
       notes: formData.specialRequests,
-      totalAmount: Math.round(total * 100), // cents
+      totalAmount: Math.round(total * 100),
       currency: "EUR",
       status: "pending",
       source: "site",
+      roomId: ROOM_IDS[formData.roomType],
+      roomName: ROOM_NAMES[formData.roomType],
     }
 
     try {
@@ -104,7 +155,8 @@ export default function BookingPage() {
       const qs = new URLSearchParams({ bookingId, method: payMethod }).toString()
       router.push(`/checkout?${qs}`)
     } catch (err) {
-      console.error("Create booking error:", err)
+      console.error("[v0] Create booking error:", err)
+      setErrorMessage(t("bookingError"))
       setShowErrorModal(true)
     }
   }
@@ -113,16 +165,12 @@ export default function BookingPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
-  /* -------------------------
-     UI
-     ------------------------- */
   return (
     <main className="min-h-screen">
       <Header />
 
       <div className="pt-20 pb-16">
         <div className="container mx-auto px-4">
-          {/* HERO */}
           <div
             ref={heroRef}
             className={`text-center mb-10 transition-all duration-1000 ${
@@ -133,19 +181,17 @@ export default function BookingPage() {
               {t("bookYourStay")}
             </h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              {t("bookingSubtitle")} {t("polignanoAMare")}
+              {t("unforgettableExperience")} {t("polignanoAMare")}
             </p>
           </div>
 
-          {/* TRE CARD INFO (responsive, centrate) */}
           <div className="mx-auto max-w-5xl grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-10">
-            {/* Check-in / out */}
             <Card className="h-full">
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
                   <Clock className="h-5 w-5 text-primary mt-1" />
                   <div>
-                    <h3 className="font-cinzel font-semibold text-primary mb-2">{t("checkIn-CheckOut")}</h3>
+                    <h3 className="font-cinzel font-semibold text-primary mb-2">{t("checkInCheckOut")}</h3>
                     <div className="space-y-1 text-sm">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-primary" />
@@ -165,23 +211,22 @@ export default function BookingPage() {
               </CardContent>
             </Card>
 
-            {/* Come raggiungerci */}
             <Card className="h-full">
               <CardContent className="p-5">
                 <div className="flex items-start gap-3">
                   <MapPin className="h-5 w-5 text-primary mt-1" />
                   <div>
-                    <h3 className="font-cinzel font-semibold text-primary mb-2">{t("howToReach")}</h3>
+                    <h3 className="font-cinzel font-semibold text-primary mb-2">{t("howToReachUs")}</h3>
                     <div className="space-y-1 text-sm text-muted-foreground">
                       <p>{t("historicCenter")}</p>
                       <p>
-                        <strong className="text-foreground">{t("airport")}</strong> 40 {t("minutes")}
+                        <strong className="text-foreground">{t("bariAirport")}</strong> 40 {t("minutes")}
                       </p>
                       <p>
-                        <strong className="text-foreground">{t("trainStation")}</strong> 5 {t("bookingStation")}
+                        <strong className="text-foreground">{t("trainStation")}</strong> 5 {t("walkingMinutes")}
                       </p>
                       <p>
-                        <strong className="text-foreground">{t("beach")}</strong> 2 {t("bookingBeach")}
+                        <strong className="text-foreground">{t("lamaMonachile")}</strong> 2 {t("walkingMinutes")}
                       </p>
                     </div>
                   </div>
@@ -189,7 +234,6 @@ export default function BookingPage() {
               </CardContent>
             </Card>
 
-            {/* Prezzo stimato */}
             <Card className="h-full">
               <CardContent className="p-5">
                 <h3 className="font-cinzel font-semibold text-primary mb-2">{t("estimatedPrice")}</h3>
@@ -204,7 +248,6 @@ export default function BookingPage() {
             </Card>
           </div>
 
-          {/* DETTAGLI PRENOTAZIONE */}
           <Card className="card-semi-transparent bg-[#f5e6d3]/30 max-w-5xl mx-auto mb-14">
             <CardHeader>
               <CardTitle className="text-2xl font-cinzel text-primary">{t("bookingDetails")}</CardTitle>
@@ -237,13 +280,13 @@ export default function BookingPage() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="phone" className="mb-2 block">
-                      {t("bookingFormPhone")}
+                      {t("phoneNumber")}
                     </Label>
                     <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} />
                   </div>
                   <div>
                     <Label htmlFor="guests" className="mb-2 block">
-                      {t("bookingFormGuests")}
+                      {t("numberOfGuestsLabel")}
                     </Label>
                     <select
                       id="guests"
@@ -252,10 +295,10 @@ export default function BookingPage() {
                       onChange={handleInputChange}
                       className="w-full px-3 py-2 border border-input rounded-md bg-background"
                     >
-                      <option value="1">{t("1")}</option>
-                      <option value="2">{t("2")}</option>
-                      <option value="3">{t("3")}</option>
-                      <option value="4">{t("4")}</option>
+                      <option value="1">{t("oneGuest")}</option>
+                      <option value="2">{t("twoGuests")}</option>
+                      <option value="3">{t("threeGuests")}</option>
+                      <option value="4">{t("fourGuests")}</option>
                     </select>
                   </div>
                 </div>
@@ -263,7 +306,7 @@ export default function BookingPage() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="checkIn" className="mb-2 block">
-                      {t("bookingFormCheckIn")}
+                      {t("checkInDate")}
                     </Label>
                     <Input
                       id="checkIn"
@@ -276,7 +319,7 @@ export default function BookingPage() {
                   </div>
                   <div>
                     <Label htmlFor="checkOut" className="mb-2 block">
-                      {t("bookingFormCheckOut")}
+                      {t("checkOutDate")}
                     </Label>
                     <Input
                       id="checkOut"
@@ -303,8 +346,8 @@ export default function BookingPage() {
                       required
                     >
                       <option value="">{t("selectRoom")}</option>
-                      <option value="jacuzi">{t("bookingFormjacuziRoom")}</option>
-                      <option value="suite">{t("bookingFormPanoramicSuite")}</option>
+                      <option value="deluxe">{t("deluxeRoom")}</option>
+                      <option value="suite">{t("panoramicSuite")}</option>
                     </select>
                   </div>
                   <div className="flex items-end">
@@ -315,6 +358,24 @@ export default function BookingPage() {
                     </div>
                   </div>
                 </div>
+
+                {isCheckingAvailability && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>{t("checkingAvailability")}</AlertTitle>
+                    <AlertDescription>{t("pleaseWait")}</AlertDescription>
+                  </Alert>
+                )}
+
+                {availabilityStatus && !isCheckingAvailability && (
+                  <Alert variant={availabilityStatus.available ? "default" : "destructive"}>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>{availabilityStatus.available ? t("roomAvailable") : t("roomNotAvailable")}</AlertTitle>
+                    <AlertDescription>
+                      {availabilityStatus.available ? t("roomAvailableDesc") : t("roomNotAvailableDesc")}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 <div>
                   <Label htmlFor="specialRequests" className="mb-2 block">
@@ -330,12 +391,10 @@ export default function BookingPage() {
                   />
                 </div>
 
-                {/* Metodi di pagamento (brand ufficiali) */}
                 <div className="border rounded-lg p-4 bg-background/50">
                   <p className="font-medium mb-3">{t("bookingPaymentMethod")}</p>
 
                   <div className="grid sm:grid-cols-3 gap-3">
-                    {/* STRIPE */}
                     <button
                       type="button"
                       onClick={() => setPayMethod("stripe")}
@@ -363,7 +422,6 @@ export default function BookingPage() {
                       </svg>
                     </button>
 
-                    {/* PAYPAL */}
                     <button
                       type="button"
                       onClick={() => setPayMethod("paypal")}
@@ -395,7 +453,6 @@ export default function BookingPage() {
                       </svg>
                     </button>
 
-                    {/* SATISPAY */}
                     <button
                       type="button"
                       onClick={() => setPayMethod("satispay")}
@@ -416,14 +473,13 @@ export default function BookingPage() {
                         aria-hidden="true"
                         fill={payMethod === "satispay" ? "#FFFFFF" : "#FF2D2E"}
                       >
-                        <path d="M12 2l4 6 6 4-6 4-4 6-4-6-6-4 6-4 4-6z" />
+                        <path d="M12 2l4 6 6 4-6 4-4 6-4-6z" />
                       </svg>
                       <span className="font-semibold">Satispay</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Totale visibile */}
                 <div className="flex items-center justify-between bg-muted/40 rounded-lg px-4 py-3">
                   <div className="text-sm text-muted-foreground">
                     {nights > 0
@@ -435,21 +491,23 @@ export default function BookingPage() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full text-lg py-6">
+                <Button
+                  type="submit"
+                  className="w-full text-lg py-6"
+                  disabled={!availabilityStatus?.available || isCheckingAvailability}
+                >
                   {t("confirmBooking")}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
-          {/* SEZIONE CAMERE (solo 2, nessun carosello) */}
           <div className="text-center mb-6">
             <h2 className="text-2xl font-cinzel font-bold text-roman-gradient mb-2">{t("ourRooms")}</h2>
             <p className="text-sm text-muted-foreground">{t("discoverWhereYouStay")}</p>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 max-w-5xl mx-auto">
-            {/* Camera Deluxe */}
             <Card className="overflow-hidden">
               <div className="relative h-56">
                 <Image src="/images/room-1.jpg" alt={t("deluxeRoomWithView")} fill className="object-cover" />
@@ -457,7 +515,7 @@ export default function BookingPage() {
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg">{t("Camera Matrimoniale con Vasca Idromassaggio")}</CardTitle>
+                    <CardTitle className="text-lg">{t("deluxeRoom")}</CardTitle>
                     <p className="text-xs text-muted-foreground">
                       {t("from")} €{ROOM_PRICES.deluxe}/{t("night")}
                     </p>
@@ -469,7 +527,6 @@ export default function BookingPage() {
               </CardContent>
             </Card>
 
-            {/* Suite Panoramica */}
             <Card className="overflow-hidden">
               <div className="relative h-56">
                 <Image src="/images/room-2.jpg" alt={t("panoramicSuiteWithTerrace")} fill className="object-cover" />
@@ -477,7 +534,7 @@ export default function BookingPage() {
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg">{t("Camera Familiare con Balcone")}</CardTitle>
+                    <CardTitle className="text-lg">{t("panoramicSuite")}</CardTitle>
                     <p className="text-xs text-muted-foreground">
                       {t("from")} €{ROOM_PRICES.suite}/{t("night")}
                     </p>
@@ -494,12 +551,11 @@ export default function BookingPage() {
 
       <Footer />
 
-      {/* Modale errore pagamento */}
       <AlertDialog open={showErrorModal} onOpenChange={setShowErrorModal}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("paymentError")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("paymentProblem")}</AlertDialogDescription>
+            <AlertDialogDescription>{errorMessage}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setShowErrorModal(false)}>{t("okButton")}</AlertDialogAction>
@@ -509,4 +565,5 @@ export default function BookingPage() {
     </main>
   )
 }
+
 

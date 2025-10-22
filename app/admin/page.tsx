@@ -9,30 +9,13 @@ import { Calendar, BarChart3, Home, Settings, Users } from "lucide-react"
 import { RequireAdmin } from "@/components/route-guards"
 import { useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
-import { collection, doc, onSnapshot, orderBy, query, updateDoc } from "firebase/firestore"
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore"
 import { useLanguage } from "@/components/language-provider"
-
-interface Booking {
-  id: string
-  guestFirst: string
-  guestLast: string
-  email: string
-  phone: string
-  roomId: string
-  roomName: string
-  checkIn: string
-  checkOut: string
-  total: number
-  origin: "site" | "booking"
-  status: "pending" | "confirmed" | "cancelled"
-}
-interface Room {
-  id: string
-  name: string
-  status: "available" | "occupied" | "maintenance"
-  price: number
-  capacity: number
-}
+import { BookingCalendar } from "@/components/booking-calendar"
+import { RoomStatusToggle } from "@/components/room-status-toggle"
+import { GuestsTracking } from "@/components/guests-tracking"
+import { PriceManagement } from "@/components/price-management"
+import type { Booking, Room } from "@/lib/booking-utils"
 
 export default function AdminPage() {
   return (
@@ -60,10 +43,9 @@ function AdminInner() {
   }, [])
 
   const recent = bookings.slice(0, 5)
-
-  const toggleMaintenance = async (roomId: string, on: boolean) => {
-    await updateDoc(doc(db, "rooms", roomId), { status: on ? "maintenance" : "available" })
-  }
+  const bookingComBookings = bookings.filter((b) => b.origin === "booking")
+  const airbnbBookings = bookings.filter((b) => b.origin === "airbnb")
+  const siteBookings = bookings.filter((b) => b.origin === "site")
 
   return (
     <main className="min-h-screen">
@@ -73,27 +55,76 @@ function AdminInner() {
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="dashboard">
-              <BarChart3 className="h-4 w-4" /> {t("dashboard")}
+              <BarChart3 className="h-4 w-4 mr-2" /> {t("dashboard")}
             </TabsTrigger>
             <TabsTrigger value="bookings">
-              <Calendar className="h-4 w-4" /> {t("bookings")}
+              <Calendar className="h-4 w-4 mr-2" /> {t("bookings")}
             </TabsTrigger>
             <TabsTrigger value="rooms">
-              <Home className="h-4 w-4" /> {t("rooms")}
+              <Home className="h-4 w-4 mr-2" /> {t("rooms")}
             </TabsTrigger>
             <TabsTrigger value="guests">
-              <Users className="h-4 w-4" /> {t("guests")}
+              <Users className="h-4 w-4 mr-2" /> {t("guests")}
             </TabsTrigger>
             <TabsTrigger value="settings">
-              <Settings className="h-4 w-4" /> {t("settings")}
+              <Settings className="h-4 w-4 mr-2" /> {t("settings")}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">{t("recentBookings")}</CardTitle>
+                  <CardTitle className="text-sm">{t("totalBookings")}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{bookings.length}</div>
+                  <p className="text-xs text-muted-foreground mt-1">{t("allSources")}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Badge className="bg-blue-600">Booking.com</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{bookingComBookings.length}</div>
+                  <p className="text-xs text-muted-foreground mt-1">{t("fromBooking")}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Badge className="bg-pink-600">Airbnb</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{airbnbBookings.length}</div>
+                  <p className="text-xs text-muted-foreground mt-1">{t("fromAirbnb")}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Badge className="bg-emerald-600">{t("site")}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{siteBookings.length}</div>
+                  <p className="text-xs text-muted-foreground mt-1">{t("fromSite")}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("recentBookings")}</CardTitle>
+                  <CardDescription>{t("last5Bookings")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -108,8 +139,16 @@ function AdminInner() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <Badge className={b.origin === "booking" ? "bg-blue-600" : "bg-emerald-600"}>
-                            {b.origin === "booking" ? t("booking") : t("site")}
+                          <Badge
+                            className={
+                              b.origin === "booking"
+                                ? "bg-blue-600"
+                                : b.origin === "airbnb"
+                                  ? "bg-pink-600"
+                                  : "bg-emerald-600"
+                            }
+                          >
+                            {b.origin}
                           </Badge>
                           <p className="text-sm font-medium mt-1">€{b.total}</p>
                         </div>
@@ -120,12 +159,13 @@ function AdminInner() {
               </Card>
 
               <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">{t("roomStatus")}</CardTitle>
+                <CardHeader>
+                  <CardTitle>{t("roomStatus")}</CardTitle>
+                  <CardDescription>{t("currentRoomStatus")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {rooms.slice(0, 2).map((r) => (
+                    {rooms.map((r) => (
                       <div key={r.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                         <div>
                           <p className="font-medium">{r.name}</p>
@@ -133,117 +173,188 @@ function AdminInner() {
                             {r.capacity} {t("guests")} • €{r.price}/{t("night")}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={r.status === "available" ? "secondary" : "default"}>{r.status}</Badge>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => toggleMaintenance(r.id, r.status !== "maintenance")}
-                          >
-                            {r.status === "maintenance" ? t("reactivate") : t("maintenance")}
-                          </Button>
-                        </div>
+                        <Badge
+                          className={
+                            r.status === "available"
+                              ? "bg-green-600"
+                              : r.status === "booked"
+                                ? "bg-red-600"
+                                : "bg-yellow-600"
+                          }
+                        >
+                          {t(r.status)}
+                        </Badge>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">{t("bookingFromBooking")}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {bookings
-                    .filter((b) => b.origin === "booking")
-                    .slice(0, 5)
-                    .map((b) => (
-                      <div key={b.id} className="flex items-center justify-between p-2 border rounded mb-2">
-                        <span className="text-sm">
-                          {b.guestFirst} {b.guestLast} • {b.roomName}
-                        </span>
-                        <Badge className="bg-blue-600">{t("booking")}</Badge>
-                      </div>
-                    ))}
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
           <TabsContent value="bookings" className="space-y-6">
+            <BookingCalendar />
+
             <Card>
               <CardHeader>
                 <CardTitle className="font-cinzel text-primary">{t("allBookings")}</CardTitle>
-                <CardDescription>{t("siteAndBooking")}</CardDescription>
+                <CardDescription>{t("manageAllBookings")}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {bookings.map((b) => (
-                    <div key={b.id} className="grid md:grid-cols-5 items-center gap-2 p-3 border rounded">
-                      <div className="font-medium">
-                        {b.guestFirst} {b.guestLast}
+                <Tabs defaultValue="all" className="space-y-4">
+                  <TabsList>
+                    <TabsTrigger value="all">{t("all")}</TabsTrigger>
+                    <TabsTrigger value="booking">Booking.com ({bookingComBookings.length})</TabsTrigger>
+                    <TabsTrigger value="airbnb">Airbnb ({airbnbBookings.length})</TabsTrigger>
+                    <TabsTrigger value="site">
+                      {t("site")} ({siteBookings.length})
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="all" className="space-y-3">
+                    {bookings.map((b) => (
+                      <div key={b.id} className="grid md:grid-cols-5 items-center gap-2 p-3 border rounded">
+                        <div className="font-medium">
+                          {b.guestFirst} {b.guestLast}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {b.email} • {b.phone}
+                        </div>
+                        <div className="text-sm">{b.roomName}</div>
+                        <div className="text-sm">
+                          {b.checkIn} → {b.checkOut}
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <Badge
+                            className={
+                              b.origin === "booking"
+                                ? "bg-blue-600"
+                                : b.origin === "airbnb"
+                                  ? "bg-pink-600"
+                                  : "bg-emerald-600"
+                            }
+                          >
+                            {b.origin}
+                          </Badge>
+                          <Badge>€{b.total}</Badge>
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {b.email} • {b.phone}
+                    ))}
+                  </TabsContent>
+
+                  <TabsContent value="booking" className="space-y-3">
+                    {bookingComBookings.map((b) => (
+                      <div key={b.id} className="grid md:grid-cols-5 items-center gap-2 p-3 border rounded">
+                        <div className="font-medium">
+                          {b.guestFirst} {b.guestLast}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {b.email} • {b.phone}
+                        </div>
+                        <div className="text-sm">{b.roomName}</div>
+                        <div className="text-sm">
+                          {b.checkIn} → {b.checkOut}
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <Badge className="bg-blue-600">Booking.com</Badge>
+                          <Badge>€{b.total}</Badge>
+                        </div>
                       </div>
-                      <div className="text-sm">{b.roomName}</div>
-                      <div className="text-sm">
-                        {b.checkIn} → {b.checkOut}
+                    ))}
+                  </TabsContent>
+
+                  <TabsContent value="airbnb" className="space-y-3">
+                    {airbnbBookings.map((b) => (
+                      <div key={b.id} className="grid md:grid-cols-5 items-center gap-2 p-3 border rounded">
+                        <div className="font-medium">
+                          {b.guestFirst} {b.guestLast}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {b.email} • {b.phone}
+                        </div>
+                        <div className="text-sm">{b.roomName}</div>
+                        <div className="text-sm">
+                          {b.checkIn} → {b.checkOut}
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <Badge className="bg-pink-600">Airbnb</Badge>
+                          <Badge>€{b.total}</Badge>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-end gap-2">
-                        <Badge className={b.origin === "booking" ? "bg-blue-600" : "bg-emerald-600"}>
-                          {b.origin === "booking" ? t("booking") : t("site")}
-                        </Badge>
-                        <Badge>€{b.total}</Badge>
+                    ))}
+                  </TabsContent>
+
+                  <TabsContent value="site" className="space-y-3">
+                    {siteBookings.map((b) => (
+                      <div key={b.id} className="grid md:grid-cols-5 items-center gap-2 p-3 border rounded">
+                        <div className="font-medium">
+                          {b.guestFirst} {b.guestLast}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {b.email} • {b.phone}
+                        </div>
+                        <div className="text-sm">{b.roomName}</div>
+                        <div className="text-sm">
+                          {b.checkIn} → {b.checkOut}
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <Badge className="bg-emerald-600">{t("site")}</Badge>
+                          <Badge>€{b.total}</Badge>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="rooms" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {rooms.map((room) => (
+                <RoomStatusToggle key={room.id} room={room} />
+              ))}
+            </div>
+
             <Card>
               <CardHeader>
-                <CardTitle className="font-cinzel text-primary">{t("roomRegistry")}</CardTitle>
+                <CardTitle className="font-cinzel text-primary">{t("roomCalendar")}</CardTitle>
+                <CardDescription>{t("viewRoomBookings")}</CardDescription>
               </CardHeader>
               <CardContent>
-                {rooms.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between border rounded p-3 mb-2">
-                    <div>
-                      <p className="font-medium">{r.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {r.capacity} {t("guests")} • €{r.price}/{t("night")}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge>{r.status}</Badge>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => toggleMaintenance(r.id, r.status !== "maintenance")}
-                      >
-                        {r.status === "maintenance" ? t("reactivate") : t("maintenance")}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                <Tabs defaultValue={rooms[0]?.id} className="space-y-4">
+                  <TabsList>
+                    {rooms.map((room) => (
+                      <TabsTrigger key={room.id} value={room.id}>
+                        {room.name}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  {rooms.map((room) => (
+                    <TabsContent key={room.id} value={room.id}>
+                      <BookingCalendar roomId={room.id} />
+                    </TabsContent>
+                  ))}
+                </Tabs>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="guests" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-cinzel text-primary">{t("guestsList")}</CardTitle>
-                <CardDescription>{t("guestsListDesc")}</CardDescription>
-              </CardHeader>
-              <CardContent>{/* Query su users + join lato client con bookings se serve */}</CardContent>
-            </Card>
+            <GuestsTracking />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-cinzel text-primary">{t("roomPriceManagement")}</CardTitle>
+                <CardDescription>{t("updateRoomPrices")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PriceManagement />
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="font-cinzel text-primary">{t("bnbSettings")}</CardTitle>
@@ -300,3 +411,5 @@ function AdminInner() {
     </main>
   )
 }
+
+

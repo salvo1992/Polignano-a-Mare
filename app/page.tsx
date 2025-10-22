@@ -5,6 +5,7 @@ import { RoomsPreview } from "@/components/rooms-preview"
 import { StorySection } from "@/components/story-section"
 import ReviewsSection from "@/components/ReviewsSection"
 import { Footer } from "@/components/footer"
+  import { VideoCarousel } from "@/components/video-carousel"
 
 export default function HomePage() {
   return (
@@ -12,6 +13,7 @@ export default function HomePage() {
       <Header />
       <HeroSection />
       <StorySection />
+      <VideoCarousel />
       <ServicesSection />
       <RoomsPreview />
       <ReviewsSection className="mb-16" />
