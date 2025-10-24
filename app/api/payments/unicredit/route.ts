@@ -1,53 +1,57 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+const UNICREDIT_API =
+  process.env.UNICREDIT_MODE === "live" ? "https://api.unicredit.eu" : "https://sandbox.api.unicredit.eu"
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { bookingId, amount, currency, successUrl, cancelUrl, customerEmail } = body
+    const { bookingId, amount, currency, successUrl, cancelUrl, customerEmail, metadata } = body
 
-    // UniCredit payment integration
-    // Replace with actual UniCredit API credentials and endpoints
-    const unicreditApiKey = process.env.UNICREDIT_API_KEY
-    const unicreditMerchantId = process.env.UNICREDIT_MERCHANT_ID
-
-    if (!unicreditApiKey || !unicreditMerchantId) {
-      return NextResponse.json({ error: "UniCredit credentials not configured" }, { status: 500 })
-    }
-
-    // Create payment request to UniCredit
-    const paymentRequest = {
-      merchantId: unicreditMerchantId,
-      amount: amount, // in cents
-      currency: currency,
-      orderId: bookingId,
-      returnUrl: successUrl,
-      cancelUrl: cancelUrl,
-      customerEmail: customerEmail,
-    }
-
-    // Call UniCredit API (replace with actual endpoint)
-    const response = await fetch("https://api.unicredit.it/payments/create", {
+    const response = await fetch(`${UNICREDIT_API}/v1/payments`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${unicreditApiKey}`,
+        Authorization: `Bearer ${process.env.UNICREDIT_API_KEY}`,
+        "X-Merchant-ID": process.env.UNICREDIT_MERCHANT_ID || "",
       },
-      body: JSON.stringify(paymentRequest),
+      body: JSON.stringify({
+        amount: {
+          value: amount,
+          currency: currency,
+        },
+        description: `Prenotazione B&B #${bookingId}`,
+        reference: bookingId,
+        customer: {
+          email: customerEmail,
+        },
+        redirect_urls: {
+          success: successUrl,
+          cancel: cancelUrl,
+        },
+        metadata: {
+          bookingId,
+          ...metadata,
+        },
+      }),
     })
-
-    if (!response.ok) {
-      throw new Error("UniCredit payment creation failed")
-    }
 
     const data = await response.json()
 
+    if (!response.ok) {
+      throw new Error(data.error || data.message || "UniCredit payment creation failed")
+    }
+
     return NextResponse.json({
-      redirectUrl: data.paymentUrl,
-      id: data.paymentId,
+      redirectUrl: data.redirect_url || data.payment_url,
+      id: data.id || data.payment_id,
     })
   } catch (error) {
-    console.error("UniCredit payment error:", error)
-    return NextResponse.json({ error: "Failed to create UniCredit payment" }, { status: 500 })
+    console.error("[v0] UniCredit API route error:", error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Payment creation failed" },
+      { status: 500 },
+    )
   }
 }
 
@@ -55,17 +59,15 @@ export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams
     const paymentId = searchParams.get("paymentId")
-    const status = searchParams.get("status")
 
     if (!paymentId) {
       return NextResponse.json({ error: "Payment ID missing" }, { status: 400 })
     }
 
-    // Verify payment status with UniCredit
-    const unicreditApiKey = process.env.UNICREDIT_API_KEY
-    const response = await fetch(`https://api.unicredit.it/payments/${paymentId}`, {
+    const response = await fetch(`${UNICREDIT_API}/v1/payments/${paymentId}`, {
       headers: {
-        Authorization: `Bearer ${unicreditApiKey}`,
+        Authorization: `Bearer ${process.env.UNICREDIT_API_KEY}`,
+        "X-Merchant-ID": process.env.UNICREDIT_MERCHANT_ID || "",
       },
     })
 
@@ -76,7 +78,7 @@ export async function GET(req: NextRequest) {
     const paymentData = await response.json()
 
     return NextResponse.json({
-      status: paymentData.status, // "succeeded", "failed", "pending"
+      status: paymentData.status,
       paymentId: paymentId,
     })
   } catch (error) {
@@ -84,3 +86,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to verify payment" }, { status: 500 })
   }
 }
+
+

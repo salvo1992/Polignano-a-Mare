@@ -6,7 +6,13 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { getBookingById, createStripeCheckout, createPayPalOrder, createSatispayPayment } from "@/lib/firebase"
+import {
+  getBookingById,
+  createStripeCheckout,
+  createPayPalOrder,
+  createSatispayPayment,
+  createUniCreditPayment,
+} from "@/lib/firebase"
 import { Loader2 } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
 
@@ -15,11 +21,20 @@ export default function CheckoutPage() {
   const router = useRouter()
   const search = useSearchParams()
   const bookingId = search.get("bookingId") || ""
-  const method = (search.get("method") || "stripe") as "stripe" | "paypal" | "satispay"
+  const method = (search.get("method") || "stripe") as "stripe" | "paypal" | "satispay" | "unicredit"
 
   const [booking, setBooking] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
+  const [successUrl, setSuccessUrl] = useState("")
+  const [cancelUrl, setCancelUrl] = useState("")
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setSuccessUrl(`${window.location.origin}/checkout/success?bookingId=${bookingId}`)
+      setCancelUrl(`${window.location.origin}/prenota?error=payment_failed`)
+    }
+  }, [bookingId])
 
   useEffect(() => {
     if (!bookingId) return
@@ -36,11 +51,8 @@ export default function CheckoutPage() {
     return (cents / 100).toFixed(2)
   }, [booking])
 
-  const successUrl = useMemo(() => `${window.location.origin}/checkout/success?bookingId=${bookingId}`, [bookingId])
-  const cancelUrl = useMemo(() => `${window.location.origin}/prenota?error=payment_failed`, [])
-
   const handlePay = async () => {
-    if (!bookingId || !booking) return
+    if (!bookingId || !booking || !successUrl || !cancelUrl) return
     setPaying(true)
     try {
       if (method === "stripe") {
@@ -65,8 +77,19 @@ export default function CheckoutPage() {
           metadata: { source: "site" },
         })
         window.location.href = res.approveUrl
-      } else {
+      } else if (method === "satispay") {
         const res = await createSatispayPayment({
+          bookingId,
+          amount: booking.totalAmount,
+          currency: booking.currency || "EUR",
+          successUrl,
+          cancelUrl,
+          customerEmail: booking.email,
+          metadata: { source: "site" },
+        })
+        window.location.href = res.redirectUrl
+      } else if (method === "unicredit") {
+        const res = await createUniCreditPayment({
           bookingId,
           amount: booking.totalAmount,
           currency: booking.currency || "EUR",
@@ -157,3 +180,4 @@ export default function CheckoutPage() {
     </main>
   )
 }
+

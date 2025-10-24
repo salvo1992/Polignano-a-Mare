@@ -324,15 +324,33 @@ type CreateCheckoutArgs = {
 }
 
 export async function createStripeCheckout(args: CreateCheckoutArgs): Promise<{ url: string }> {
-  const callable = httpsCallable(functions, "payments-createStripeCheckout")
-  const res = await callable(args)
-  return res.data as { url: string }
+  const response = await fetch("/api/payments/stripe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || "Stripe checkout creation failed")
+  }
+
+  return response.json()
 }
 
 export async function createPayPalOrder(args: CreateCheckoutArgs): Promise<{ id: string; approveUrl: string }> {
-  const callable = httpsCallable(functions, "payments-createPayPalOrder")
-  const res = await callable(args)
-  return res.data as { id: string; approveUrl: string }
+  const response = await fetch("/api/payments/paypal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || "PayPal order creation failed")
+  }
+
+  return response.json()
 }
 
 export async function capturePayPalOrder(orderId: string): Promise<{ status: string }> {
@@ -342,15 +360,33 @@ export async function capturePayPalOrder(orderId: string): Promise<{ status: str
 }
 
 export async function createSatispayPayment(args: CreateCheckoutArgs): Promise<{ redirectUrl: string; id: string }> {
-  const callable = httpsCallable(functions, "payments-createSatispayPayment")
-  const res = await callable(args)
-  return res.data as { redirectUrl: string; id: string }
+  const response = await fetch("/api/payments/satispay", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || "Satispay payment creation failed")
+  }
+
+  return response.json()
 }
 
 export async function createUniCreditPayment(args: CreateCheckoutArgs): Promise<{ redirectUrl: string; id: string }> {
-  const callable = httpsCallable(functions, "payments-createUniCreditPayment")
-  const res = await callable(args)
-  return res.data as { redirectUrl: string; id: string }
+  const response = await fetch("/api/payments/unicredit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || "UniCredit payment creation failed")
+  }
+
+  return response.json()
 }
 
 export async function checkPaymentStatus(provider: "stripe" | "paypal" | "satispay" | "unicredit", paymentId: string) {

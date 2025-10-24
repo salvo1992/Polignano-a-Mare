@@ -11,16 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar, Users } from "lucide-react"
 import { toast } from "sonner"
 import { useLanguage } from "@/components/language-provider"
-
-const roomPricing = {
-  basePrice: 180,
-  originalPrice: 220,
-  currency: "€",
-  taxes: 15,
-  serviceFee: 10,
-  discount: 40,
-  available: true,
-}
+import { useRoomPrices } from "@/hooks/use-room-prices"
 
 interface BookingWidgetProps {
   roomId: string
@@ -29,12 +20,16 @@ interface BookingWidgetProps {
 export function BookingWidget({ roomId }: BookingWidgetProps) {
   const { t } = useLanguage()
   const router = useRouter()
+  const { prices } = useRoomPrices()
 
   const [checkIn, setCheckIn] = useState("")
   const [checkOut, setCheckOut] = useState("")
   const [guests, setGuests] = useState(2)
 
-  // notti calcolate automaticamente
+  const basePrice = prices[roomId] || 180
+  const originalPrice = roomId === "1" ? 220 : 180
+  const discount = originalPrice - basePrice
+
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0
     const ci = new Date(checkIn)
@@ -44,8 +39,10 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
     return isFinite(diff) && diff > 0 ? diff : 0
   }, [checkIn, checkOut])
 
-  const subtotal = roomPricing.basePrice * (nights || 0)
-  const total = subtotal + roomPricing.taxes + roomPricing.serviceFee
+  const subtotal = basePrice * (nights || 0)
+  const taxes = 15
+  const serviceFee = 10
+  const total = subtotal + taxes + serviceFee
 
   const handleBooking = () => {
     if (!checkIn || !checkOut) {
@@ -66,8 +63,7 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
     router.push(`/prenota?${qs}`)
   }
 
-  const formatMoney = (n: number) =>
-    `${roomPricing.currency}${Intl.NumberFormat("it-IT", { minimumFractionDigits: 0 }).format(n)}`
+  const formatMoney = (n: number) => `€${Intl.NumberFormat("it-IT", { minimumFractionDigits: 0 }).format(n)}`
 
   return (
     <div className="space-y-6">
@@ -76,21 +72,21 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
           <CardTitle className="flex items-center justify-between">
             <span>{t("bookNow")}</span>
             <div className="text-right">
-              {roomPricing.originalPrice > roomPricing.basePrice && (
+              {originalPrice > basePrice && (
                 <div className="text-sm line-through text-muted-foreground">
-                  {formatMoney(roomPricing.originalPrice)}/{t("night")}
+                  {formatMoney(originalPrice)}/{t("night")}
                 </div>
               )}
               <div className="text-2xl font-bold text-primary">
-                {formatMoney(roomPricing.basePrice)}
+                {formatMoney(basePrice)}
                 <span className="text-sm font-normal text-muted-foreground">/{t("night")}</span>
               </div>
             </div>
           </CardTitle>
 
-          {roomPricing.originalPrice > roomPricing.basePrice && (
+          {originalPrice > basePrice && (
             <Badge className="w-fit bg-green-600 text-white">
-              {t("save")} {formatMoney(roomPricing.discount)}
+              {t("save")} {formatMoney(discount)}
             </Badge>
           )}
         </CardHeader>
@@ -152,17 +148,17 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
           <div className="space-y-2">
             <div className="flex justify-between">
               <span>
-                {formatMoney(roomPricing.basePrice)} × {nights || 0} {t("nights")}
+                {formatMoney(basePrice)} × {nights || 0} {t("nights")}
               </span>
               <span>{formatMoney(subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>{t("taxesAndFees")}</span>
-              <span>{formatMoney(roomPricing.taxes)}</span>
+              <span>{formatMoney(taxes)}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>{t("serviceFee")}</span>
-              <span>{formatMoney(roomPricing.serviceFee)}</span>
+              <span>{formatMoney(serviceFee)}</span>
             </div>
             <Separator />
             <div className="flex justify-between font-bold text-lg">
@@ -171,8 +167,8 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
             </div>
           </div>
 
-          <Button onClick={handleBooking} className="w-full" size="lg" disabled={!roomPricing.available}>
-            {roomPricing.available ? t("bookNow") : t("notAvailable")}
+          <Button onClick={handleBooking} className="w-full" size="lg">
+            {t("bookNow")}
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">{t("noChargeYet")}</p>
@@ -181,3 +177,4 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
     </div>
   )
 }
+

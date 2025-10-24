@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Users, Bed, Bath, Mountain, Star, Heart, Share2 } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
+import { useRoomPrices } from "@/hooks/use-room-prices"
 
 const SITE_URL = "https://22suite.ekobit.it" as const
 
@@ -16,7 +17,6 @@ const rooms = [
     name: "Camera Familiare con Balcone",
     description: "Camera matrimoniale e balcone privato",
     images: ["/images/room-2.jpg", "/images/room-1.jpg"],
-    price: 180,
     originalPrice: 220,
     guests: 4,
     beds: 2,
@@ -41,7 +41,6 @@ const rooms = [
     name: "Camera Matrimoniale con Vasca Idromassaggio",
     description: "Elegante camera con vasca idromassaggio e arredi di lusso",
     images: ["/images/room-1.jpg", "/images/room-2.jpg"],
-    price: 150,
     originalPrice: 180,
     guests: 4,
     beds: 2,
@@ -64,6 +63,7 @@ const rooms = [
 
 export function RoomsGrid() {
   const { t } = useLanguage()
+  const { prices } = useRoomPrices()
 
   const [favorites, setFavorites] = useState<number[]>(() => {
     if (typeof window === "undefined") return []
@@ -88,10 +88,11 @@ export function RoomsGrid() {
   const getRoomUrl = (roomId: number) => `${SITE_URL}/camere/${roomId}`
 
   const getWhatsAppHref = (room: (typeof rooms)[number]) => {
+    const price = prices[room.id.toString()] || room.originalPrice
     const text = `${t("checkAvailability")}: ${room.name}
 ${getRoomUrl(room.id)}
 
-${t("pricePerNightLabel")} €${room.price}${t("perNight")}`
+${t("pricePerNightLabel")} €${price}${t("perNight")}`
     return `https://wa.me/?text=${encodeURIComponent(text)}`
   }
 
@@ -100,6 +101,7 @@ ${t("pricePerNightLabel")} €${room.price}${t("perNight")}`
       {rooms.map((room) => {
         const isFav = favorites.includes(room.id)
         const waHref = getWhatsAppHref(room)
+        const price = prices[room.id.toString()] || room.originalPrice
 
         return (
           <div
@@ -118,9 +120,7 @@ ${t("pricePerNightLabel")} €${room.price}${t("perNight")}`
               <div className="absolute top-4 left-4 flex flex-col gap-2">
                 {room.featured && <Badge className="bg-primary text-primary-foreground">{t("mostRequested")}</Badge>}
                 {!room.available && <Badge variant="destructive">{t("notAvailable")}</Badge>}
-                {room.originalPrice > room.price && (
-                  <Badge className="bg-green-600 text-white">{t("specialOffer")}</Badge>
-                )}
+                {room.originalPrice > price && <Badge className="bg-green-600 text-white">{t("specialOffer")}</Badge>}
               </div>
 
               <div className="absolute top-4 right-4 flex flex-col gap-2">
@@ -150,11 +150,11 @@ ${t("pricePerNightLabel")} €${room.price}${t("perNight")}`
 
               <div className="absolute bottom-4 right-4 bg-black/80 text-white px-3 py-2 rounded-lg">
                 <div className="text-right">
-                  {room.originalPrice > room.price && (
+                  {room.originalPrice > price && (
                     <div className="text-xs line-through opacity-75">€{room.originalPrice}</div>
                   )}
                   <div className="font-bold">
-                    €{room.price}
+                    €{price}
                     {t("perNight")}
                   </div>
                 </div>
@@ -215,3 +215,4 @@ ${t("pricePerNightLabel")} €${room.price}${t("perNight")}`
     </div>
   )
 }
+

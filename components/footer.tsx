@@ -10,45 +10,29 @@ export function Footer() {
 
   return (
     <footer className="bg-foreground text-background">
-  <div className="container mx-auto px-3 sm:px-4 py-10 sm:py-12">
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
-      {/* Villa Info */}
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          {/* LOGO senza cerchio */}
-          <div className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 shrink-0">
-            <Image
-              src="/images/logo22.jpg"
-              alt="Logo Al 22 Suite & Spa Luxury Experience"
-              fill
-              className="object-contain"
-              sizes="(max-width: 640px) 40px, (max-width: 768px) 48px, 56px"
-            />
+      <div className="container mx-auto px-4 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {/* Villa Info */}
+          <div>
+            <div className="flex items-center space-x-3 mb-4">
+              <Image
+                src="/images/logo22.jpg"
+                alt="Logo Al 22 Suite & Spa Luxury Experience"
+                width={48}
+                height={48}
+                className="rounded-lg"
+              />
+              <span className="font-display text-xl font-semibold">Al 22 Suite & Spa Luxury Experience</span>
+            </div>
+            {/* End of change */}
+            <p className="text-background/80 mb-4 text-sm leading-relaxed">{t("footerDescription")}</p>
+            <div className="flex items-center gap-1 mb-2">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+              ))}
+              <span className="text-sm ml-2">4.9/5 (127 {t("reviewsTitle").toLowerCase()})</span>
+            </div>
           </div>
-
-          {/* Nome breve (mobile) */}
-          <span className="font-display font-semibold text-sm sm:hidden max-w-[55vw] truncate">
-            Al 22 Suite & Spa
-          </span>
-          {/* Nome completo da sm in su */}
-          <span className="hidden sm:inline font-display text-lg md:text-xl font-semibold whitespace-nowrap">
-            Al 22 Suite & <br className="hidden sm:block" /> Spa Luxury Experience
-          </span>
-        </div>
-
-        <p className="text-background/80 mb-4 text-sm leading-relaxed">
-          {t("footerDescription")}
-        </p>
-
-        <div className="flex items-center gap-1 mb-2">
-          {[...Array(5)].map((_, i) => (
-            <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-          ))}
-          <span className="text-sm ml-2">
-            4.9/5 (127 {t("reviewsTitle").toLowerCase()})
-          </span>
-        </div>
-      </div>
 
           {/* Contact Info */}
           <div>
@@ -71,7 +55,7 @@ export function Footer() {
               <div className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-primary" />
                 <a href="mailto:info@villabellavista.it" className="hover:text-primary transition-colors">
-                  info@AL22Suite&<br className="hidden sm:block" /> SPALUXURYEXPERIENCE.it
+                  info@AL22Suite&<br />SPALUXURYEXPERIENCE.it
                 </a>
               </div>
               <div className="flex items-center gap-3">
@@ -98,9 +82,6 @@ export function Footer() {
               </Link>
               <Link href="/contatti" className="block hover:text-primary transition-colors">
                 {t("contacts")}
-              </Link>
-              <Link href="/admin" className="block hover:text-primary transition-colors">
-                {t("admin")}
               </Link>
               <Link href="/user" className="block hover:text-primary transition-colors">
                 {t("user")}
@@ -141,7 +122,16 @@ export function Footer() {
         <div className="border-t border-background/20 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-background/80">
             <div className="flex flex-col md:flex-row items-center gap-4">
-              <p>© COPYRIGHT 2025 - AL 22 Suite & SPA LUXURY EXPERIENCE {t("allRightsReserved")}.</p>
+              <p className="flex items-center gap-2">
+                © COPYRIGHT 2025 - AL 22 Suite & Spa Luxury Experience {t("allRightsReserved")}.
+                <Link
+                  href="/admin"
+                  className="inline-flex items-center opacity-30 hover:opacity-100 transition-opacity"
+                  title="Admin"
+                >
+                  <Image src="/images/logo22.jpg" alt="Admin" width={20} height={20} className="rounded-sm" />
+                </Link>
+              </p>
             </div>
 
             <div className="flex items-center gap-2">

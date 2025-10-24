@@ -31,14 +31,45 @@ function AdminInner() {
   const [rooms, setRooms] = useState<Room[]>([])
 
   useEffect(() => {
-    const qb = query(collection(db, "bookings"), orderBy("checkIn", "desc"))
-    const unsubB = onSnapshot(qb, (snap) => setBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as any)))
-    const unsubR = onSnapshot(collection(db, "rooms"), (snap) =>
-      setRooms(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as any)),
-    )
+    let unsubB: (() => void) | null = null
+    let unsubR: (() => void) | null = null
+
+    try {
+      const qb = query(collection(db, "bookings"), orderBy("checkIn", "desc"))
+      unsubB = onSnapshot(
+        qb,
+        (snap) => setBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as any)),
+        (error) => {
+          console.error("[v0] Error fetching bookings:", error)
+        },
+      )
+
+      unsubR = onSnapshot(
+        collection(db, "rooms"),
+        (snap) => setRooms(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as any)),
+        (error) => {
+          console.error("[v0] Error fetching rooms:", error)
+        },
+      )
+    } catch (error) {
+      console.error("[v0] Error setting up Firestore listeners:", error)
+    }
+
     return () => {
-      unsubB()
-      unsubR()
+      if (unsubB) {
+        try {
+          unsubB()
+        } catch (error) {
+          console.error("[v0] Error unsubscribing from bookings:", error)
+        }
+      }
+      if (unsubR) {
+        try {
+          unsubR()
+        } catch (error) {
+          console.error("[v0] Error unsubscribing from rooms:", error)
+        }
+      }
     }
   }, [])
 
@@ -411,5 +442,3 @@ function AdminInner() {
     </main>
   )
 }
-
-
