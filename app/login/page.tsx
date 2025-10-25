@@ -35,7 +35,11 @@ export default function LoginPage() {
     e.preventDefault()
     setError("")
     const ok = await login(formData.email, formData.password)
-    if (!ok) setError(t("invalidCredentials"))
+    if (ok) {
+      router.push(next)
+    } else {
+      setError(t("invalidCredentials"))
+    }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,4 +151,5 @@ export default function LoginPage() {
     </main>
   )
 }
+
 

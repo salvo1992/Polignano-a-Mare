@@ -6,14 +6,9 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import {
-  getBookingById,
-  createStripeCheckout,
-  createPayPalOrder,
-  createSatispayPayment,
-  createUniCreditPayment,
-} from "@/lib/firebase"
-import { Loader2 } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { getBookingById, createStripeCheckout, createUniCreditPayment } from "@/lib/firebase"
+import { Loader2, AlertCircle } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
 
 export default function CheckoutPage() {
@@ -21,11 +16,12 @@ export default function CheckoutPage() {
   const router = useRouter()
   const search = useSearchParams()
   const bookingId = search.get("bookingId") || ""
-  const method = (search.get("method") || "stripe") as "stripe" | "paypal" | "satispay" | "unicredit"
+  const method = (search.get("method") || "stripe") as "stripe" | "unicredit"
 
   const [booking, setBooking] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
+  const [error, setError] = useState<string>("")
   const [successUrl, setSuccessUrl] = useState("")
   const [cancelUrl, setCancelUrl] = useState("")
 
@@ -54,6 +50,7 @@ export default function CheckoutPage() {
   const handlePay = async () => {
     if (!bookingId || !booking || !successUrl || !cancelUrl) return
     setPaying(true)
+    setError("")
     try {
       if (method === "stripe") {
         const res = await createStripeCheckout({
@@ -66,28 +63,6 @@ export default function CheckoutPage() {
           metadata: { source: "site" },
         })
         window.location.href = res.url
-      } else if (method === "paypal") {
-        const res = await createPayPalOrder({
-          bookingId,
-          amount: booking.totalAmount,
-          currency: booking.currency || "EUR",
-          successUrl,
-          cancelUrl,
-          customerEmail: booking.email,
-          metadata: { source: "site" },
-        })
-        window.location.href = res.approveUrl
-      } else if (method === "satispay") {
-        const res = await createSatispayPayment({
-          bookingId,
-          amount: booking.totalAmount,
-          currency: booking.currency || "EUR",
-          successUrl,
-          cancelUrl,
-          customerEmail: booking.email,
-          metadata: { source: "site" },
-        })
-        window.location.href = res.redirectUrl
       } else if (method === "unicredit") {
         const res = await createUniCreditPayment({
           bookingId,
@@ -100,10 +75,15 @@ export default function CheckoutPage() {
         })
         window.location.href = res.redirectUrl
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-      router.push("/prenota?error=payment_failed")
-    } finally {
+      if (e.message?.includes("Invalid API Key") || e.message?.includes("authentication")) {
+        setError("Errore di configurazione del pagamento. Contatta l'amministratore del sito.")
+      } else if (e.message?.includes("not available")) {
+        setError("Il metodo di pagamento selezionato non è al momento disponibile. Prova con un altro metodo.")
+      } else {
+        setError("Si è verificato un errore durante l'elaborazione del pagamento. Riprova più tardi.")
+      }
       setPaying(false)
     }
   }
@@ -126,10 +106,19 @@ export default function CheckoutPage() {
               <div className="text-sm text-muted-foreground">{t("bookingNotFound")}</div>
             ) : (
               <div className="space-y-3">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div>
                     <div className="text-xs text-muted-foreground">{t("name")}</div>
-                    <div className="font-medium">{booking.name}</div>
+                    <div className="font-medium">
+                      {booking.firstName} {booking.lastName}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">{t("email")}</div>
@@ -149,7 +138,7 @@ export default function CheckoutPage() {
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">{t("paymentMethod")}</div>
-                    <div className="font-medium">{method}</div>
+                    <div className="font-medium capitalize">{method}</div>
                   </div>
                 </div>
 
@@ -180,4 +169,6 @@ export default function CheckoutPage() {
     </main>
   )
 }
+
+
 

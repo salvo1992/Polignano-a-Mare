@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
@@ -8,11 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, UserIcon, Settings, Shield } from "lucide-react"
+import { Calendar, UserIcon, Settings, Shield, Sparkles } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { RequireUser } from "@/components/route-guards"
 import { db } from "@/lib/firebase"
-import { collection, doc, getDoc, getDocs, orderBy, query, where } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore"
 import AvatarPicker from "@/components/user/AvatarPicker"
 import { safe } from "@/lib/safe-defaults"
 import { useLanguage } from "@/components/language-provider"
@@ -22,8 +23,9 @@ interface Booking {
   roomName: string
   checkIn: string
   checkOut: string
-  status: "completed" | "upcoming" | "cancelled"
-  total: number
+  status: "paid" | "confirmed" | "completed" | "upcoming" | "cancelled"
+  totalAmount: number
+  nights: number
 }
 
 export default function UserPage() {
@@ -37,6 +39,9 @@ export default function UserPage() {
 function UserInner() {
   const { t } = useLanguage()
   const { user, changePassword, deleteAccount } = useAuth()
+  const searchParams = useSearchParams()
+  const highlightBookingId = searchParams.get("highlight")
+
   const [isEditing, setIsEditing] = useState(false)
   const [profile, setProfile] = useState<any>(null)
   const [bookingsCompleted, setBookingsCompleted] = useState<Booking[]>([])
@@ -54,13 +59,25 @@ function UserInner() {
         promos: data?.notifications?.promos ?? true,
         checkinReminders: data?.notifications?.checkinReminders ?? true,
       })
-      const qs = query(collection(db, "bookings"), where("userId", "==", user.uid), orderBy("checkIn", "desc"))
+      const qs = query(collection(db, "bookings"), where("userId", "==", user.uid))
       const res = await getDocs(qs)
       const all: Booking[] = res.docs.map((d) => ({ id: d.id, ...d.data() }) as any)
-      setBookingsCompleted(all.filter((b) => b.status === "completed"))
-      setBookingsUpcoming(all.filter((b) => b.status === "upcoming"))
+
+      all.sort((a, b) => b.checkIn.localeCompare(a.checkIn))
+
+      // Separate bookings by status
+      const today = new Date().toISOString().split("T")[0]
+      const upcoming = all.filter((b) => b.checkIn >= today && (b.status === "paid" || b.status === "confirmed"))
+      const completed = all.filter((b) => b.checkOut < today || b.status === "completed")
+
+      setBookingsCompleted(completed)
+      setBookingsUpcoming(upcoming)
     })()
   }, [user])
+
+  const formatPrice = (cents: number) => {
+    return (cents / 100).toFixed(2)
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -178,14 +195,39 @@ function UserInner() {
                         <p className="text-sm text-muted-foreground">{t("noUpcomingBookings")}</p>
                       ) : (
                         bookingsUpcoming.map((b) => (
-                          <div key={b.id} className="border rounded-lg p-3 flex items-center justify-between mb-2">
-                            <div>
-                              <p className="font-medium">{b.roomName}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {b.checkIn} → {b.checkOut}
-                              </p>
+                          <div
+                            key={b.id}
+                            className={`border rounded-lg p-4 mb-3 transition-all ${
+                              highlightBookingId === b.id
+                                ? "border-primary bg-primary/5 shadow-lg animate-pulse"
+                                : "border-border"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <p className="font-semibold text-lg">{b.roomName}</p>
+                                  {highlightBookingId === b.id && (
+                                    <Badge className="bg-green-500 text-white">
+                                      <Sparkles className="h-3 w-3 mr-1" />
+                                      Nuova
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="space-y-1 text-sm text-muted-foreground">
+                                  <p>
+                                    📅 {b.checkIn} → {b.checkOut} ({b.nights} {b.nights > 1 ? "notti" : "notte"})
+                                  </p>
+                                  <p>🆔 {b.id}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <Badge variant={b.status === "paid" ? "default" : "secondary"} className="mb-2">
+                                  {b.status === "paid" ? "Pagata" : "Confermata"}
+                                </Badge>
+                                <p className="text-lg font-bold text-primary">€{formatPrice(b.totalAmount)}</p>
+                              </div>
                             </div>
-                            <Badge>€{b.total}</Badge>
                           </div>
                         ))
                       )}
@@ -201,14 +243,24 @@ function UserInner() {
                         <p className="text-sm text-muted-foreground">{t("noCompletedBookings")}</p>
                       ) : (
                         bookingsCompleted.map((b) => (
-                          <div key={b.id} className="border rounded-lg p-3 flex items-center justify-between mb-2">
-                            <div>
-                              <p className="font-medium">{b.roomName}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {b.checkIn} → {b.checkOut}
-                              </p>
+                          <div key={b.id} className="border rounded-lg p-4 mb-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <p className="font-semibold text-lg mb-2">{b.roomName}</p>
+                                <div className="space-y-1 text-sm text-muted-foreground">
+                                  <p>
+                                    📅 {b.checkIn} → {b.checkOut} ({b.nights} {b.nights > 1 ? "notti" : "notte"})
+                                  </p>
+                                  <p>🆔 {b.id}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <Badge variant="secondary" className="mb-2">
+                                  Completata
+                                </Badge>
+                                <p className="text-lg font-bold">€{formatPrice(b.totalAmount)}</p>
+                              </div>
                             </div>
-                            <Badge variant="secondary">€{b.total}</Badge>
                           </div>
                         ))
                       )}

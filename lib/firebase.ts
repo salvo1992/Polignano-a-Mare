@@ -190,7 +190,7 @@ export type BookingPayload = {
   status?: "pending" | "paid" | "confirmed" | "cancelled"
   origin?: "site" | "booking" | "airbnb" | "manual"
   paymentId?: string
-  paymentProvider?: "stripe" | "paypal" | "satispay" | "unicredit"
+  paymentProvider?: "stripe" | "unicredit"
 }
 
 const BOOKINGS_COL = "bookings"
@@ -338,42 +338,6 @@ export async function createStripeCheckout(args: CreateCheckoutArgs): Promise<{ 
   return response.json()
 }
 
-export async function createPayPalOrder(args: CreateCheckoutArgs): Promise<{ id: string; approveUrl: string }> {
-  const response = await fetch("/api/payments/paypal", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(args),
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || "PayPal order creation failed")
-  }
-
-  return response.json()
-}
-
-export async function capturePayPalOrder(orderId: string): Promise<{ status: string }> {
-  const callable = httpsCallable(functions, "payments-capturePayPalOrder")
-  const res = await callable({ orderId })
-  return res.data as { status: "pending" | "succeeded" | "failed" | "canceled" | "requires_action" }
-}
-
-export async function createSatispayPayment(args: CreateCheckoutArgs): Promise<{ redirectUrl: string; id: string }> {
-  const response = await fetch("/api/payments/satispay", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(args),
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || "Satispay payment creation failed")
-  }
-
-  return response.json()
-}
-
 export async function createUniCreditPayment(args: CreateCheckoutArgs): Promise<{ redirectUrl: string; id: string }> {
   const response = await fetch("/api/payments/unicredit", {
     method: "POST",
@@ -389,7 +353,7 @@ export async function createUniCreditPayment(args: CreateCheckoutArgs): Promise<
   return response.json()
 }
 
-export async function checkPaymentStatus(provider: "stripe" | "paypal" | "satispay" | "unicredit", paymentId: string) {
+export async function checkPaymentStatus(provider: "stripe" | "unicredit", paymentId: string) {
   const callable = httpsCallable(functions, "payments-checkPaymentStatus")
   const res = await callable({ provider, paymentId })
   return res.data as { status: "pending" | "succeeded" | "failed" | "canceled" | "requires_action" }
@@ -397,7 +361,7 @@ export async function checkPaymentStatus(provider: "stripe" | "paypal" | "satisp
 
 export async function processPaymentAndCreateBooking(
   bookingPayload: BookingPayload,
-  paymentProvider: "stripe" | "paypal" | "satispay" | "unicredit",
+  paymentProvider: "stripe" | "unicredit",
   paymentId: string,
 ): Promise<{ success: boolean; bookingId?: string; error?: string }> {
   try {
@@ -423,5 +387,95 @@ export async function processPaymentAndCreateBooking(
   } catch (error) {
     console.error("Error processing payment and booking:", error)
     return { success: false, error: "Errore durante la creazione della prenotazione" }
+  }
+}
+
+// ---------- USER MANAGEMENT ----------
+export function generateRandomPassword(length = 12): string {
+  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+  let password = ""
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length))
+  }
+  return password
+}
+
+export async function createUserFromBooking(
+  email: string,
+  firstName: string,
+  lastName: string,
+): Promise<{ success: boolean; password?: string; error?: string }> {
+  try {
+    // Check if user already exists
+    const usersRef = collection(db, "users")
+    const q = query(usersRef, where("email", "==", email), limit(1))
+    const existingUsers = await getDocs(q)
+
+    if (!existingUsers.empty) {
+      console.log("[v0] User already exists:", email)
+      return { success: true } // User already exists, no need to create
+    }
+
+    // Generate random password
+    const password = generateRandomPassword()
+
+    // Create user account
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+    const user = userCredential.user
+
+    // Create user document in Firestore
+    const userDocRef = doc(db, "users", user.uid)
+    await setDoc(userDocRef, {
+      uid: user.uid,
+      email: email,
+      displayName: `${firstName} ${lastName}`,
+      firstName: firstName,
+      lastName: lastName,
+      provider: "password",
+      role: "user",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      notifications: {
+        confirmEmails: true,
+        promos: false,
+        checkinReminders: true,
+      },
+    })
+
+    console.log("[v0] User account created:", email)
+
+    return { success: true, password }
+  } catch (error: any) {
+    console.error("[v0] Error creating user account:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function linkBookingToUser(bookingId: string, email: string): Promise<boolean> {
+  try {
+    // Find user by email
+    const usersRef = collection(db, "users")
+    const q = query(usersRef, where("email", "==", email), limit(1))
+    const userSnap = await getDocs(q)
+
+    if (userSnap.empty) {
+      console.error("[v0] User not found for email:", email)
+      return false
+    }
+
+    const userId = userSnap.docs[0].id
+
+    // Update booking with userId
+    const bookingRef = doc(db, "bookings", bookingId)
+    await updateDoc(bookingRef, {
+      userId: userId,
+      updatedAt: serverTimestamp(),
+    })
+
+    console.log("[v0] Booking linked to user:", bookingId, userId)
+    return true
+  } catch (error) {
+    console.error("[v0] Error linking booking to user:", error)
+    return false
   }
 }
