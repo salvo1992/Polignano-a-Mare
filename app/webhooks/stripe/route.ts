@@ -1,7 +1,8 @@
 import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
-import { admin } from "@/lib/firebase-admin"
+import { admin, getFirestore } from "@/lib/firebase-admin"
+import { sendBookingConfirmationEmail } from "@/lib/email"
 
 export const runtime = "nodejs"
 
@@ -9,20 +10,16 @@ export const runtime = "nodejs"
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" })
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
-// Firestore (Admin)
-const db = admin.firestore()
-
 async function alreadyProcessed(eventId: string) {
+  const db = getFirestore()
   const ref = db.doc(`stripe_webhook_events/${eventId}`)
   const snap = await ref.get()
   return snap.exists
 }
 async function markProcessed(eventId: string, payload: any) {
+  const db = getFirestore()
   const ref = db.doc(`stripe_webhook_events/${eventId}`)
-  await ref.set(
-    { receivedAt: admin.firestore.FieldValue.serverTimestamp(), payload },
-    { merge: true },
-  )
+  await ref.set({ receivedAt: admin.firestore.FieldValue.serverTimestamp(), payload }, { merge: true })
 }
 
 export async function POST(req: Request) {
@@ -45,26 +42,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, duplicate: true })
     }
 
-    // (opzionale) Separa test/live per sicurezza
-    // if (process.env.NODE_ENV === "production" && event.livemode !== true) {
-    //   await markProcessed(event.id, { ignored: "test_on_prod" })
-    //   return NextResponse.json({ received: true })
-    // }
-
     if (event.type === "checkout.session.completed") {
+      const db = getFirestore()
       const session = event.data.object as Stripe.Checkout.Session
 
       // ✅ fallback robusto
-      const bookingId =
-        session.metadata?.bookingId ||
-        session.client_reference_id ||
-        null
+      const bookingId = session.metadata?.bookingId || session.client_reference_id || null
 
-      const customerEmail =
-        session.customer_email ||
-        session.customer_details?.email ||
-        session.metadata?.email ||
-        ""
+      const customerEmail = session.customer_email || session.customer_details?.email || session.metadata?.email || ""
 
       console.log("[Webhook] checkout.session.completed", {
         livemode: event.livemode,
@@ -105,33 +90,73 @@ export async function POST(req: Request) {
 
       // ✅ crea/collega utente
       let uid = ""
+      let newPassword: string | undefined
       try {
         const user = await admin.auth().getUserByEmail(bookingData.email)
         uid = user.uid
       } catch {
+        const generatePassword = () => {
+          const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+          let password = ""
+          for (let i = 0; i < 12; i++) {
+            password += charset.charAt(Math.floor(Math.random() * charset.length))
+          }
+          return password
+        }
+
+        newPassword = generatePassword()
+
         const user = await admin.auth().createUser({
           email: bookingData.email,
+          password: newPassword,
           displayName: `${bookingData.firstName} ${bookingData.lastName}`.trim(),
         })
         uid = user.uid
-        const resetLink = await admin.auth().generatePasswordResetLink(bookingData.email)
-        await bookingRef.update({ passwordResetLink: resetLink })
+
+        await db.doc(`users/${uid}`).set({
+          uid: uid,
+          email: bookingData.email,
+          displayName: `${bookingData.firstName} ${bookingData.lastName}`.trim(),
+          firstName: bookingData.firstName,
+          lastName: bookingData.lastName,
+          provider: "password",
+          role: "user",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          notifications: {
+            confirmEmails: true,
+            promos: false,
+            checkinReminders: true,
+          },
+        })
+
+        console.log("[Webhook] New user created with password")
       }
 
       await bookingRef.update({
         userId: uid,
+        newUserPassword: newPassword || null,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       })
 
-      // (opzionale) invio email: chiama qui il tuo helper se vuoi
-      // try {
-      //   const afterSnap = await bookingRef.get()
-      //   const after = afterSnap.data() as any
-      //   const resetLink = after?.passwordResetLink
-      //   await sendBookingConfirmationEmail({ ...bookingData, resetLink })
-      // } catch (e) {
-      //   console.error("[Webhook] Email send error:", e)
-      // }
+      try {
+        await sendBookingConfirmationEmail({
+          to: bookingData.email,
+          bookingId: bookingId,
+          firstName: bookingData.firstName,
+          lastName: bookingData.lastName,
+          checkIn: bookingData.checkIn,
+          checkOut: bookingData.checkOut,
+          roomName: bookingData.roomName,
+          guests: bookingData.guests,
+          totalAmount: bookingData.totalAmount,
+          nights: bookingData.nights,
+          newUserPassword: newPassword,
+        })
+        console.log("[Webhook] Confirmation email sent")
+      } catch (e) {
+        console.error("[Webhook] Email send error:", e)
+      }
 
       await markProcessed(event.id, { ok: true, bookingId })
       return NextResponse.json({ received: true, bookingId })
@@ -145,6 +170,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 })
   }
 }
-
 
 
