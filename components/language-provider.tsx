@@ -26,6 +26,8 @@ const translations = {
     login: "Accedi",
     logout: "Esci",
     register: "Registrati",
+    continueWithGoogle: "Continua con Google",
+    or: "oppure",
 
     // Hero Section
     heroTitle: "Benvenuti al 22 Suite & Spa Luxury Experience",
@@ -506,6 +508,12 @@ const translations = {
     // Cookie Page
     cookieSettings: "Impostazioni Cookie",
     manageCookies: "Gestisci le tue preferenze sui cookie",
+
+    // Google authentication error messages
+    googleAuthNotEnabled:
+      "L'autenticazione Google non è abilitata. Contatta l'amministratore per abilitarla nella Firebase Console.",
+    googleAuthCancelled: "Accesso con Google annullato.",
+    googleAuthError: "Errore durante l'accesso con Google. Riprova più tardi.",
   },
   en: {
     // Navigation
@@ -522,6 +530,8 @@ const translations = {
     login: "Login",
     logout: "Logout",
     register: "Register",
+    continueWithGoogle: "Continue with Google",
+    or: "or",
 
     // Hero Section
     heroTitle: "Welcome to AL 22 Suite & Spa Luxury Experience",
@@ -1002,6 +1012,12 @@ const translations = {
     // Cookie Page
     cookieSettings: "Cookie Settings",
     manageCookies: "Manage your cookie preferences",
+
+    // Google authentication error messages
+    googleAuthNotEnabled:
+      "Google authentication is not enabled. Contact the administrator to enable it in the Firebase Console.",
+    googleAuthCancelled: "Google sign-in cancelled.",
+    googleAuthError: "Error during Google sign-in. Please try again later.",
   },
   fr: {
     // Navigation
@@ -1018,6 +1034,8 @@ const translations = {
     login: "Connexion",
     logout: "Déconnexion",
     register: "S'inscrire",
+    continueWithGoogle: "Continuer avec Google",
+    or: "ou",
 
     // Hero Section
     heroTitle: "Bienvenue à AL 22 Suite & Spa Luxury Experience",
@@ -1502,7 +1520,12 @@ const translations = {
     // Cookie Page
     cookieSettings: "Paramètres des Cookies",
     manageCookies: "Gérez vos préférences de cookies",
-  },
+    
+     // Google authentication error messages
+    googleAuthNotEnabled:
+      "L'authentification Google n'est pas activée. Contactez l'administrateur pour l'activer dans la Firebase Console.",
+    googleAuthCancelled: "Connexion Google annulée.",
+    googleAuthError: "Erreur lors de la connexion avec Google. Veuillez réessayer plus tard.",},
   es: {
     // Navigation
     home: "Inicio",
@@ -1518,6 +1541,8 @@ const translations = {
     login: "Iniciar Sesión",
     logout: "Cerrar Sesión",
     register: "Registrarse",
+    continueWithGoogle: "Continuar con Google",
+    or: "o",
 
     // Hero Section
     heroTitle: "Bienvenido a AL 22 Suite & Spa Luxury Experience",
@@ -1999,6 +2024,12 @@ const translations = {
     // Cookie Page
     cookieSettings: "Configuración de Cookies",
     manageCookies: "Gestiona tus preferencias de cookies",
+
+      // Google authentication error messages
+    googleAuthNotEnabled:
+      "La autenticación de Google no está habilitada. Contacta al administrador para habilitarla en la Firebase Console.",
+    googleAuthCancelled: "Inicio de sesión con Google cancelado.",
+    googleAuthError: "Error durante el inicio de sesión con Google. Inténtalo de nuevo más tarde.",
   },
   de: {
     // Navigation
@@ -2015,6 +2046,8 @@ const translations = {
     login: "Anmelden",
     logout: "Abmelden",
     register: "Registrieren",
+    continueWithGoogle: "Mit Google fortfahren",
+    or: "oder",
 
     // Hero Section
     heroTitle: "Willkommen im AL 22 Suite & Spa Luxury Experience",
@@ -2498,6 +2531,12 @@ const translations = {
     // Cookie Page
     cookieSettings: "Cookie-Einstellungen",
     manageCookies: "Verwalten Sie Ihre Cookie-Einstellungen",
+
+      // Google authentication error messages
+    googleAuthNotEnabled:
+      "Google-Authentifizierung ist nicht aktiviert. Kontaktieren Sie den Administrator, um sie in der Firebase Console zu aktivieren.",
+    googleAuthCancelled: "Google-Anmeldung abgebrochen.",
+    googleAuthError: "Fehler bei der Google-Anmeldung. Bitte versuchen Sie es später erneut.",
   },
 }
 

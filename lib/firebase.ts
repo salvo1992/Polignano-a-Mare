@@ -5,7 +5,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  signInWithPopup,
+  signInWithRedirect, // Using redirect instead of popup
+  getRedirectResult, // To handle redirect result
   onIdTokenChanged,
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -129,9 +130,37 @@ export async function loginWithEmail(email: string, password: string) {
 }
 
 export async function loginWithGoogle() {
-  const cred = await signInWithPopup(auth, googleProvider)
-  await ensureUserDoc(cred.user)
-  return cred.user
+  console.log("[v0] loginWithGoogle called")
+  console.log("[v0] Auth instance:", auth ? "exists" : "null")
+  console.log("[v0] Google provider:", googleProvider ? "exists" : "null")
+
+  try {
+    console.log("[v0] Calling signInWithRedirect with auth and googleProvider...")
+    await signInWithRedirect(auth, googleProvider)
+    console.log("[v0] signInWithRedirect completed successfully - redirect should happen now")
+  } catch (error) {
+    console.error("[v0] Error in signInWithRedirect:", error)
+    throw error
+  }
+  // Note: The user will be redirected to Google, then back to the app
+  // Use handleGoogleRedirect() to complete the sign-in after redirect
+}
+
+export async function handleGoogleRedirect() {
+  console.log("[v0] handleGoogleRedirect called, getting redirect result...")
+  try {
+    const result = await getRedirectResult(auth)
+    console.log("[v0] getRedirectResult returned:", result ? "User found" : "No result")
+    if (result && result.user) {
+      console.log("[v0] Creating/updating user doc for:", result.user.email)
+      await ensureUserDoc(result.user)
+      return result.user
+    }
+    return null
+  } catch (error) {
+    console.error("[v0] Error handling Google redirect:", error)
+    throw error
+  }
 }
 
 export async function logout() {
@@ -479,3 +508,5 @@ export async function linkBookingToUser(bookingId: string, email: string): Promi
     return false
   }
 }
+
+
