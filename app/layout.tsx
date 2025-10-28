@@ -9,9 +9,8 @@ import { LanguageProvider } from "@/components/language-provider"
 import { AuthProvider } from "@/components/auth-provider"
 import { CookieConsent } from "@/components/cookie-consent"
 import "./globals.css"
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
@@ -30,6 +29,11 @@ export const metadata: Metadata = {
   description:
     "Experience authentic Italian hospitality at AL 22 Suite & SPA, a luxury bed & breakfast in the heart of Polignano a Mare",
   generator: "next.js",
+  icons: {
+    icon: "/images/logo22.jpg",
+    apple: "/images/logo22.jpg",
+    shortcut: "/images/logo22.jpg",
+  },
 }
 
 export default function RootLayout({
@@ -53,3 +57,4 @@ export default function RootLayout({
     </html>
   )
 }
+

@@ -2,8 +2,14 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { MapPin, Phone, Mail, Facebook, Instagram, Twitter, Clock, Star } from "lucide-react"
+import { MapPin, Phone, Mail, Facebook, Instagram, Clock, Star, MessageCircle } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
+
+const TikTokIcon = (props: any) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" />
+  </svg>
+)
 
 export function Footer() {
   const { t } = useLanguage()
@@ -24,7 +30,6 @@ export function Footer() {
               />
               <span className="font-display text-xl font-semibold">Al 22 Suite & Spa Luxury Experience</span>
             </div>
-            {/* End of change */}
             <p className="text-background/80 mb-4 text-sm leading-relaxed">{t("footerDescription")}</p>
             <div className="flex items-center gap-1 mb-2">
               {[...Array(5)].map((_, i) => (
@@ -48,14 +53,14 @@ export function Footer() {
               </div>
               <div className="flex items-center gap-3">
                 <Phone className="w-4 h-4 text-primary" />
-                <a href="tel:+390577123456" className="hover:text-primary transition-colors">
-                  +39 3283287303
+                <a href="tel:+393757017689" className="hover:text-primary transition-colors">
+                  +39 375 701 7689
                 </a>
               </div>
               <div className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-primary" />
-                <a href="mailto:info@villabellavista.it" className="hover:text-primary transition-colors">
-                  info@AL22Suite&<br />SPALUXURYEXPERIENCE.it
+                <a href="mailto:progettocale@gmail.com" className="hover:text-primary transition-colors">
+                  progettocale@gmail.com
                 </a>
               </div>
               <div className="flex items-center gap-3">
@@ -83,9 +88,6 @@ export function Footer() {
               <Link href="/contatti" className="block hover:text-primary transition-colors">
                 {t("contacts")}
               </Link>
-              <Link href="/user" className="block hover:text-primary transition-colors">
-                {t("user")}
-              </Link>
             </div>
           </div>
 
@@ -93,14 +95,41 @@ export function Footer() {
           <div>
             <h3 className="font-semibold text-lg mb-4">{t("followUs")}</h3>
             <div className="flex gap-4 mb-6">
-              <a href="#" className="text-background/80 hover:text-primary transition-colors">
+              <a
+                href="https://www.facebook.com/profile.php?id=61562568800816"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-background/80 hover:text-primary transition-colors"
+                aria-label="Facebook"
+              >
                 <Facebook className="w-5 h-5" />
               </a>
-              <a href="#" className="text-background/80 hover:text-primary transition-colors">
+              <a
+                href="https://www.instagram.com/al22suite/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-background/80 hover:text-primary transition-colors"
+                aria-label="Instagram"
+              >
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href="#" className="text-background/80 hover:text-primary transition-colors">
-                <Twitter className="w-5 h-5" />
+              <a
+                href="https://www.tiktok.com/@al22suite"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-background/80 hover:text-primary transition-colors"
+                aria-label="TikTok"
+              >
+                <TikTokIcon className="w-5 h-5" />
+              </a>
+              <a
+                href="https://wa.me/393757017689"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-background/80 hover:text-primary transition-colors"
+                aria-label="WhatsApp"
+              >
+                <MessageCircle className="w-5 h-5" />
               </a>
             </div>
 
@@ -147,3 +176,5 @@ export function Footer() {
     </footer>
   )
 }
+
+ 

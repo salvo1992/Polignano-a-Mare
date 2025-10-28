@@ -29,6 +29,36 @@ const translations = {
     continueWithGoogle: "Continua con Google",
     or: "oppure",
 
+    termsTitle: 'Termini e Condizioni',
+termsIntro: 'Benvenuti su AL 22 Suite & Spa. Utilizzando il nostro sito web e i nostri servizi, accettate i seguenti termini e condizioni.',
+termsBooking: 'Prenotazioni',
+termsBookingText: 'Tutte le prenotazioni sono soggette a disponibilità. Una volta confermata, riceverete un\'email di conferma con i dettagli della vostra prenotazione. Le cancellazioni devono essere effettuate almeno 48 ore prima dell\'arrivo per un rimborso completo.',
+termsPayment: 'Pagamento',
+termsPaymentText: 'Accettiamo pagamenti tramite carta di credito, bonifico bancario e contanti. Il pagamento completo è richiesto al momento del check-in, salvo diverso accordo.',
+termsLiability: 'Responsabilità',
+termsLiabilityText: 'AL 22 Suite & Spa non è responsabile per eventuali danni, perdite o furti di oggetti personali durante il vostro soggiorno. Gli ospiti sono responsabili di eventuali danni causati alla proprietà.',
+termsContact: 'Per domande sui nostri termini e condizioni, contattateci a',
+
+privacyTitle: 'Informativa sulla Privacy',
+privacyIntro: 'AL 22 Suite & Spa rispetta la vostra privacy. Questa informativa spiega come raccogliamo, utilizziamo e proteggiamo i vostri dati personali.',
+privacyCollection: 'Raccolta Dati',
+privacyCollectionText: 'Raccogliamo informazioni personali come nome, email, numero di telefono e dettagli di pagamento quando effettuate una prenotazione o utilizzate i nostri servizi.',
+privacyUsage: 'Utilizzo dei Dati',
+privacyUsageText: 'Utilizziamo i vostri dati per elaborare prenotazioni, comunicare con voi, migliorare i nostri servizi e inviare offerte promozionali (con il vostro consenso).',
+privacySecurity: 'Sicurezza',
+privacySecurityText: 'Implementiamo misure di sicurezza appropriate per proteggere i vostri dati personali da accessi non autorizzati, alterazioni o divulgazioni.',
+privacyRights: 'I Vostri Diritti',
+privacyRightsText: 'Avete il diritto di accedere, correggere o eliminare i vostri dati personali in qualsiasi momento. Contattateci per esercitare questi diritti.',
+
+cookieTitle: 'Politica sui Cookie',
+cookieIntro: 'Utilizziamo i cookie per migliorare la vostra esperienza sul nostro sito web.',
+cookieWhat: 'Cosa sono i Cookie',
+cookieWhatText: 'I cookie sono piccoli file di testo memorizzati sul vostro dispositivo quando visitate il nostro sito web. Ci aiutano a ricordare le vostre preferenze e a migliorare la funzionalità del sito.',
+cookieTypes: 'Tipi di Cookie',
+cookieTypesText: 'Utilizziamo cookie essenziali per il funzionamento del sito, cookie analitici per comprendere come utilizzate il sito, e cookie di marketing per personalizzare le pubblicità.',
+cookieManage: 'Gestione dei Cookie',
+cookieManageText: 'Potete gestire o disabilitare i cookie attraverso le impostazioni del vostro browser. Notate che disabilitare i cookie potrebbe influenzare la funzionalità del sito.',
+
     // Hero Section
     heroTitle: "Benvenuti al 22 Suite & Spa Luxury Experience",
     heroSubtitle: "Un'esperienza autentica nel cuore di Polignano a Mare",
@@ -532,6 +562,37 @@ const translations = {
     register: "Register",
     continueWithGoogle: "Continue with Google",
     or: "or",
+
+    termsTitle: 'Terms and Conditions',
+termsIntro: 'Welcome to AL 22 Suite & Spa. By using our website and services, you agree to the following terms and conditions.',
+termsBooking: 'Bookings',
+termsBookingText: 'All bookings are subject to availability. Once confirmed, you will receive a confirmation email with your booking details. Cancellations must be made at least 48 hours before arrival for a full refund.',
+termsPayment: 'Payment',
+termsPaymentText: 'We accept payment via credit card, bank transfer, and cash. Full payment is required at check-in unless otherwise agreed.',
+termsLiability: 'Liability',
+termsLiabilityText: 'AL 22 Suite & Spa is not responsible for any damage, loss, or theft of personal belongings during your stay. Guests are responsible for any damage caused to the property.',
+termsContact: 'For questions about our terms and conditions, contact us at',
+
+privacyTitle: 'Privacy Policy',
+privacyIntro: 'AL 22 Suite & Spa respects your privacy. This policy explains how we collect, use, and protect your personal data.',
+privacyCollection: 'Data Collection',
+privacyCollectionText: 'We collect personal information such as name, email, phone number, and payment details when you make a booking or use our services.',
+privacyUsage: 'Data Usage',
+privacyUsageText: 'We use your data to process bookings, communicate with you, improve our services, and send promotional offers (with your consent).',
+privacySecurity: 'Security',
+privacySecurityText: 'We implement appropriate security measures to protect your personal data from unauthorized access, alteration, or disclosure.',
+privacyRights: 'Your Rights',
+privacyRightsText: 'You have the right to access, correct, or delete your personal data at any time. Contact us to exercise these rights.',
+
+cookieTitle: 'Cookie Policy',
+cookieIntro: 'We use cookies to enhance your experience on our website.',
+cookieWhat: 'What are Cookies',
+cookieWhatText: 'Cookies are small text files stored on your device when you visit our website. They help us remember your preferences and improve site functionality.',
+cookieTypes: 'Types of Cookies',
+cookieTypesText: 'We use essential cookies for site operation, analytics cookies to understand how you use the site, and marketing cookies to personalize advertisements.',
+cookieManage: 'Managing Cookies',
+cookieManageText: 'You can manage or disable cookies through your browser settings. Note that disabling cookies may affect site functionality.',
+
 
     // Hero Section
     heroTitle: "Welcome to AL 22 Suite & Spa Luxury Experience",
@@ -1037,6 +1098,37 @@ const translations = {
     continueWithGoogle: "Continuer avec Google",
     or: "ou",
 
+
+     termsTitle: 'Conditions Générales',
+termsIntro: 'Bienvenue à AL 22 Suite & Spa. En utilisant notre site web et nos services, vous acceptez les conditions générales suivantes.',
+termsBooking: 'Réservations',
+termsBookingText: 'Toutes les réservations sont soumises à disponibilité. Une fois confirmée, vous recevrez un email de confirmation avec les détails de votre réservation. Les annulations doivent être effectuées au moins 48 heures avant l\'arrivée pour un remboursement complet.',
+termsPayment: 'Paiement',
+termsPaymentText: 'Nous acceptons les paiements par carte de crédit, virement bancaire et espèces. Le paiement complet est requis lors de l\'enregistrement, sauf accord contraire.',
+termsLiability: 'Responsabilité',
+termsLiabilityText: 'AL 22 Suite & Spa n\'est pas responsable des dommages, pertes ou vols d\'objets personnels pendant votre séjour. Les clients sont responsables de tout dommage causé à la propriété.',
+termsContact: 'Pour toute question concernant nos conditions générales, contactez-nous à',
+
+privacyTitle: 'Politique de Confidentialité',
+privacyIntro: 'AL 22 Suite & Spa respecte votre vie privée. Cette politique explique comment nous collectons, utilisons et protégeons vos données personnelles.',
+privacyCollection: 'Collecte de Données',
+privacyCollectionText: 'Nous collectons des informations personnelles telles que nom, email, numéro de téléphone et détails de paiement lorsque vous effectuez une réservation ou utilisez nos services.',
+privacyUsage: 'Utilisation des Données',
+privacyUsageText: 'Nous utilisons vos données pour traiter les réservations, communiquer avec vous, améliorer nos services et envoyer des offres promotionnelles (avec votre consentement).',
+privacySecurity: 'Sécurité',
+privacySecurityText: 'Nous mettons en œuvre des mesures de sécurité appropriées pour protéger vos données personnelles contre tout accès, modification ou divulgation non autorisés.',
+privacyRights: 'Vos Droits',
+privacyRightsText: 'Vous avez le droit d\'accéder, de corriger ou de supprimer vos données personnelles à tout moment. Contactez-nous pour exercer ces droits.',
+
+cookieTitle: 'Politique des Cookies',
+cookieIntro: 'Nous utilisons des cookies pour améliorer votre expérience sur notre site web.',
+cookieWhat: 'Que sont les Cookies',
+cookieWhatText: 'Les cookies sont de petits fichiers texte stockés sur votre appareil lorsque vous visitez notre site web. Ils nous aident à mémoriser vos préférences et à améliorer la fonctionnalité du site.',
+cookieTypes: 'Types de Cookies',
+cookieTypesText: 'Nous utilisons des cookies essentiels pour le fonctionnement du site, des cookies analytiques pour comprendre comment vous utilisez le site, et des cookies marketing pour personnaliser les publicités.',
+cookieManage: 'Gestion des Cookies',
+cookieManageText: 'Vous pouvez gérer ou désactiver les cookies via les paramètres de votre navigateur. Notez que la désactivation des cookies peut affecter la fonctionnalité du site.',
+
     // Hero Section
     heroTitle: "Bienvenue à AL 22 Suite & Spa Luxury Experience",
     heroSubtitle: "Une expérience authentique au cœur de Polignano a Mare",
@@ -1526,6 +1618,9 @@ const translations = {
       "L'authentification Google n'est pas activée. Contactez l'administrateur pour l'activer dans la Firebase Console.",
     googleAuthCancelled: "Connexion Google annulée.",
     googleAuthError: "Erreur lors de la connexion avec Google. Veuillez réessayer plus tard.",},
+
+
+
   es: {
     // Navigation
     home: "Inicio",
@@ -1543,6 +1638,38 @@ const translations = {
     register: "Registrarse",
     continueWithGoogle: "Continuar con Google",
     or: "o",
+
+
+    termsTitle: 'Términos y Condiciones',
+termsIntro: 'Bienvenido a AL 22 Suite & Spa. Al utilizar nuestro sitio web y servicios, acepta los siguientes términos y condiciones.',
+termsBooking: 'Reservas',
+termsBookingText: 'Todas las reservas están sujetas a disponibilidad. Una vez confirmada, recibirá un correo electrónico de confirmación con los detalles de su reserva. Las cancelaciones deben realizarse al menos 48 horas antes de la llegada para un reembolso completo.',
+termsPayment: 'Pago',
+termsPaymentText: 'Aceptamos pagos con tarjeta de crédito, transferencia bancaria y efectivo. Se requiere el pago completo en el momento del check-in, salvo acuerdo contrario.',
+termsLiability: 'Responsabilidad',
+termsLiabilityText: 'AL 22 Suite & Spa no se hace responsable de ningún daño, pérdida o robo de pertenencias personales durante su estancia. Los huéspedes son responsables de cualquier daño causado a la propiedad.',
+termsContact: 'Para preguntas sobre nuestros términos y condiciones, contáctenos en',
+
+privacyTitle: 'Política de Privacidad',
+privacyIntro: 'AL 22 Suite & Spa respeta su privacidad. Esta política explica cómo recopilamos, usamos y protegemos sus datos personales.',
+privacyCollection: 'Recopilación de Datos',
+privacyCollectionText: 'Recopilamos información personal como nombre, correo electrónico, número de teléfono y detalles de pago cuando realiza una reserva o utiliza nuestros servicios.',
+privacyUsage: 'Uso de Datos',
+privacyUsageText: 'Utilizamos sus datos para procesar reservas, comunicarnos con usted, mejorar nuestros servicios y enviar ofertas promocionales (con su consentimiento).',
+privacySecurity: 'Seguridad',
+privacySecurityText: 'Implementamos medidas de seguridad apropiadas para proteger sus datos personales contra acceso, alteración o divulgación no autorizados.',
+privacyRights: 'Sus Derechos',
+privacyRightsText: 'Tiene derecho a acceder, corregir o eliminar sus datos personales en cualquier momento. Contáctenos para ejercer estos derechos.',
+
+cookieTitle: 'Política de Cookies',
+cookieIntro: 'Utilizamos cookies para mejorar su experiencia en nuestro sitio web.',
+cookieWhat: 'Qué son las Cookies',
+cookieWhatText: 'Las cookies son pequeños archivos de texto almacenados en su dispositivo cuando visita nuestro sitio web. Nos ayudan a recordar sus preferencias y mejorar la funcionalidad del sitio.',
+cookieTypes: 'Tipos de Cookies',
+cookieTypesText: 'Utilizamos cookies esenciales para el funcionamiento del sitio, cookies analíticas para comprender cómo usa el sitio y cookies de marketing para personalizar anuncios.',
+cookieManage: 'Gestión de Cookies',
+cookieManageText: 'Puede gestionar o desactivar las cookies a través de la configuración de su navegador. Tenga en cuenta que desactivar las cookies puede afectar la funcionalidad del sitio.',
+
 
     // Hero Section
     heroTitle: "Bienvenido a AL 22 Suite & Spa Luxury Experience",
@@ -2031,6 +2158,8 @@ const translations = {
     googleAuthCancelled: "Inicio de sesión con Google cancelado.",
     googleAuthError: "Error durante el inicio de sesión con Google. Inténtalo de nuevo más tarde.",
   },
+
+
   de: {
     // Navigation
     home: "Startseite",
@@ -2048,6 +2177,37 @@ const translations = {
     register: "Registrieren",
     continueWithGoogle: "Mit Google fortfahren",
     or: "oder",
+
+
+    termsTitle: 'Allgemeine Geschäftsbedingungen',
+termsIntro: 'Willkommen bei AL 22 Suite & Spa. Durch die Nutzung unserer Website und Dienstleistungen stimmen Sie den folgenden Geschäftsbedingungen zu.',
+termsBooking: 'Buchungen',
+termsBookingText: 'Alle Buchungen unterliegen der Verfügbarkeit. Nach Bestätigung erhalten Sie eine Bestätigungs-E-Mail mit Ihren Buchungsdetails. Stornierungen müssen mindestens 48 Stunden vor Anreise erfolgen, um eine vollständige Rückerstattung zu erhalten.',
+termsPayment: 'Zahlung',
+termsPaymentText: 'Wir akzeptieren Zahlungen per Kreditkarte, Banküberweisung und Bargeld. Die vollständige Zahlung ist beim Check-in erforderlich, sofern nicht anders vereinbart.',
+termsLiability: 'Haftung',
+termsLiabilityText: 'AL 22 Suite & Spa haftet nicht für Schäden, Verluste oder Diebstahl persönlicher Gegenstände während Ihres Aufenthalts. Gäste haften für Schäden an der Unterkunft.',
+termsContact: 'Bei Fragen zu unseren Geschäftsbedingungen kontaktieren Sie uns unter',
+
+privacyTitle: 'Datenschutzerklärung',
+privacyIntro: 'AL 22 Suite & Spa respektiert Ihre Privatsphäre. Diese Richtlinie erklärt, wie wir Ihre persönlichen Daten sammeln, verwenden und schützen.',
+privacyCollection: 'Datenerfassung',
+privacyCollectionText: 'Wir erfassen persönliche Informationen wie Name, E-Mail, Telefonnummer und Zahlungsdetails, wenn Sie eine Buchung vornehmen oder unsere Dienste nutzen.',
+privacyUsage: 'Datennutzung',
+privacyUsageText: 'Wir verwenden Ihre Daten zur Bearbeitung von Buchungen, zur Kommunikation mit Ihnen, zur Verbesserung unserer Dienste und zum Versenden von Werbeangeboten (mit Ihrer Zustimmung).',
+privacySecurity: 'Sicherheit',
+privacySecurityText: 'Wir implementieren angemessene Sicherheitsmaßnahmen zum Schutz Ihrer persönlichen Daten vor unbefugtem Zugriff, Änderung oder Offenlegung.',
+privacyRights: 'Ihre Rechte',
+privacyRightsText: 'Sie haben das Recht, jederzeit auf Ihre persönlichen Daten zuzugreifen, sie zu korrigieren oder zu löschen. Kontaktieren Sie uns, um diese Rechte auszuüben.',
+
+cookieTitle: 'Cookie-Richtlinie',
+cookieIntro: 'Wir verwenden Cookies, um Ihre Erfahrung auf unserer Website zu verbessern.',
+cookieWhat: 'Was sind Cookies',
+cookieWhatText: 'Cookies sind kleine Textdateien, die auf Ihrem Gerät gespeichert werden, wenn Sie unsere Website besuchen. Sie helfen uns, Ihre Präferenzen zu speichern und die Funktionalität der Website zu verbessern.',
+cookieTypes: 'Cookie-Typen',
+cookieTypesText: 'Wir verwenden essentielle Cookies für den Betrieb der Website, Analyse-Cookies um zu verstehen, wie Sie die Website nutzen, und Marketing-Cookies zur Personalisierung von Werbung.',
+cookieManage: 'Cookie-Verwaltung',
+cookieManageText: 'Sie können Cookies über Ihre Browser-Einstellungen verwalten oder deaktivieren. Beachten Sie, dass das Deaktivieren von Cookies die Funktionalität der Website beeinträchtigen kann.',
 
     // Hero Section
     heroTitle: "Willkommen im AL 22 Suite & Spa Luxury Experience",

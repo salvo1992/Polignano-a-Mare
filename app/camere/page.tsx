@@ -70,6 +70,11 @@ export default function CamerePage() {
       { src: "/polignano-beach-cliffs.jpg", alt: "Spiaggia e scogliere" },
       { src: "/polignano-historic-center.jpg", alt: "Centro storico" },
       { src: "/polignano-adriatic-coast.jpg", alt: "Costa adriatica" },
+      { src: "/camera/camera6.jpg", alt: "Camera spaziosa" },
+      { src: "/camera/camera8.jpg", alt: "Camera spaziosa" },
+      { src: "/camera/camera9.jpg", alt: "Camera spaziosa" },
+      { src: "/camera/camera11.jpg", alt: "Camera spaziosa" },
+      { src: "/camera/camera15.jpg", alt: "Camera con vista" },
     ],
     "2": [
       { src: "/images/room-2.jpg", alt: "Camera con Jacuzzi" },
@@ -79,7 +84,12 @@ export default function CamerePage() {
       { src: "/polignano-sea-panorama.jpg", alt: "Panorama sul mare" },
       { src: "/polignano-cala-porto.jpg", alt: "Cala Porto" },
       { src: "/polignano-lama-monachile.jpg", alt: "Lama Monachile" },
-      { src: "/placeholder.svg?height=200&width=200", alt: "Polignano di notte" },
+      { src: "/camera/camera5.jpg", alt: "Polignano di notte" },
+      { src: "/camera/camera.jpg", alt: "Camera con vista" },
+       { src: "/camera/camera3.jpg", alt: "Camera con vista" },
+       { src: "/camera/camera6.jpg", alt: "Camera con vista" },
+       { src: "/camera/camera7.jpg", alt: "Camera con vista" },
+       { src: "/camera/camera16.jpg", alt: "Camera con vista" },
     ],
   }
 
