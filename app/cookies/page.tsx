@@ -4,95 +4,119 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Cookie, Settings, BarChart, Eye } from "lucide-react"
+import { Cookie, Settings, BarChart, Eye, RotateCcw } from "lucide-react"
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useLanguage } from "@/components/language-provider"
 
-interface CookiePreferences {
+type CookiePreferences = {
   necessary: boolean
   analytics: boolean
   marketing: boolean
 }
 
+const STORAGE_KEY = "cookie-consent"
+const STORAGE_AT = "cookie-consent-date"
+const BANNER_DISMISSED = "cookie-banner-dismissed"
+const MONTHS_VALID = 12
+
+function isExpired(iso?: string | null) {
+  if (!iso) return true
+  const saved = new Date(iso)
+  const now = new Date()
+  const diffMonths = (now.getTime() - saved.getTime()) / (1000 * 60 * 60 * 24 * 30)
+  return diffMonths >= MONTHS_VALID
+}
+
 export default function CookiesPage() {
   const { t } = useLanguage()
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
+
   const [preferences, setPreferences] = useState<CookiePreferences>({
     necessary: true,
     analytics: false,
     marketing: false,
   })
-  const [isLoaded, setIsLoaded] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [notification, setNotification] = useState<string | null>(null)
 
   useEffect(() => {
-    const loadPreferences = () => {
-      try {
-        const saved = localStorage.getItem("cookie-consent")
-        if (saved) {
-          setPreferences(JSON.parse(saved))
-        }
-      } catch (error) {
-        console.error("Error loading preferences:", error)
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      const at = localStorage.getItem(STORAGE_AT)
+      if (saved && !isExpired(at)) {
+        setPreferences(JSON.parse(saved))
+      } else {
+        // scaduto o assente: reset
+        localStorage.removeItem(STORAGE_KEY)
+        localStorage.removeItem(STORAGE_AT)
+        localStorage.removeItem(BANNER_DISMISSED)
       }
-      setIsLoaded(true)
-    }
-
-    loadPreferences()
+    } catch {}
+    setLoaded(true)
   }, [])
 
-  const showNotification = (message: string) => {
-    setNotification(message)
-    setTimeout(() => setNotification(null), 3000)
+  const show = (msg: string) => {
+    setNotification(msg)
+    setTimeout(() => setNotification(null), 2200)
   }
 
-  const savePreferences = (newPrefs: CookiePreferences) => {
+  const persist = (prefs: CookiePreferences) => {
     try {
-      localStorage.setItem("cookie-consent", JSON.stringify(newPrefs))
-      localStorage.setItem("cookie-consent-date", new Date().toISOString())
-      localStorage.setItem("cookie-banner-dismissed", "true")
-      setPreferences(newPrefs)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
+      localStorage.setItem(STORAGE_AT, new Date().toISOString())
+      localStorage.setItem(BANNER_DISMISSED, "true")
+      setPreferences(prefs)
       return true
-    } catch (error) {
-      console.error("Error saving preferences:", error)
+    } catch {
       return false
     }
   }
 
   const acceptAll = () => {
-    if (savePreferences({ necessary: true, analytics: true, marketing: true })) {
-      showNotification(t("allPreferencesSaved"))
-    } else {
-      showNotification(t("errorSavingPreferences"))
+    if (persist({ necessary: true, analytics: true, marketing: true })) show(t("allPreferencesSaved"))
+    else show(t("errorSavingPreferences"))
+  }
+
+  const onlyNecessary = () => {
+    if (persist({ necessary: true, analytics: false, marketing: false })) show(t("onlyNecessaryAccepted"))
+    else show(t("errorSavingPreferences"))
+  }
+
+  const toggle = (k: keyof CookiePreferences) => {
+    if (k === "necessary") return
+    setPreferences(prev => ({ ...prev, [k]: !prev[k] }))
+  }
+
+  const saveCustom = () => {
+    if (persist(preferences)) show(t("yourPreferencesSaved"))
+    else show(t("errorSavingPreferences"))
+  }
+
+  const reset = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(STORAGE_AT)
+      localStorage.removeItem(BANNER_DISMISSED)
+      setPreferences({ necessary: true, analytics: false, marketing: false })
+      show("✅ Preferenze reimpostate.")
+    } catch {
+      show(t("errorSavingPreferences"))
     }
   }
 
-  const acceptNecessaryOnly = () => {
-    if (savePreferences({ necessary: true, analytics: false, marketing: false })) {
-      showNotification(t("onlyNecessaryAccepted"))
-    } else {
-      showNotification(t("errorSavingPreferences"))
-    }
-  }
+  const statusBadge = useMemo(() => {
+    const { analytics, marketing } = preferences
+    if (analytics && marketing) return "Tutti i cookie attivi"
+    if (!analytics && !marketing) return "Solo necessari"
+    if (analytics && !marketing) return "Necessari + Analitici"
+    return "Necessari + Marketing"
+  }, [preferences])
 
-  const togglePreference = (type: keyof CookiePreferences) => {
-    if (type === "necessary") return
-    setPreferences({ ...preferences, [type]: !preferences[type] })
-  }
-
-  const saveCustomPreferences = () => {
-    if (savePreferences(preferences)) {
-      showNotification(t("yourPreferencesSaved"))
-    } else {
-      showNotification(t("errorSavingPreferences"))
-    }
-  }
-
-  if (!isLoaded) {
+  if (!loaded) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </main>
     )
   }
@@ -102,195 +126,188 @@ export default function CookiesPage() {
       <Header />
 
       {notification && (
-        <div className="fixed top-24 right-4 z-50 bg-primary text-primary-foreground px-6 py-3 rounded-lg shadow-lg animate-slide-in-right">
+        <div className="fixed top-24 right-4 z-50 bg-primary text-primary-foreground px-4 py-2 rounded-md shadow-md animate-slide-in-right">
           {notification}
         </div>
       )}
 
-      <div className="pt-20 pb-16">
+      <section
+        ref={heroRef}
+        className="pt-24 pb-10 bg-gradient-to-br from-muted/40 to-transparent"
+      >
         <div className="container mx-auto px-4 max-w-4xl">
-          <div
-            ref={heroRef}
-            className={`text-center mb-12 transition-all duration-1000 ${heroVisible ? "animate-fade-in-up opacity-100" : "opacity-0 translate-y-[50px]"}`}
-          >
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Cookie className="w-8 h-8 text-primary animate-pulse" />
-              <h1 className="text-4xl md:text-6xl font-cinzel font-bold text-roman-gradient animate-text-shimmer">
-                {t("cookiePolicy")}
-              </h1>
+          <div className={`text-center mb-8 transition-all ${heroVisible ? "animate-fade-in-up" : "opacity-0 translate-y-6"}`}>
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <Cookie className="w-7 h-7 text-primary" />
+              <h1 className="text-4xl md:text-5xl font-cinzel font-bold">{t("cookiePolicy")}</h1>
             </div>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">{t("cookiePolicySubtitle")}</p>
+            <p className="text-lg text-muted-foreground">{t("cookiePolicySubtitle")}</p>
           </div>
 
-          <div className="space-y-8">
-            <Card className="card-enhanced bg-gradient-to-br from-primary/5 to-accent/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-primary">
-                  <Settings className="w-5 h-5" />
-                  {t("manageCookiePreferences")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <p className="text-muted-foreground">{t("customizeCookiePreferences")}</p>
+          <Card className="mb-8">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-primary">
+                <Settings className="w-5 h-5" />
+                {t("manageCookiePreferences")}
+              </CardTitle>
+              <span className="text-xs px-2 py-1 rounded bg-muted text-foreground">{statusBadge}</span>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <p className="text-muted-foreground">{t("customizeCookiePreferences")}</p>
 
-                <div className="grid gap-4">
-                  <div className="flex items-center justify-between p-4 border border-border/50 rounded-lg bg-green-50/50">
-                    <div>
-                      <h4 className="font-semibold text-green-800">{t("necessaryCookiesTitle")}</h4>
-                      <p className="text-sm text-green-600">{t("necessaryCookiesAlwaysActive")}</p>
-                    </div>
-                    <div className="w-12 h-6 bg-green-500 rounded-full flex items-center justify-end px-1">
-                      <div className="w-4 h-4 bg-white rounded-full shadow-sm"></div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 border border-border/50 rounded-lg hover:bg-muted/20 transition-colors">
-                    <div>
-                      <h4 className="font-semibold">{t("analyticsCookiesTitle")}</h4>
-                      <p className="text-sm text-muted-foreground">{t("analyticsCookiesHelp")}</p>
-                    </div>
-                    <button
-                      onClick={() => togglePreference("analytics")}
-                      className={`w-12 h-6 rounded-full flex items-center transition-all duration-300 shadow-inner ${
-                        preferences.analytics ? "bg-primary justify-end" : "bg-gray-300 justify-start"
-                      }`}
-                    >
-                      <div className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm"></div>
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 border border-border/50 rounded-lg hover:bg-muted/20 transition-colors">
-                    <div>
-                      <h4 className="font-semibold">{t("marketingCookiesTitle")}</h4>
-                      <p className="text-sm text-muted-foreground">{t("marketingCookiesAds")}</p>
-                    </div>
-                    <button
-                      onClick={() => togglePreference("marketing")}
-                      className={`w-12 h-6 rounded-full flex items-center transition-all duration-300 shadow-inner ${
-                        preferences.marketing ? "bg-primary justify-end" : "bg-gray-300 justify-start"
-                      }`}
-                    >
-                      <div className="w-4 h-4 bg-white rounded-full mx-1 shadow-sm"></div>
-                    </button>
-                  </div>
+              {/* Necessary */}
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-background">
+                <div>
+                  <h4 className="font-semibold">{t("necessaryCookiesTitle")}</h4>
+                  <p className="text-sm text-muted-foreground">{t("necessaryCookiesAlwaysActive")}</p>
                 </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                  <Button
-                    onClick={acceptNecessaryOnly}
-                    variant="outline"
-                    className="flex-1 bg-transparent hover:bg-muted/50 transition-all duration-300"
-                  >
-                    {t("onlyNecessaryButton")}
-                  </Button>
-                  <Button
-                    onClick={saveCustomPreferences}
-                    className="flex-1 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transition-all duration-300 hover:scale-105"
-                  >
-                    {t("savePreferencesButton")}
-                  </Button>
-                  <Button
-                    onClick={acceptAll}
-                    className="flex-1 bg-gradient-to-r from-accent to-primary hover:from-accent/90 hover:to-primary/90 transition-all duration-300 hover:scale-105"
-                  >
-                    {t("acceptAllButton")}
-                  </Button>
+                <div className="w-12 h-6 bg-green-500/80 rounded-full flex items-center justify-end px-1">
+                  <div className="w-4 h-4 bg-white rounded-full shadow" />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card className="card-enhanced">
+              {/* Analytics */}
+              <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/30 transition-colors">
+                <div>
+                  <h4 className="font-semibold">{t("analyticsCookiesTitle")}</h4>
+                  <p className="text-sm text-muted-foreground">{t("analyticsCookiesHelp")}</p>
+                </div>
+                <button
+                  onClick={() => toggle("analytics")}
+                  className={`w-12 h-6 rounded-full flex items-center transition-all duration-300 shadow-inner ${
+                    preferences.analytics ? "bg-primary justify-end" : "bg-gray-300 justify-start"
+                  }`}
+                  aria-pressed={preferences.analytics}
+                  aria-label="Attiva/disattiva cookie analitici"
+                >
+                  <div className="w-4 h-4 bg-white rounded-full mx-1 shadow" />
+                </button>
+              </div>
+
+              {/* Marketing */}
+              <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/30 transition-colors">
+                <div>
+                  <h4 className="font-semibold">{t("marketingCookiesTitle")}</h4>
+                  <p className="text-sm text-muted-foreground">{t("marketingCookiesAds")}</p>
+                </div>
+                <button
+                  onClick={() => toggle("marketing")}
+                  className={`w-12 h-6 rounded-full flex items-center transition-all duration-300 shadow-inner ${
+                    preferences.marketing ? "bg-primary justify-end" : "bg-gray-300 justify-start"
+                  }`}
+                  aria-pressed={preferences.marketing}
+                  aria-label="Attiva/disattiva cookie marketing"
+                >
+                  <div className="w-4 h-4 bg-white rounded-full mx-1 shadow" />
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <Button onClick={onlyNecessary} variant="outline" className="flex-1">
+                  {t("onlyNecessaryButton")}
+                </Button>
+                <Button onClick={saveCustom} className="flex-1">
+                  {t("savePreferencesButton")}
+                </Button>
+                <Button onClick={acceptAll} className="flex-1">
+                  {t("acceptAllButton")}
+                </Button>
+                <Button onClick={reset} variant="ghost" className="sm:w-auto" title="Reimposta">
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Reset
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Spiegazioni */}
+          <div className="space-y-6">
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <Cookie className="w-5 h-5" />
                   {t("whatAreCookies")}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p>{t("cookiesExplanation")}</p>
-              </CardContent>
+              <CardContent><p>{t("cookiesExplanation")}</p></CardContent>
             </Card>
 
-            <Card className="card-enhanced">
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <Settings className="w-5 h-5" />
                   {t("technicalDetails")}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 <p>{t("technicalExplanation")}</p>
-                <ul className="list-disc list-inside space-y-2 text-muted-foreground">
+                <ul className="list-disc list-inside text-muted-foreground space-y-1">
                   <li>{t("technicalItem1")}</li>
                   <li>{t("technicalItem2")}</li>
                   <li>{t("technicalItem3")}</li>
                   <li>{t("technicalItem4")}</li>
                 </ul>
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-green-800 font-medium">{t("alwaysActive")}</p>
+                <div className="rounded-md border bg-green-50 p-3 text-sm">
+                  {t("alwaysActive")}
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="card-enhanced">
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <BarChart className="w-5 h-5" />
                   {t("analyticsCookies")}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 <p>{t("analyticsExplanation")}</p>
-                <ul className="list-disc list-inside space-y-2 text-muted-foreground">
+                <ul className="list-disc list-inside text-muted-foreground space-y-1">
                   <li>{t("analyticsItem1")}</li>
                   <li>{t("analyticsItem2")}</li>
                   <li>{t("analyticsItem3")}</li>
                   <li>{t("analyticsItem4")}</li>
                 </ul>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-blue-800 font-medium">{t("requireConsent")}</p>
+                <div className="rounded-md border bg-blue-50 p-3 text-sm">
+                  {t("requireConsent")}
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="card-enhanced">
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
                   <Eye className="w-5 h-5" />
                   {t("marketingCookies")}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 <p>{t("marketingExplanation")}</p>
-                <ul className="list-disc list-inside space-y-2 text-muted-foreground">
+                <ul className="list-disc list-inside text-muted-foreground space-y-1">
                   <li>{t("marketingItem1")}</li>
                   <li>{t("marketingItem2")}</li>
                   <li>{t("marketingItem3")}</li>
                   <li>{t("marketingItem4")}</li>
                 </ul>
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <p className="text-orange-800 font-medium">{t("requireConsent")}</p>
+                <div className="rounded-md border bg-orange-50 p-3 text-sm">
+                  {t("requireConsent")}
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="card-enhanced bg-gradient-to-br from-primary/5 to-accent/5">
-              <CardContent className="p-6">
-                <div className="text-center">
-                  <h3 className="font-cinzel text-lg font-semibold text-primary mb-3">{t("questionsTitle")}</h3>
-                  <p className="text-muted-foreground mb-4">{t("questionsDescription")}</p>
-                  <Button variant="outline" className="bg-transparent hover:bg-primary/10">
-                    {t("contactUs")}
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground text-center mt-4">{t("lastUpdated")}</p>
+            <Card className="bg-gradient-to-br from-primary/5 to-accent/5">
+              <CardContent className="p-6 text-center">
+                <h3 className="font-cinzel text-lg font-semibold text-primary mb-2">{t("questionsTitle")}</h3>
+                <p className="text-muted-foreground mb-3">{t("questionsDescription")}</p>
+                <p className="text-sm text-muted-foreground">{t("lastUpdated")}</p>
               </CardContent>
             </Card>
           </div>
         </div>
-      </div>
+      </section>
 
       <Footer />
     </main>
   )
 }
+

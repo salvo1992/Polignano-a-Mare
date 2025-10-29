@@ -7,6 +7,12 @@ import { FileText, Scale, CreditCard, Calendar, AlertTriangle, Mail, Phone } fro
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
 import { useLanguage } from "@/components/language-provider"
 
+// Config contatti (no hardcode in UI)
+const TERMS_CONTACT = {
+  email: process.env.NEXT_PUBLIC_TERMS_EMAIL || "info@all22suite.com",
+  phone: process.env.NEXT_PUBLIC_TERMS_PHONE || "+39 000 000 0000",
+}
+
 export default function TerminiPage() {
   const { t } = useLanguage()
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
@@ -17,10 +23,12 @@ export default function TerminiPage() {
 
       <div className="pt-20 pb-16">
         <div className="container mx-auto px-4 max-w-4xl">
-          {/* Hero Section */}
+          {/* Hero */}
           <div
             ref={heroRef}
-            className={`text-center mb-12 transition-all duration-1000 ${heroVisible ? "animate-fade-in-up opacity-100" : "opacity-0 translate-y-[50px]"}`}
+            className={`text-center mb-12 transition-all duration-1000 ${
+              heroVisible ? "animate-fade-in-up opacity-100" : "opacity-0 translate-y-[50px]"
+            }`}
           >
             <div className="flex items-center justify-center gap-3 mb-4">
               <Scale className="w-8 h-8 text-primary animate-pulse" />
@@ -32,6 +40,7 @@ export default function TerminiPage() {
           </div>
 
           <div className="space-y-8">
+            {/* Info generali */}
             <Card className="card-invisible">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
@@ -45,6 +54,7 @@ export default function TerminiPage() {
               </CardContent>
             </Card>
 
+            {/* Prenotazioni e cancellazioni */}
             <Card className="card-invisible">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
@@ -52,7 +62,7 @@ export default function TerminiPage() {
                   {t("bookingsAndCancellations")}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
                 <div>
                   <h4 className="font-semibold mb-2">{t("bookingPolicy")}</h4>
                   <ul className="list-disc list-inside space-y-2 text-muted-foreground">
@@ -74,6 +84,7 @@ export default function TerminiPage() {
               </CardContent>
             </Card>
 
+            {/* Pagamenti e prezzi */}
             <Card className="card-invisible">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
@@ -81,7 +92,7 @@ export default function TerminiPage() {
                   {t("paymentsAndPrices")}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
                 <div>
                   <h4 className="font-semibold mb-2">{t("paymentMethods")}</h4>
                   <ul className="list-disc list-inside space-y-2 text-muted-foreground">
@@ -102,6 +113,7 @@ export default function TerminiPage() {
               </CardContent>
             </Card>
 
+            {/* Responsabilità e comportamento */}
             <Card className="card-invisible">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
@@ -109,7 +121,7 @@ export default function TerminiPage() {
                   {t("responsibilityAndBehavior")}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
                 <div>
                   <h4 className="font-semibold mb-2">{t("guestResponsibility")}</h4>
                   <ul className="list-disc list-inside space-y-2 text-muted-foreground">
@@ -131,6 +143,7 @@ export default function TerminiPage() {
               </CardContent>
             </Card>
 
+            {/* Legge applicabile */}
             <Card className="card-invisible">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
@@ -144,6 +157,7 @@ export default function TerminiPage() {
               </CardContent>
             </Card>
 
+            {/* Contatti */}
             <Card className="card-invisible bg-gradient-to-br from-primary/5 to-accent/5">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
@@ -156,11 +170,11 @@ export default function TerminiPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Mail className="w-4 h-4 text-primary" />
-                    <span>info@villabellavista.it</span>
+                    <span>{TERMS_CONTACT.email}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-primary" />
-                    <span>+39 06 1234 5678</span>
+                    <span>{TERMS_CONTACT.phone}</span>
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground mt-4">{t("lastUpdated")}</p>
@@ -174,3 +188,4 @@ export default function TerminiPage() {
     </main>
   )
 }
+

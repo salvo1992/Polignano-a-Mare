@@ -23,7 +23,7 @@ const roomData = {
     { icon: Tv, name: "TV satellitare", description: "Canali internazionali e locali" },
     { icon: Coffee, name: "Minibar", description: "Bevande e snack inclusi" },
     { icon: Shield, name: "Cassaforte", description: "Per oggetti di valore" },
-    { icon: Car, name: "Parcheggio", description: "Posto auto gratuito" },
+    { icon: Car, name: "Parcheggio", description: "Parcheggio non è gratuito, costa 20 euro " },
   ],
   features: [
     "Vista panoramica su Polignano a Mare",

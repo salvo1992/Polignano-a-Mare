@@ -167,7 +167,14 @@ export function Footer() {
               <span>POWERED BY </span>
               <div className="flex items-center gap-1">
                 <Image src="/images/ekobit-logo.png" alt="EkoBit S.r.l." width={16} height={16} className="rounded" />
-                <span className="font-medium">EkoBit S.r.l.</span>
+               <Link
+                 href="https://ekobit.it/"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="font-medium"
+               >
+                 EkoBit S.r.l.
+               </Link>
               </div>
             </div>
           </div>

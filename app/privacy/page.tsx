@@ -11,6 +11,11 @@ export default function PrivacyPage() {
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
   const { t } = useLanguage()
 
+const PRIVACY_CONTACT = {
+  email: process.env.NEXT_PUBLIC_PRIVACY_EMAIL || "privacy@all22suite.com",
+  phone: process.env.NEXT_PUBLIC_PRIVACY_PHONE || "+39 328 328 7303",
+}
+
   return (
     <main className="min-h-screen">
       <Header />
@@ -48,7 +53,28 @@ export default function PrivacyPage() {
                 </ul>
               </CardContent>
             </Card>
-
+<Card className="card-invisible bg-gradient-to-br from-primary/5 to-accent/5">
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2 text-primary">
+      <Mail className="w-5 h-5" />
+      {t("contactUs")}
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    <p className="mb-4">{t("privacyContactDesc")}</p>
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Mail className="w-4 h-4 text-primary" />
+        <span>{PRIVACY_CONTACT.email}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Phone className="w-4 h-4 text-primary" />
+        <span>{PRIVACY_CONTACT.phone}</span>
+      </div>
+    </div>
+    <p className="text-sm text-muted-foreground mt-4">{t("lastUpdated")}</p>
+  </CardContent>
+</Card>
             <Card className="card-invisible">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-primary">
@@ -105,30 +131,7 @@ export default function PrivacyPage() {
                 </ul>
               </CardContent>
             </Card>
-
-            <Card className="card-invisible bg-gradient-to-br from-primary/5 to-accent/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-primary">
-                  <Mail className="w-5 h-5" />
-                  {t("contactUs")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="mb-4">{t("privacyContactDesc")}</p>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-primary" />
-                    <span>privacy@villabellavista.it</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-primary" />
-                    <span>+39 06 1234 5678</span>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground mt-4">{t("lastUpdated")}</p>
-              </CardContent>
-            </Card>
-          </div>
+         </div>
         </div>
       </div>
 
