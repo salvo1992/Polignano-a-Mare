@@ -32,6 +32,7 @@ import {
 } from "firebase/firestore"
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from "firebase/functions"
 import { getStorage } from "firebase/storage"
+import { setPersistence, browserLocalPersistence } from "firebase/auth"
 
 // ---------- INIT ----------
 const firebaseConfig = {
@@ -49,10 +50,17 @@ export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
 export const functions = getFunctions(app)
+const IS_BROWSER = typeof window !== "undefined";
+const IS_DEV = IS_BROWSER && window.location.hostname.includes("localhost");
+auth.useDeviceLanguage();
 
 if (process.env.NEXT_PUBLIC_USE_FUNCTIONS_EMULATOR === "true") {
   connectFunctionsEmulator(functions, "127.0.0.1", 5001)
 }
+// Garantisce che il redirect mantenga la sessione tra le navigazioni
+;(async () => {
+  try { await setPersistence(auth, browserLocalPersistence) } catch {}
+})()
 
 // ---------- USER DOC ----------
 export type UserDoc = {
@@ -111,6 +119,8 @@ async function ensureUserDoc(user: User) {
 
 // ---------- AUTH ----------
 const googleProvider = new GoogleAuthProvider()
+// Suggerisce la scelta dell'account ad ogni login (utile se l’utente è già loggato con altro account)
+googleProvider.setCustomParameters({ prompt: "select_account" })
 
 export async function registerWithEmail(email: string, password: string, displayName?: string) {
   const cred = await createUserWithEmailAndPassword(auth, email, password)
@@ -130,35 +140,35 @@ export async function loginWithEmail(email: string, password: string) {
 }
 
 export async function loginWithGoogle() {
-  console.log("[v0] loginWithGoogle called")
-  console.log("[v0] Auth instance:", auth ? "exists" : "null")
-  console.log("[v0] Google provider:", googleProvider ? "exists" : "null")
-
   try {
-    console.log("[v0] Calling signInWithRedirect with auth and googleProvider...")
-    await signInWithRedirect(auth, googleProvider)
-    console.log("[v0] signInWithRedirect completed successfully - redirect should happen now")
-  } catch (error) {
-    console.error("[v0] Error in signInWithRedirect:", error)
-    throw error
+    if (IS_DEV) {
+      // in dev usa popup: più affidabile con Next fast-refresh
+      const { signInWithPopup } = await import("firebase/auth");
+      const cred = await signInWithPopup(auth, googleProvider);
+      await ensureUserDoc(cred.user);
+      return cred.user;
+    } else {
+      // in prod usa redirect
+      await signInWithRedirect(auth, googleProvider);
+      return null; // si prosegue al redirect
+    }
+  } catch (e: any) {
+    // propaga l'errore al caller (AuthProvider salva in sessionStorage)
+    throw e;
   }
-  // Note: The user will be redirected to Google, then back to the app
-  // Use handleGoogleRedirect() to complete the sign-in after redirect
 }
 
+
 export async function handleGoogleRedirect() {
-  console.log("[v0] handleGoogleRedirect called, getting redirect result...")
   try {
     const result = await getRedirectResult(auth)
-    console.log("[v0] getRedirectResult returned:", result ? "User found" : "No result")
     if (result && result.user) {
-      console.log("[v0] Creating/updating user doc for:", result.user.email)
       await ensureUserDoc(result.user)
       return result.user
     }
     return null
   } catch (error) {
-    console.error("[v0] Error handling Google redirect:", error)
+    console.error("Google redirect error:", error)
     throw error
   }
 }
@@ -508,5 +518,7 @@ export async function linkBookingToUser(bookingId: string, email: string): Promi
     return false
   }
 }
+
+
 
 

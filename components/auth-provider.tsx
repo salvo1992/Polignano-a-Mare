@@ -12,6 +12,8 @@ import {
   logout as fbLogout,
 } from "@/lib/firebase"
 import { doc, getDoc } from "firebase/firestore"
+import { useRef } from "react"
+
 
 export type AppRole = "user" | "admin"
 
@@ -34,6 +36,7 @@ interface AuthContextType {
   refreshToken: () => Promise<void>
   isCheckingRedirect: boolean // New state to track redirect check
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
@@ -80,33 +83,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isCheckingRedirect, setIsCheckingRedirect] = useState(true) // Track redirect check
+  const hasCheckedRedirectRef = useRef(false)
+ useEffect(() => {
+  if (hasCheckedRedirectRef.current) return
+  hasCheckedRedirectRef.current = true
 
-  useEffect(() => {
-    const checkRedirect = async () => {
-      console.log("[v0] Checking for Google redirect result...")
-      try {
-        const fbUser = await handleGoogleRedirect()
-        if (fbUser) {
-          console.log("[v0] Google redirect successful, user:", fbUser.email)
-          const [idToken, role] = await Promise.all([fbUser.getIdToken(true), readUserRole(fbUser.uid)])
-          setUser(firebaseToAppUser(fbUser, idToken, role))
-          setRoleCookie(role)
-          sessionStorage.removeItem("google_auth_error")
-        } else {
-          console.log("[v0] No redirect result found")
-        }
-      } catch (error: any) {
-        console.error("[v0] Google redirect error:", error)
-        // Store error in sessionStorage to show on login/register page
-        if (error?.code) {
-          sessionStorage.setItem("google_auth_error", error.code)
-        }
-      } finally {
-        setIsCheckingRedirect(false)
+  const checkRedirect = async () => {
+    console.log("[v0] Checking for Google redirect result...")
+    try {
+      const fbUser = await handleGoogleRedirect()
+      if (fbUser) {
+        console.log("[v0] Google redirect successful, user:", fbUser.email)
+        const [idToken, role] = await Promise.all([fbUser.getIdToken(true), readUserRole(fbUser.uid)])
+        setUser(firebaseToAppUser(fbUser, idToken, role))
+        setRoleCookie(role)
+        sessionStorage.removeItem("google_auth_error")
+      } else {
+        console.log("[v0] No redirect result found")
       }
+    } catch (error: any) {
+      console.error("[v0] Google redirect error:", error)
+      if (error?.code) sessionStorage.setItem("google_auth_error", error.code)
+    } finally {
+      setIsCheckingRedirect(false)
     }
-    checkRedirect()
-  }, [])
+  }
+
+  checkRedirect()
+}, [])
+
 
   // Sottoscrizione token/utente
   useEffect(() => {
@@ -155,24 +160,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const loginWithGoogleProvider = async (): Promise<{ success: boolean; error?: any }> => {
+  useEffect(() => {
+  let cancelled = false;
+  (async () => {
     try {
-      console.log("[v0] loginWithGoogleProvider called - user clicked Google button")
-      console.log("[v0] Current auth state:", auth.currentUser ? "User logged in" : "No user")
-      sessionStorage.removeItem("google_auth_error")
-
-      // This will redirect the user to Google sign-in page
-      console.log("[v0] About to call loginWithGoogle()...")
-      await loginWithGoogle()
-      console.log("[v0] loginWithGoogle() completed, redirect should have been initiated")
-      // The function returns immediately after initiating redirect
-      // The actual sign-in completion happens in the redirect handler above
-      return { success: true }
-    } catch (e) {
-      console.error("[v0] Google login error in loginWithGoogleProvider:", e)
-      return { success: false, error: e }
+      const fbUser = await handleGoogleRedirect(); // se ritorna da redirect
+      if (cancelled) return;
+      if (fbUser) {
+        const [idToken, role] = await Promise.all([
+          fbUser.getIdToken(true),
+          readUserRole(fbUser.uid),
+        ]);
+        setUser(firebaseToAppUser(fbUser, idToken, role));
+        setRoleCookie(role);
+        sessionStorage.removeItem("google_auth_error");
+      }
+    } catch (error: any) {
+      if (error?.code) sessionStorage.setItem("google_auth_error", error.code);
+      console.error("[auth] google redirect error", error);
+    } finally {
+      if (!cancelled) setIsCheckingRedirect(false);
     }
+  })();
+  return () => { cancelled = true; };
+}, []);
+
+
+const loginWithGoogleProvider = async (): Promise<{ success: boolean; error?: any }> => {
+  try {
+    sessionStorage.removeItem("google_auth_error");
+    const fbUser = await loginWithGoogle(); // popup (dev) ritorna user, redirect (prod) ritorna null
+    if (fbUser) {
+      const [idToken, role] = await Promise.all([
+        fbUser.getIdToken(true),
+        readUserRole(fbUser.uid),
+      ]);
+      setUser(firebaseToAppUser(fbUser, idToken, role));
+      setRoleCookie(role);
+    }
+    return { success: true };
+  } catch (e: any) {
+    if (e?.code) sessionStorage.setItem("google_auth_error", e.code);
+    console.error("[auth] Google login error:", e);
+    return { success: false, error: e };
   }
+};
+
 
   const register = async (name: string, email: string, password: string): Promise<boolean> => {
     try {

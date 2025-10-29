@@ -17,7 +17,7 @@ import { Eye, EyeOff, UserPlus } from "lucide-react"
 
 export default function RegisterPage() {
   const { t } = useLanguage()
-  const { register, loginWithGoogleProvider, isLoading, isCheckingRedirect } = useAuth()
+  const { register, loginWithGoogleProvider, isLoading, user, isCheckingRedirect } = useAuth()
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -33,15 +33,23 @@ export default function RegisterPage() {
     const googleError = sessionStorage.getItem("google_auth_error")
     if (googleError) {
       sessionStorage.removeItem("google_auth_error")
-      if (googleError === "auth/operation-not-allowed") {
+      if (googleError === "auth/unauthorized-domain") {
+        setError(t("googleAuthUnauthorizedDomain"))
+      } else if (googleError === "auth/operation-not-allowed") {
         setError(t("googleAuthNotEnabled"))
-      } else if (googleError === "auth/user-cancelled") {
+      } else if (googleError === "auth/popup-closed-by-user") {
         setError(t("googleAuthCancelled"))
       } else {
         setError(t("googleAuthError"))
       }
     }
   }, [t])
+
+  useEffect(() => {
+    if (!isLoading && !isCheckingRedirect && user) {
+      router.push("/user")
+    }
+  }, [user, isLoading, isCheckingRedirect, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,10 +74,8 @@ export default function RegisterPage() {
   }
 
   const handleGoogleRegister = async () => {
-    console.log("[v0] Google register button clicked")
     setError("")
     await loginWithGoogleProvider()
-    // User will be redirected to Google, then back to this page
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -277,3 +283,5 @@ export default function RegisterPage() {
     </main>
   )
 }
+
+

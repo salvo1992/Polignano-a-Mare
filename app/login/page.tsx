@@ -29,9 +29,11 @@ export default function LoginPage() {
     const googleError = sessionStorage.getItem("google_auth_error")
     if (googleError) {
       sessionStorage.removeItem("google_auth_error")
-      if (googleError === "auth/operation-not-allowed") {
+      if (googleError === "auth/unauthorized-domain") {
+        setError(t("googleAuthUnauthorizedDomain"))
+      } else if (googleError === "auth/operation-not-allowed") {
         setError(t("googleAuthNotEnabled"))
-      } else if (googleError === "auth/user-cancelled") {
+      } else if (googleError === "auth/popup-closed-by-user") {
         setError(t("googleAuthCancelled"))
       } else {
         setError(t("googleAuthError"))
@@ -41,7 +43,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isLoading && !isCheckingRedirect && user) {
-      router.replace(next)
+      router.push(next)
     }
   }, [user, isLoading, isCheckingRedirect, next, router])
 
@@ -57,10 +59,8 @@ export default function LoginPage() {
   }
 
   const handleGoogleLogin = async () => {
-    console.log("[v0] Google login button clicked")
     setError("")
     await loginWithGoogleProvider()
-    // User will be redirected to Google, then back to this page
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -220,3 +220,7 @@ export default function LoginPage() {
     </main>
   )
 }
+
+
+
+
