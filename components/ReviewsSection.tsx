@@ -60,6 +60,17 @@ const DEFAULT_REVIEWS: Review[] = [
   },
 ]
 
+function getSourceBadgeClass(source?: string) {
+  switch (source) {
+    case "booking":
+      return "bg-blue-600 text-white"
+    case "airbnb":
+      return "bg-pink-600 text-white"
+    default:
+      return "bg-green-100 text-green-800"
+  }
+}
+
 export default function ReviewsSection({ className }: Props) {
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
@@ -106,8 +117,12 @@ export default function ReviewsSection({ className }: Props) {
                     ))}
                   </div>
                   {review.verified && (
-                    <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 px-1.5 py-0">
-                      {t("verified")}
+                    <Badge variant="secondary" className={`text-xs px-1.5 py-0 ${getSourceBadgeClass(review.source)}`}>
+                      {review.source === "booking"
+                        ? "Booking.com"
+                        : review.source === "airbnb"
+                          ? "Airbnb"
+                          : t("verified")}
                     </Badge>
                   )}
                 </div>

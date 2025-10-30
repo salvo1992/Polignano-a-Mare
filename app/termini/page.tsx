@@ -9,8 +9,8 @@ import { useLanguage } from "@/components/language-provider"
 
 // Config contatti (no hardcode in UI)
 const TERMS_CONTACT = {
-  email: process.env.NEXT_PUBLIC_TERMS_EMAIL || "info@all22suite.com",
-  phone: process.env.NEXT_PUBLIC_TERMS_PHONE || "+39 000 000 0000",
+  email: process.env.NEXT_PUBLIC_TERMS_EMAIL || "progettocale@gmail.com",
+  phone: process.env.NEXT_PUBLIC_TERMS_PHONE || "+39 375 701 7689",
 }
 
 export default function TerminiPage() {
@@ -188,4 +188,3 @@ export default function TerminiPage() {
     </main>
   )
 }
-
