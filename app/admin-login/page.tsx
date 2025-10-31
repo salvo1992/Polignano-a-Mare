@@ -69,7 +69,7 @@ export default function AdminLoginPage() {
                     <Input
                       id="email"
                       type="email"
-                      placeholder="ekobit.cloud@gmail.com"
+                      placeholder="email@gmail.com"
                       value={form.email}
                       onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
                       required
