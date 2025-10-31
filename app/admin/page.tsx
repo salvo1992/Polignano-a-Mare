@@ -110,6 +110,18 @@ function AdminInner() {
   const airbnbBookings = currentAndUpcoming.filter((b) => b.origin === "airbnb")
   const siteBookings = currentAndUpcoming.filter((b) => b.origin === "site")
 
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      const day = date.getDate().toString().padStart(2, "0")
+      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+      const year = date.getFullYear()
+      return `${day}/${month}/${year}`
+    } catch {
+      return dateString
+    }
+  }
+
   const saveSettings = async () => {
     setSavingSettings(true)
     try {
@@ -225,7 +237,7 @@ function AdminInner() {
                                 {b.guestFirst} {b.guestLast}
                               </p>
                               <p className="text-xs text-muted-foreground truncate">
-                                {b.roomName} • {b.checkIn} → {b.checkOut}
+                                {b.roomName} • {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
                               </p>
                             </div>
                             <div className="flex items-center justify-between sm:justify-end sm:flex-col sm:items-end gap-2">
@@ -351,7 +363,7 @@ function AdminInner() {
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
                               <span className="truncate">{b.roomName}</span>
                               <span className="text-xs sm:text-sm">
-                                {b.checkIn} → {b.checkOut}
+                                {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
                               </span>
                             </div>
                           </div>
@@ -385,7 +397,7 @@ function AdminInner() {
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
                               <span className="truncate">{b.roomName}</span>
                               <span className="text-xs sm:text-sm">
-                                {b.checkIn} → {b.checkOut}
+                                {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
                               </span>
                             </div>
                           </div>
@@ -419,7 +431,7 @@ function AdminInner() {
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
                               <span className="truncate">{b.roomName}</span>
                               <span className="text-xs sm:text-sm">
-                                {b.checkIn} → {b.checkOut}
+                                {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
                               </span>
                             </div>
                           </div>
@@ -453,7 +465,7 @@ function AdminInner() {
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
                               <span className="truncate">{b.roomName}</span>
                               <span className="text-xs sm:text-sm">
-                                {b.checkIn} → {b.checkOut}
+                                {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
                               </span>
                             </div>
                           </div>
@@ -611,3 +623,5 @@ function AdminInner() {
     </main>
   )
 }
+
+

@@ -9,7 +9,7 @@
 import { getFirestore } from "firebase-admin/firestore"
 import { admin } from "./firebase-admin"
 
-const BEDS24_API_URL = "https://beds24.com/api/v2"
+const BEDS24_API_URL = process.env.BEDS24_API_URL || "https://beds24.com/api/v2"
 const BEDS24_READ_TOKEN = process.env.BEDS24_READ_TOKEN
 const BEDS24_REFRESH_TOKEN = process.env.BEDS24_REFRESH_TOKEN
 
@@ -41,6 +41,16 @@ export interface Beds24Booking {
   created: string
   modified: string
   notes?: string
+  guestReview?: {
+    rating?: number
+    comment?: string
+    date?: string
+  }
+  hostReview?: {
+    rating?: number
+    comment?: string
+    date?: string
+  }
 }
 
 export interface Beds24Review {
@@ -62,7 +72,7 @@ export interface Beds24Room {
   price: number
 }
 
-class Beds24Client {
+export class Beds24Client {
   private baseUrl: string
   private tokenData: TokenData | null = null
   private writeTokenData: WriteTokenData | null = null
@@ -93,7 +103,7 @@ class Beds24Client {
       const data = tokenDoc.data() as TokenData
       return data
     } catch (error) {
-      console.error("[v0] Error getting stored token:", error)
+      console.error("Error getting stored token:", error)
       return null
     }
   }
@@ -107,7 +117,7 @@ class Beds24Client {
       await db.collection("system").doc("beds24_token").set(tokenData)
       this.tokenData = tokenData
     } catch (error) {
-      console.error("[v0] Error storing token:", error)
+      console.error("Error storing token:", error)
       throw error
     }
   }
@@ -123,7 +133,7 @@ class Beds24Client {
 
     this.refreshPromise = (async () => {
       try {
-        console.log("[v0] Refreshing Beds24 access token...")
+        console.log("Refreshing Beds24 access token...")
 
         const response = await fetch(`${this.baseUrl}/authentication/token`, {
           method: "POST",
@@ -150,9 +160,9 @@ class Beds24Client {
         }
 
         await this.storeToken(tokenData)
-        console.log("[v0] Access token refreshed successfully")
+        console.log("Access token refreshed successfully")
       } catch (error) {
-        console.error("[v0] Error refreshing token:", error)
+        console.error("Error refreshing token:", error)
         throw error
       } finally {
         this.refreshPromise = null
@@ -201,7 +211,7 @@ class Beds24Client {
       const data = tokenDoc.data() as WriteTokenData
       return data
     } catch (error) {
-      console.error("[v0] Error getting stored write token:", error)
+      console.error("Error getting stored write token:", error)
       return null
     }
   }
@@ -215,7 +225,7 @@ class Beds24Client {
       await db.collection("system").doc("beds24_write_token").set(tokenData)
       this.writeTokenData = tokenData
     } catch (error) {
-      console.error("[v0] Error storing write token:", error)
+      console.error("Error storing write token:", error)
       throw error
     }
   }
@@ -231,7 +241,7 @@ class Beds24Client {
 
     this.refreshPromise = (async () => {
       try {
-        console.log("[v0] Refreshing Beds24 write access token...")
+        console.log("Refreshing Beds24 write access token...")
 
         const response = await fetch(`${this.baseUrl}/authentication/token`, {
           method: "POST",
@@ -257,9 +267,9 @@ class Beds24Client {
         }
 
         await this.storeWriteToken(tokenData)
-        console.log("[v0] Write access token refreshed successfully")
+        console.log("Write access token refreshed successfully")
       } catch (error) {
-        console.error("[v0] Error refreshing write token:", error)
+        console.error("Error refreshing write token:", error)
         throw error
       } finally {
         this.refreshPromise = null
@@ -305,10 +315,8 @@ class Beds24Client {
     let token: string
 
     if (isReadOperation) {
-      // Use long-term read token for GET operations
       token = BEDS24_READ_TOKEN!
     } else {
-      // Use refresh token system for write operations
       token = await this.getWriteToken()
     }
 
@@ -321,11 +329,8 @@ class Beds24Client {
       },
     })
 
-    // If write token is invalid, try refreshing once
     if (response.status === 401 && !isReadOperation) {
-      console.log("[v0] Write access token invalid, refreshing...")
       await this.refreshWriteToken()
-
       const newWriteToken = await this.getWriteToken()
       const retryResponse = await fetch(url, {
         ...options,
@@ -338,31 +343,35 @@ class Beds24Client {
 
       if (!retryResponse.ok) {
         const error = await retryResponse.text()
-        console.error("[v0] Beds24 API Error:", error)
         throw new Error(`Beds24 API Error: ${retryResponse.status} - ${error}`)
       }
 
-      return retryResponse.json()
+      return await retryResponse.json()
     }
 
     if (!response.ok) {
       const error = await response.text()
-      console.error("[v0] Beds24 API Error:", error)
       throw new Error(`Beds24 API Error: ${response.status} - ${error}`)
     }
 
-    return response.json()
+    return await response.json()
   }
 
   /**
    * Fetch all bookings from Beds24
    * @param from - Start date (YYYY-MM-DD)
    * @param to - End date (YYYY-MM-DD)
+   * @param includeExtras - Include additional booking information like reviews
    */
-  async getBookings(from?: string, to?: string): Promise<Beds24Booking[]> {
+  async getBookings(from?: string, to?: string, includeExtras = true): Promise<Beds24Booking[]> {
     const params = new URLSearchParams()
     if (from) params.append("arrivalFrom", from)
     if (to) params.append("arrivalTo", to)
+    if (includeExtras) {
+      params.append("includeInvoice", "true")
+      params.append("includeInfoItems", "true")
+      params.append("includeGuestReviews", "true")
+    }
 
     const endpoint = `/bookings?${params.toString()}`
     const response = await this.request<{ data: Beds24Booking[] }>(endpoint)
@@ -378,19 +387,70 @@ class Beds24Client {
   }
 
   /**
-   * Fetch all reviews from Beds24
+   * Fetch reviews from Booking.com via Beds24 API
+   * @deprecated Use getReviewsFromBookings() instead
    */
-  async getReviews(): Promise<Beds24Review[]> {
-    const response = await this.request<{ data: Beds24Review[] }>("/reviews")
-    return response.data || []
+  async getBookingComReviews(): Promise<Beds24Review[]> {
+    // This endpoint may not be available in all Beds24 plans
+    // Reviews are typically included in booking data
+    return []
   }
 
   /**
-   * Fetch reviews for a specific booking
+   * Fetch reviews from Airbnb via Beds24 API (beta)
+   * @deprecated Use getReviewsFromBookings() instead
    */
-  async getBookingReviews(bookingId: string): Promise<Beds24Review[]> {
-    const response = await this.request<{ data: Beds24Review[] }>(`/bookings/${bookingId}/reviews`)
-    return response.data || []
+  async getAirbnbReviews(): Promise<Beds24Review[]> {
+    // This endpoint may not be available in all Beds24 plans
+    // Reviews are typically included in booking data
+    return []
+  }
+
+  /**
+   * Fetch all reviews from both Booking.com and Airbnb
+   * Reviews are extracted from booking data
+   */
+  async getReviews(): Promise<Beds24Review[]> {
+    return await this.getReviewsFromBookings()
+  }
+
+  /**
+   * Extract reviews from bookings data
+   * Reviews in Beds24 are included in the booking object
+   */
+  async getReviewsFromBookings(): Promise<Beds24Review[]> {
+    try {
+      // Fetch bookings from the last 12 months to get reviews
+      const oneYearAgo = new Date()
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+      const from = oneYearAgo.toISOString().split("T")[0]
+
+      const bookings = await this.getBookings(from, undefined, true)
+
+      const reviews: Beds24Review[] = []
+
+      for (const booking of bookings) {
+        // Extract guest review if it exists
+        if (booking.guestReview && booking.guestReview.comment) {
+          reviews.push({
+            id: `${booking.id}_guest`,
+            bookingId: booking.id,
+            roomId: booking.roomId,
+            rating: booking.guestReview.rating || 5,
+            comment: booking.guestReview.comment,
+            guestName: `${booking.firstName} ${booking.lastName}`,
+            source: booking.referer.toLowerCase().includes("airbnb") ? "airbnb" : "booking",
+            date: booking.guestReview.date || booking.departure,
+            response: booking.hostReview?.comment,
+          })
+        }
+      }
+
+      return reviews
+    } catch (error) {
+      console.error("Error extracting reviews from bookings:", error)
+      return []
+    }
   }
 
   /**

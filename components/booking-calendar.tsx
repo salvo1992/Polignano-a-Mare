@@ -82,6 +82,18 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))
   }
 
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      const day = date.getDate().toString().padStart(2, "0")
+      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+      const year = date.getFullYear()
+      return `${day}/${month}/${year}`
+    } catch {
+      return dateString
+    }
+  }
+
   const days = getDaysInMonth()
   const weekDays = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"]
 
@@ -223,7 +235,7 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
                         {booking.guestFirst} {booking.guestLast}
                       </p>
                       <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                        {booking.roomName} • {booking.checkIn} → {booking.checkOut}
+                        {booking.roomName} • {formatDate(booking.checkIn)} → {formatDate(booking.checkOut)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {booking.guests} ospiti • €{booking.total}
@@ -268,3 +280,4 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
     </Card>
   )
 }
+

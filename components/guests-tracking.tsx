@@ -5,13 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Users, UserCheck, UserX, Calendar, Mail, Phone, Home } from "lucide-react"
-import { useLanguage } from "@/components/language-provider"
 import { db } from "@/lib/firebase"
 import { collection, query, onSnapshot, orderBy } from "firebase/firestore"
 import type { Booking } from "@/lib/booking-utils"
 
 export function GuestsTracking() {
-  const { t } = useLanguage()
   const [bookings, setBookings] = useState<Booking[]>([])
 
   useEffect(() => {
@@ -46,10 +44,19 @@ export function GuestsTracking() {
     return checkOut < today
   })
 
-  const GuestCard = ({ booking, status }: { booking: Booking; status: "current" | "upcoming" | "past" }) => {
-    const checkInDate = new Date(booking.checkIn).toLocaleDateString("it-IT")
-    const checkOutDate = new Date(booking.checkOut).toLocaleDateString("it-IT")
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      const day = date.getDate().toString().padStart(2, "0")
+      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+      const year = date.getFullYear()
+      return `${day}/${month}/${year}`
+    } catch {
+      return dateString
+    }
+  }
 
+  const GuestCard = ({ booking, status }: { booking: Booking; status: "current" | "upcoming" | "past" }) => {
     return (
       <Card className="mb-3">
         <CardContent className="p-4">
@@ -74,9 +81,9 @@ export function GuestsTracking() {
                   >
                     {booking.origin}
                   </Badge>
-                  {status === "current" && <Badge className="bg-green-600">{t("inHouse")}</Badge>}
-                  {status === "upcoming" && <Badge className="bg-orange-600">{t("upcoming")}</Badge>}
-                  {status === "past" && <Badge variant="secondary">{t("past")}</Badge>}
+                  {status === "current" && <Badge className="bg-green-600">In Casa</Badge>}
+                  {status === "upcoming" && <Badge className="bg-orange-600">In Arrivo</Badge>}
+                  {status === "past" && <Badge variant="secondary">Passato</Badge>}
                 </div>
               </div>
             </div>
@@ -85,7 +92,7 @@ export function GuestsTracking() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Mail className="w-4 h-4" />
-              <span>{booking.email}</span>
+              <span className="truncate">{booking.email}</span>
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               <Phone className="w-4 h-4" />
@@ -93,21 +100,23 @@ export function GuestsTracking() {
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               <Home className="w-4 h-4" />
-              <span>{booking.roomName}</span>
+              <span className="truncate">{booking.roomName}</span>
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               <Calendar className="w-4 h-4" />
               <span>
-                {checkInDate} → {checkOutDate}
+                {formatDate(booking.checkIn)} → {formatDate(booking.checkOut)}
               </span>
             </div>
           </div>
 
           <div className="mt-3 pt-3 border-t flex items-center justify-between">
             <span className="text-sm text-muted-foreground">
-              {t("total")}: <strong className="text-foreground">€{booking.total}</strong>
+              Totale: <strong className="text-foreground">€{booking.total}</strong>
             </span>
-            <Badge variant={booking.status === "confirmed" ? "default" : "secondary"}>{t(booking.status)}</Badge>
+            <Badge variant={booking.status === "confirmed" ? "default" : "secondary"}>
+              {booking.status === "confirmed" ? "Confermata" : booking.status}
+            </Badge>
           </div>
         </CardContent>
       </Card>
@@ -121,12 +130,12 @@ export function GuestsTracking() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
               <UserCheck className="w-4 h-4 text-green-600" />
-              {t("currentGuests")}
+              Ospiti Attuali
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{currentGuests.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">{t("guestsInHouse")}</p>
+            <p className="text-xs text-muted-foreground mt-1">Ospiti in casa</p>
           </CardContent>
         </Card>
 
@@ -134,12 +143,12 @@ export function GuestsTracking() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
               <Calendar className="w-4 h-4 text-orange-600" />
-              {t("upcomingGuests")}
+              Ospiti in Arrivo
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{upcomingGuests.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">{t("futureBookings")}</p>
+            <p className="text-xs text-muted-foreground mt-1">Prenotazioni future</p>
           </CardContent>
         </Card>
 
@@ -147,40 +156,34 @@ export function GuestsTracking() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
               <UserX className="w-4 h-4 text-gray-600" />
-              {t("pastGuests")}
+              Ospiti Passati
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{pastGuests.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">{t("totalPastGuests")}</p>
+            <p className="text-xs text-muted-foreground mt-1">Totale ospiti passati</p>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="font-cinzel text-primary">{t("guestsManagement")}</CardTitle>
-          <CardDescription>{t("trackAllGuests")}</CardDescription>
+          <CardTitle className="font-cinzel text-primary">Gestione Ospiti</CardTitle>
+          <CardDescription>Traccia tutti gli ospiti correnti, futuri e passati</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="current" className="space-y-4">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="current">
-                {t("current")} ({currentGuests.length})
-              </TabsTrigger>
-              <TabsTrigger value="upcoming">
-                {t("upcoming")} ({upcomingGuests.length})
-              </TabsTrigger>
-              <TabsTrigger value="past">
-                {t("past")} ({pastGuests.length})
-              </TabsTrigger>
+              <TabsTrigger value="current">Attuali ({currentGuests.length})</TabsTrigger>
+              <TabsTrigger value="upcoming">In Arrivo ({upcomingGuests.length})</TabsTrigger>
+              <TabsTrigger value="past">Passati ({pastGuests.length})</TabsTrigger>
             </TabsList>
 
             <TabsContent value="current" className="space-y-3">
               {currentGuests.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>{t("noCurrentGuests")}</p>
+                  <p>Nessun ospite attuale</p>
                 </div>
               ) : (
                 currentGuests.map((booking) => <GuestCard key={booking.id} booking={booking} status="current" />)
@@ -191,7 +194,7 @@ export function GuestsTracking() {
               {upcomingGuests.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>{t("noUpcomingGuests")}</p>
+                  <p>Nessun ospite in arrivo</p>
                 </div>
               ) : (
                 upcomingGuests.map((booking) => <GuestCard key={booking.id} booking={booking} status="upcoming" />)
@@ -202,7 +205,7 @@ export function GuestsTracking() {
               {pastGuests.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <UserX className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>{t("noPastGuests")}</p>
+                  <p>Nessun ospite passato</p>
                 </div>
               ) : (
                 pastGuests.map((booking) => <GuestCard key={booking.id} booking={booking} status="past" />)

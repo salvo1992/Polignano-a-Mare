@@ -12,68 +12,96 @@ export async function POST(request: Request) {
   try {
     const { from, to } = await request.json()
 
-    console.log("[v0] Syncing bookings from Beds24...")
-
-    // Fetch bookings from Beds24
     const beds24Bookings = await beds24Client.getBookings(from, to)
-
-    console.log(`[v0] Found ${beds24Bookings.length} bookings from Beds24`)
 
     let syncedCount = 0
     let skippedCount = 0
 
     for (const booking of beds24Bookings) {
-      // Skip if not from Airbnb or Booking.com
-      const source = booking.referer.toLowerCase()
-      if (!["airbnb", "booking"].includes(source)) {
-        continue
-      }
+      try {
+        const refererLower = booking.referer?.toLowerCase() || ""
+        let source: string
 
-      // Check if booking already exists in Firebase
-      const bookingsRef = collection(db, "bookings")
-      const q = query(
-        bookingsRef,
-        where("checkIn", "==", booking.arrival),
-        where("checkOut", "==", booking.departure),
-        where("roomId", "==", booking.roomId),
-        where("origin", "==", source),
-      )
+        const isBooking =
+          refererLower.includes("booking") ||
+          refererLower.includes("booking.com") ||
+          refererLower.includes("bookingcom") ||
+          refererLower === "booking"
 
-      const existingBookings = await getDocs(q)
+        const isAirbnb =
+          refererLower.includes("airbnb") ||
+          refererLower.includes("air bnb") ||
+          refererLower.includes("air-bnb") ||
+          refererLower === "airbnb"
 
-      if (!existingBookings.empty) {
-        console.log(`[v0] Booking already exists: ${booking.id}`)
+        if (isBooking) {
+          source = "booking"
+        } else if (isAirbnb) {
+          source = "airbnb"
+        } else {
+          skippedCount++
+          continue
+        }
+
+        const checkInDate = parseDate(booking.arrival)
+        const checkOutDate = parseDate(booking.departure)
+
+        if (!checkInDate || !checkOutDate) {
+          skippedCount++
+          continue
+        }
+
+        const bookingsRef = collection(db, "bookings")
+        const q = query(bookingsRef, where("beds24Id", "==", booking.id))
+        const existingBookings = await getDocs(q)
+
+        if (!existingBookings.empty) {
+          skippedCount++
+          continue
+        }
+
+        const q2 = query(
+          bookingsRef,
+          where("checkIn", "==", checkInDate),
+          where("checkOut", "==", checkOutDate),
+          where("roomId", "==", booking.roomId.toString()),
+          where("guestLast", "==", booking.lastName),
+        )
+        const existingBookings2 = await getDocs(q2)
+
+        if (!existingBookings2.empty) {
+          skippedCount++
+          continue
+        }
+
+        const firebaseBooking = {
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          guests: booking.numAdult + booking.numChild,
+          guestFirst: booking.firstName,
+          guestLast: booking.lastName,
+          email: booking.email,
+          phone: booking.phone,
+          notes: booking.notes || "",
+          total: booking.price,
+          currency: "EUR",
+          status: booking.status === "confirmed" ? "confirmed" : "pending",
+          origin: source,
+          roomId: booking.roomId.toString(),
+          roomName: getRoomName(booking.roomId.toString()),
+          beds24Id: booking.id,
+          createdAt: parseDate(booking.created) || new Date().toISOString(),
+          syncedAt: new Date().toISOString(),
+        }
+
+        const bookingRef = doc(collection(db, "bookings"))
+        await setDoc(bookingRef, firebaseBooking)
+
+        syncedCount++
+      } catch (bookingError) {
+        console.error(`[v0] Error processing booking ${booking.id}:`, bookingError)
         skippedCount++
-        continue
       }
-
-      // Map Beds24 booking to Firebase booking format
-      const firebaseBooking = {
-        checkIn: booking.arrival,
-        checkOut: booking.departure,
-        guests: booking.numAdult + booking.numChild,
-        guestFirst: booking.firstName,
-        guestLast: booking.lastName,
-        email: booking.email,
-        phone: booking.phone,
-        notes: booking.notes || "",
-        total: booking.price,
-        currency: "EUR",
-        status: booking.status === "confirmed" ? "confirmed" : "pending",
-        origin: source,
-        roomId: booking.roomId,
-        roomName: getRoomName(booking.roomId),
-        beds24Id: booking.id,
-        createdAt: new Date(booking.created).toISOString(),
-        syncedAt: new Date().toISOString(),
-      }
-
-      // Save to Firebase
-      const bookingRef = doc(collection(db, "bookings"))
-      await setDoc(bookingRef, firebaseBooking)
-
-      console.log(`[v0] Synced booking: ${booking.id} from ${source}`)
-      syncedCount++
     }
 
     return NextResponse.json({
@@ -85,7 +113,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[v0] Error syncing bookings:", error)
     return NextResponse.json(
-      { error: "Failed to sync bookings", details: error instanceof Error ? error.message : "Unknown error" },
+      {
+        error: "Failed to sync bookings",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 },
     )
   }
@@ -117,11 +148,32 @@ export async function GET(request: Request) {
 }
 
 function getRoomName(roomId: string): string {
-  // Map Beds24 room IDs to room names
-  // You'll need to update this mapping based on your actual Beds24 room IDs
   const roomMap: Record<string, string> = {
-    "1": "Camera Familiare con Balcone",
-    "2": "Camera Matrimoniale con Vasca Idromassaggio",
+    "621530": "Camera Familiare con Balcone",
+    "621531": "Camera Matrimoniale con Vasca Idromassaggio",
   }
   return roomMap[roomId] || "Camera Sconosciuta"
 }
+
+// Helper function to parse dates safely
+function parseDate(dateString: string | undefined): string | null {
+  if (!dateString) return null
+
+  try {
+    // Handle YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      const date = new Date(dateString + "T00:00:00.000Z")
+      if (isNaN(date.getTime())) return null
+      return date.toISOString()
+    }
+
+    // Handle ISO format or timestamp
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return null
+    return date.toISOString()
+  } catch (error) {
+    console.error(`[v0] Error parsing date: ${dateString}`, error)
+    return null
+  }
+}
+
