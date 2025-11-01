@@ -4,8 +4,8 @@ import { getFirestore } from "firebase-admin/firestore"
 import { admin } from "@/lib/firebase-admin"
 
 /**
- * Sync reviews from Beds24 to Firebase
- * Note: Beds24 API V2 doesn't include guest reviews in booking data
+ * Sync reviews from Beds24 (Booking.com and Airbnb) to Firebase
+ * Requires BEDS24_PROPERTY_ID environment variable
  */
 export async function POST() {
   try {
@@ -15,7 +15,7 @@ export async function POST() {
       return NextResponse.json({
         success: true,
         message:
-          "Beds24 API V2 non fornisce recensioni nei dati delle prenotazioni. Le recensioni devono essere aggiunte manualmente al database Firebase nella collezione 'reviews' oppure importate da un'altra fonte.",
+          "Nessuna recensione trovata. Verifica che BEDS24_PROPERTY_ID sia configurato correttamente nelle variabili d'ambiente.",
         synced: 0,
         skipped: 0,
         total: 0,
@@ -30,7 +30,7 @@ export async function POST() {
 
     for (const review of reviews) {
       try {
-        // Check if review already exists
+        // Check if review already exists by beds24Id
         const existingQuery = await reviewsRef.where("beds24Id", "==", review.id).limit(1).get()
 
         if (!existingQuery.empty) {
@@ -64,18 +64,27 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: synced > 0 ? `Sincronizzate ${synced} recensioni da Beds24` : "Nessuna recensione trovata",
+      message:
+        synced > 0
+          ? `Sincronizzate ${synced} recensioni da Beds24 (Booking.com e Airbnb)`
+          : "Nessuna nuova recensione da sincronizzare",
       synced,
       skipped,
       total: reviews.length,
     })
   } catch (error) {
     console.error("Error syncing reviews:", error)
+
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    const isMissingPropertyId = errorMessage.includes("BEDS24_PROPERTY_ID")
+
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to sync reviews",
-        details: error instanceof Error ? error.message : "Unknown error",
+        error: isMissingPropertyId
+          ? "Configurazione mancante: aggiungi BEDS24_PROPERTY_ID nelle variabili d'ambiente"
+          : "Errore durante la sincronizzazione delle recensioni",
+        details: errorMessage,
       },
       { status: 500 },
     )
@@ -102,4 +111,3 @@ export async function GET() {
     )
   }
 }
-

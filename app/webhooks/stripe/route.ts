@@ -26,7 +26,10 @@ export async function POST(req: Request) {
   try {
     const rawBody = await req.text()
     const signature = (await headers()).get("stripe-signature")
-    if (!signature) return NextResponse.json({ error: "No signature" }, { status: 400 })
+    if (!signature) {
+      console.error("[Webhook] No signature provided")
+      return NextResponse.json({ error: "No signature" }, { status: 400 })
+    }
 
     // Verifica firma
     let event: Stripe.Event
@@ -37,8 +40,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 })
     }
 
+    console.log("[Webhook] Event received:", event.type, "ID:", event.id)
+
     // Evita doppi processamenti
     if (await alreadyProcessed(event.id)) {
+      console.log("[Webhook] Event already processed:", event.id)
       return NextResponse.json({ received: true, duplicate: true })
     }
 
@@ -65,6 +71,7 @@ export async function POST(req: Request) {
       }
 
       if (session.payment_status !== "paid") {
+        console.log("[Webhook] Payment not completed:", session.payment_status)
         await markProcessed(event.id, { status: session.payment_status })
         return NextResponse.json({ received: true, status: "payment_not_paid" })
       }
@@ -78,6 +85,7 @@ export async function POST(req: Request) {
       }
 
       const bookingData = bookingSnap.data() as any
+      console.log("[Webhook] Booking found:", bookingId, "Email:", bookingData.email)
 
       // ✅ aggiorna prenotazione
       await bookingRef.update({
@@ -87,14 +95,19 @@ export async function POST(req: Request) {
         paidAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       })
+      console.log("[Webhook] Booking updated to paid")
 
       // ✅ crea/collega utente
       let uid = ""
       let newPassword: string | undefined
       try {
+        console.log("[Webhook] Checking if user exists:", bookingData.email)
         const user = await admin.auth().getUserByEmail(bookingData.email)
         uid = user.uid
-      } catch {
+        console.log("[Webhook] User already exists:", uid)
+      } catch (userError: any) {
+        console.log("[Webhook] User not found, creating new user:", bookingData.email)
+
         const generatePassword = () => {
           const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
           let password = ""
@@ -105,32 +118,38 @@ export async function POST(req: Request) {
         }
 
         newPassword = generatePassword()
+        console.log("[Webhook] Generated password for new user")
 
-        const user = await admin.auth().createUser({
-          email: bookingData.email,
-          password: newPassword,
-          displayName: `${bookingData.firstName} ${bookingData.lastName}`.trim(),
-        })
-        uid = user.uid
+        try {
+          const newUser = await admin.auth().createUser({
+            email: bookingData.email,
+            password: newPassword,
+            displayName: `${bookingData.firstName} ${bookingData.lastName}`.trim(),
+          })
+          uid = newUser.uid
+          console.log("[Webhook] User created in Firebase Auth:", uid)
 
-        await db.doc(`users/${uid}`).set({
-          uid: uid,
-          email: bookingData.email,
-          displayName: `${bookingData.firstName} ${bookingData.lastName}`.trim(),
-          firstName: bookingData.firstName,
-          lastName: bookingData.lastName,
-          provider: "password",
-          role: "user",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          notifications: {
-            confirmEmails: true,
-            promos: false,
-            checkinReminders: true,
-          },
-        })
-
-        console.log("[Webhook] New user created with password")
+          await db.doc(`users/${uid}`).set({
+            uid: uid,
+            email: bookingData.email,
+            displayName: `${bookingData.firstName} ${bookingData.lastName}`.trim(),
+            firstName: bookingData.firstName,
+            lastName: bookingData.lastName,
+            provider: "password",
+            role: "user",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            notifications: {
+              confirmEmails: true,
+              promos: false,
+              checkinReminders: true,
+            },
+          })
+          console.log("[Webhook] User data saved in Firestore")
+        } catch (createError: any) {
+          console.error("[Webhook] Error creating user:", createError.message, createError.code)
+          throw createError
+        }
       }
 
       await bookingRef.update({
@@ -138,37 +157,63 @@ export async function POST(req: Request) {
         newUserPassword: newPassword || null,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       })
-
-      try {
-        await sendBookingConfirmationEmail({
-          to: bookingData.email,
-          bookingId: bookingId,
-          firstName: bookingData.firstName,
-          lastName: bookingData.lastName,
-          checkIn: bookingData.checkIn,
-          checkOut: bookingData.checkOut,
-          roomName: bookingData.roomName,
-          guests: bookingData.guests,
-          totalAmount: bookingData.totalAmount,
-          nights: bookingData.nights,
-          newUserPassword: newPassword,
-        })
-        console.log("[Webhook] Confirmation email sent")
-      } catch (e) {
-        console.error("[Webhook] Email send error:", e)
+      console.log("[Webhook] Booking updated with userId:", uid)
+      console.log("[Webhook] New user password saved:", !!newPassword)
+      if (newPassword) {
+        console.log("[Webhook] Password length:", newPassword.length)
       }
 
-      await markProcessed(event.id, { ok: true, bookingId })
-      return NextResponse.json({ received: true, bookingId })
+      const updatedBookingSnap = await bookingRef.get()
+      const updatedBookingData = updatedBookingSnap.data() as any
+      console.log("[Webhook] Reloaded booking data, has newUserPassword:", !!updatedBookingData.newUserPassword)
+
+      try {
+        console.log("[Webhook] Attempting to send confirmation email to:", updatedBookingData.email)
+        console.log("[Webhook] Email data:", {
+          bookingId,
+          firstName: updatedBookingData.firstName,
+          lastName: updatedBookingData.lastName,
+          hasNewPassword: !!newPassword,
+          passwordLength: newPassword?.length,
+        })
+
+        const emailResult = await sendBookingConfirmationEmail({
+          to: updatedBookingData.email,
+          bookingId: bookingId,
+          firstName: updatedBookingData.firstName,
+          lastName: updatedBookingData.lastName,
+          checkIn: updatedBookingData.checkIn,
+          checkOut: updatedBookingData.checkOut,
+          roomName: updatedBookingData.roomName,
+          guests: updatedBookingData.guests,
+          totalAmount: updatedBookingData.totalAmount,
+          nights: updatedBookingData.nights,
+          newUserPassword: newPassword,
+        })
+        console.log("[Webhook] Email send result:", emailResult)
+        if (emailResult.success) {
+          console.log("[Webhook] ✅ Confirmation email sent successfully")
+        } else {
+          console.error("[Webhook] ❌ Email send failed:", emailResult.error)
+        }
+      } catch (emailError: any) {
+        console.error("[Webhook] ❌ Email send error:", emailError.message)
+        console.error("[Webhook] Email error details:", emailError)
+        // Don't fail the webhook if email fails
+      }
+
+      await markProcessed(event.id, { ok: true, bookingId, userCreated: !!newPassword })
+      console.log("[Webhook] ✅ Webhook processing completed successfully")
+      return NextResponse.json({ received: true, bookingId, userCreated: !!newPassword })
     }
 
     // Altri event types non gestiti
+    console.log("[Webhook] Event type not handled:", event.type)
     await markProcessed(event.id, { ignored: event.type })
     return NextResponse.json({ received: true })
-  } catch (error) {
-    console.error("[Webhook Handler Error]:", error)
+  } catch (error: any) {
+    console.error("[Webhook Handler Error]:", error.message)
+    console.error("[Webhook Handler Error Stack]:", error.stack)
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 })
   }
 }
-
-

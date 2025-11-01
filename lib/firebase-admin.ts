@@ -26,6 +26,16 @@ if (!admin.apps.length) {
   }
 }
 
+export const getFirestore = () => {
+  return admin.firestore()
+}
+
+export const getAdminDb = () => {
+  return admin.firestore()
+}
+
+export const getAdminAuth = () => {
+  return admin.auth()
+}
+
 export { admin }
-
-

@@ -19,12 +19,30 @@ interface BookingEmailData {
 
 export async function sendBookingConfirmationEmail(data: BookingEmailData) {
   try {
+    console.log("[Email] Starting email send process")
+    console.log("[Email] Recipient:", data.to)
+    console.log("[Email] RESEND_API_KEY configured:", !!process.env.RESEND_API_KEY)
+    console.log("[Email] RESEND_FROM_EMAIL:", process.env.RESEND_FROM_EMAIL)
+    console.log("[Email] Has new user password:", !!data.newUserPassword)
+    if (data.newUserPassword) {
+      console.log("[Email] New user password length:", data.newUserPassword.length)
+    }
+
     if (!process.env.RESEND_API_KEY) {
-      console.error("[v0] RESEND_API_KEY not configured")
+      console.error("[Email] ❌ RESEND_API_KEY not configured")
       return { success: false, error: "Email service not configured" }
     }
 
+    if (!process.env.RESEND_FROM_EMAIL) {
+      console.error("[Email] ❌ RESEND_FROM_EMAIL not configured")
+      return { success: false, error: "Email sender not configured" }
+    }
+
     const isNewUser = !!data.newUserPassword
+    console.log("[Email] Is new user:", isNewUser)
+
+    const siteUrl = "https://al22suite.com"
+    console.log("[Email] Using site URL:", siteUrl)
 
     const emailHtml = `
 <!DOCTYPE html>
@@ -110,7 +128,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
       }
       
       <div style="text-align: center;">
-        <a href="${process.env.NEXT_PUBLIC_SITE_URL || "https://al22suite.com"}/user" class="button">
+        <a href="${siteUrl}/user" class="button">
           Visualizza Prenotazione
         </a>
       </div>
@@ -130,6 +148,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
 </html>
     `
 
+    console.log("[Email] Attempting to send via Resend...")
     const { data: emailData, error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || "Al 22 Suite <noreply@al22suite.com>",
       to: data.to,
@@ -138,16 +157,17 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
     })
 
     if (error) {
-      console.error("[v0] Resend error:", error)
+      console.error("[Email] ❌ Resend API error:", error)
+      console.error("[Email] Error details:", JSON.stringify(error, null, 2))
       return { success: false, error: error.message }
     }
 
-    console.log("[v0] Email sent successfully:", emailData?.id)
+    console.log("[Email] ✅ Email sent successfully!")
+    console.log("[Email] Email ID:", emailData?.id)
     return { success: true, emailId: emailData?.id }
   } catch (error: any) {
-    console.error("[v0] Email sending error:", error)
+    console.error("[Email] ❌ Unexpected error:", error.message)
+    console.error("[Email] Error stack:", error.stack)
     return { success: false, error: error.message }
   }
 }
-
-

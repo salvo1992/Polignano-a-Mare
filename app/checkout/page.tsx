@@ -7,7 +7,14 @@ import { Footer } from "@/components/footer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getBookingById, createStripeCheckout, createUniCreditPayment } from "@/lib/firebase"
+import {
+  getBookingById,
+  createStripeCheckout,
+  createUniCreditPayment,
+  createUserFromBooking,
+  linkBookingToUser,
+  updateBooking,
+} from "@/lib/firebase"
 import { Loader2, AlertCircle } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
 
@@ -52,6 +59,29 @@ export default function CheckoutPage() {
     setPaying(true)
     setError("")
     try {
+      console.log("[v0] Checking if user exists for email:", booking.email)
+      const userResult = await createUserFromBooking(booking.email, booking.firstName, booking.lastName)
+
+      if (userResult.success && userResult.password) {
+        console.log("[v0] New user created, saving password to booking")
+        // Save the generated password to the booking
+        await updateBooking(bookingId, {
+          newUserPassword: userResult.password,
+        })
+
+        // Link booking to user
+        await linkBookingToUser(bookingId, booking.email)
+        console.log("[v0] Booking linked to user")
+      } else if (userResult.success) {
+        console.log("[v0] User already exists, linking booking")
+        // User already exists, just link the booking
+        await linkBookingToUser(bookingId, booking.email)
+      } else {
+        console.error("[v0] Failed to create user:", userResult.error)
+        // Continue with payment even if user creation fails
+      }
+      // </CHANGE>
+
       if (method === "stripe") {
         const res = await createStripeCheckout({
           bookingId,
@@ -169,6 +199,3 @@ export default function CheckoutPage() {
     </main>
   )
 }
-
-
-

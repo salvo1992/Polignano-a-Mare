@@ -86,10 +86,10 @@ export default function CamerePage() {
       { src: "/polignano-lama-monachile.jpg", alt: "Lama Monachile" },
       { src: "/camera/camera5.jpg", alt: "Polignano di notte" },
       { src: "/camera/camera.jpg", alt: "Camera con vista" },
-       { src: "/camera/camera3.jpg", alt: "Camera con vista" },
-       { src: "/camera/camera6.jpg", alt: "Camera con vista" },
-       { src: "/camera/camera7.jpg", alt: "Camera con vista" },
-       { src: "/camera/camera16.jpg", alt: "Camera con vista" },
+      { src: "/camera/camera3.jpg", alt: "Camera con vista" },
+      { src: "/camera/camera6.jpg", alt: "Camera con vista" },
+      { src: "/camera/camera7.jpg", alt: "Camera con vista" },
+      { src: "/camera/camera16.jpg", alt: "Camera con vista" },
     ],
   }
 
@@ -254,12 +254,17 @@ export default function CamerePage() {
                         <span className="text-xs sm:text-sm text-muted-foreground">/ notte</span>
                       </div>
                     </div>
-                    <Button asChild size="sm" className="shadow-lg shrink-0">
-                      <Link href={`/prenota?room=${room.id}`}>
-                        Prenota
-                        <Sparkles className="w-4 h-4 ml-1" />
-                      </Link>
-                    </Button>
+                    <div className="flex gap-2 shrink-0">
+                      <Button asChild size="sm" variant="outline" className="shadow-md bg-transparent">
+                        <Link href={`/camere/${room.id}`}>Dettagli</Link>
+                      </Button>
+                      <Button asChild size="sm" className="shadow-lg">
+                        <Link href={`/prenota?room=${room.id}`}>
+                          Prenota
+                          <Sparkles className="w-4 h-4 ml-1" />
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-4">
@@ -429,4 +434,3 @@ export default function CamerePage() {
     </main>
   )
 }
-

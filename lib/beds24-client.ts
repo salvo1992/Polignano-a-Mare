@@ -12,6 +12,7 @@ import { admin } from "./firebase-admin"
 const BEDS24_API_URL = process.env.BEDS24_API_URL || "https://beds24.com/api/v2"
 const BEDS24_READ_TOKEN = process.env.BEDS24_READ_TOKEN
 const BEDS24_REFRESH_TOKEN = process.env.BEDS24_REFRESH_TOKEN
+const BEDS24_PROPERTY_ID = process.env.BEDS24_PROPERTY_ID
 
 interface TokenData {
   accessToken: string
@@ -388,68 +389,120 @@ export class Beds24Client {
 
   /**
    * Fetch reviews from Booking.com via Beds24 API
-   * @deprecated Use getReviewsFromBookings() instead
+   * Requires BEDS24_PROPERTY_ID environment variable
+   * @param limit - Maximum number of reviews to fetch (default: 50)
    */
-  async getBookingComReviews(): Promise<Beds24Review[]> {
-    // This endpoint may not be available in all Beds24 plans
-    // Reviews are typically included in booking data
-    return []
-  }
+  async getBookingComReviews(limit = 50): Promise<Beds24Review[]> {
+    if (!BEDS24_PROPERTY_ID) {
+      throw new Error(
+        "BEDS24_PROPERTY_ID environment variable is required to fetch reviews. " +
+          "Please add it in the Vars section of the v0 sidebar.",
+      )
+    }
 
-  /**
-   * Fetch reviews from Airbnb via Beds24 API (beta)
-   * @deprecated Use getReviewsFromBookings() instead
-   */
-  async getAirbnbReviews(): Promise<Beds24Review[]> {
-    // This endpoint may not be available in all Beds24 plans
-    // Reviews are typically included in booking data
-    return []
-  }
-
-  /**
-   * Fetch all reviews from both Booking.com and Airbnb
-   * Reviews are extracted from booking data
-   */
-  async getReviews(): Promise<Beds24Review[]> {
-    return await this.getReviewsFromBookings()
-  }
-
-  /**
-   * Extract reviews from bookings data
-   * Reviews in Beds24 are included in the booking object
-   */
-  async getReviewsFromBookings(): Promise<Beds24Review[]> {
     try {
-      // Fetch bookings from the last 12 months to get reviews
-      const oneYearAgo = new Date()
-      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-      const from = oneYearAgo.toISOString().split("T")[0]
+      const params = new URLSearchParams({
+        propertyId: BEDS24_PROPERTY_ID,
+        from: "2015-01-01",
+        to: "2100-12-31",
+      })
 
-      const bookings = await this.getBookings(from, undefined, true)
+      const endpoint = `/channels/booking/reviews?${params.toString()}`
+      const response = await this.request<{ data: any[] }>(endpoint)
 
       const reviews: Beds24Review[] = []
+      const data = response.data || []
 
-      for (const booking of bookings) {
-        // Extract guest review if it exists
-        if (booking.guestReview && booking.guestReview.comment) {
-          reviews.push({
-            id: `${booking.id}_guest`,
-            bookingId: booking.id,
-            roomId: booking.roomId,
-            rating: booking.guestReview.rating || 5,
-            comment: booking.guestReview.comment,
-            guestName: `${booking.firstName} ${booking.lastName}`,
-            source: booking.referer.toLowerCase().includes("airbnb") ? "airbnb" : "booking",
-            date: booking.guestReview.date || booking.departure,
-            response: booking.hostReview?.comment,
-          })
-        }
+      // Limit to requested number of reviews
+      const limitedData = data.slice(0, limit)
+
+      for (const item of limitedData) {
+        reviews.push({
+          id: item.id || `booking_${item.bookingId || Date.now()}`,
+          bookingId: item.bookingId || "",
+          roomId: item.roomId || "",
+          rating: item.rating || item.score || 5,
+          comment: item.comment || item.review || item.text || "",
+          guestName: item.guestName || item.reviewerName || "Guest",
+          source: "booking",
+          date: item.date || item.reviewDate || new Date().toISOString().split("T")[0],
+          response: item.response || item.hostResponse || undefined,
+        })
       }
 
       return reviews
     } catch (error) {
-      console.error("Error extracting reviews from bookings:", error)
+      console.error("Error fetching Booking.com reviews:", error)
+      throw error
+    }
+  }
+
+  /**
+   * Fetch reviews from Airbnb via Beds24 API (beta)
+   * Requires BEDS24_PROPERTY_ID environment variable
+   * @param limit - Maximum number of reviews to fetch (default: 50)
+   */
+  async getAirbnbReviews(limit = 50): Promise<Beds24Review[]> {
+    if (!BEDS24_PROPERTY_ID) {
+      throw new Error(
+        "BEDS24_PROPERTY_ID environment variable is required to fetch reviews. " +
+          "Please add it in the Vars section of the v0 sidebar.",
+      )
+    }
+
+    try {
+      const params = new URLSearchParams({
+        propertyId: BEDS24_PROPERTY_ID,
+        from: "2015-01-01",
+        to: "2100-12-31",
+      })
+
+      const endpoint = `/channels/airbnb/reviews?${params.toString()}`
+      const response = await this.request<{ data: any[] }>(endpoint)
+
+      const reviews: Beds24Review[] = []
+      const data = response.data || []
+
+      // Limit to requested number of reviews
+      const limitedData = data.slice(0, limit)
+
+      for (const item of limitedData) {
+        reviews.push({
+          id: item.id || `airbnb_${item.bookingId || Date.now()}`,
+          bookingId: item.bookingId || "",
+          roomId: item.roomId || "",
+          rating: item.rating || item.score || 5,
+          comment: item.comment || item.review || item.text || "",
+          guestName: item.guestName || item.reviewerName || "Guest",
+          source: "airbnb",
+          date: item.date || item.reviewDate || new Date().toISOString().split("T")[0],
+          response: item.response || item.hostResponse || undefined,
+        })
+      }
+
+      return reviews
+    } catch (error) {
+      console.error("Error fetching Airbnb reviews:", error)
+      // Don't throw for Airbnb as it's beta - just return empty array
       return []
+    }
+  }
+
+  /**
+   * Fetch all reviews from both Booking.com and Airbnb
+   * Maximum 50 reviews total (25 from each source)
+   */
+  async getReviews(): Promise<Beds24Review[]> {
+    try {
+      const [bookingReviews, airbnbReviews] = await Promise.all([
+        this.getBookingComReviews(25),
+        this.getAirbnbReviews(25),
+      ])
+
+      return [...bookingReviews, ...airbnbReviews]
+    } catch (error) {
+      console.error("Error fetching reviews:", error)
+      throw error
     }
   }
 
