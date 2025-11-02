@@ -13,132 +13,99 @@ export async function GET(request: NextRequest) {
     }
 
     const db = getAdminDb()
-    const today = new Date()
-    const twoMonthsAgo = new Date(today)
-    twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2)
-    const twoMonthsAgoStr = twoMonthsAgo.toISOString().split("T")[0]
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const tomorrowStr = tomorrow.toISOString().split("T")[0]
 
-    const usersSnapshot = await db.collection("users").where("notifications.promos", "==", true).get()
+    // Get all paid/confirmed bookings and filter by check-in date in code
+    const bookingsSnapshot = await db.collection("bookings").where("status", "in", ["paid", "confirmed"]).get()
 
     let emailsSent = 0
 
-    for (const doc of usersSnapshot.docs) {
-      const user = doc.data()
+    for (const doc of bookingsSnapshot.docs) {
+      const booking = doc.data()
 
-      const promotionalEmailCount = user.promotionalEmailCount || 0
-      if (promotionalEmailCount >= 12) {
-        continue // Stop sending after 12 emails (2 years)
-      }
+      // Check if user wants check-in reminders
+      if (booking.userId) {
+        const userDoc = await db.collection("users").doc(booking.userId).get()
+        const userData = userDoc.data()
 
-      if (user.lastPromotionalEmail) {
-        const lastPromo = new Date(user.lastPromotionalEmail)
-        const twoMonthsSinceLastPromo = new Date(lastPromo)
-        twoMonthsSinceLastPromo.setMonth(twoMonthsSinceLastPromo.getMonth() + 2)
-
-        if (today < twoMonthsSinceLastPromo) {
-          continue // Skip if less than 2 months since last email
+        if (userData?.notifications?.checkinReminders === false) {
+          continue // Skip if user disabled reminders
         }
       }
 
-      const recentBookingsSnapshot = await db
-        .collection("bookings")
-        .where("userId", "==", doc.id)
-        .where("createdAt", ">=", twoMonthsAgoStr)
-        .limit(1)
-        .get()
-
-      if (!recentBookingsSnapshot.empty) {
-        continue // Skip if user has booked in the last 2 months
+      if (booking.checkIn !== tomorrowStr) {
+        continue
       }
 
-      // Send promotional email
+      // Send check-in reminder email
       try {
         await resend.emails.send({
           from: process.env.RESEND_FROM_EMAIL || "noreply@al22suite.com",
-          to: user.email,
-          subject: `È tempo di una pausa! Scopri AL 22 Suite & Spa 🌊`,
+          to: booking.email,
+          subject: `Domani è il tuo check-in ad AL 22 Suite! 🎉`,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%); color: white; padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
-                <h1 style="margin: 0; font-size: 32px;">AL 22 Suite & Spa</h1>
-                <p style="margin: 10px 0 0 0; font-size: 18px; opacity: 0.9;">Polignano a Mare</p>
+              <h2 style="color: #8B4513;">Ciao ${booking.firstName}! 👋</h2>
+              
+              <p style="font-size: 18px; font-weight: bold; color: #8B4513;">Il tuo soggiorno inizia domani!</p>
+
+              <div style="background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%); color: white; padding: 30px; border-radius: 12px; margin: 20px 0; text-align: center;">
+                <h3 style="margin: 0 0 10px 0;">Check-in</h3>
+                <p style="font-size: 24px; font-weight: bold; margin: 0;">
+                  ${new Date(booking.checkIn).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}
+                </p>
+                <p style="margin: 10px 0 0 0; opacity: 0.9;">dalle ore 15:00</p>
               </div>
 
-              <div style="padding: 40px 20px;">
-                <h2 style="color: #8B4513; margin-top: 0;">Ciao ${user.firstName || ""}! 👋</h2>
-                
-                <p style="font-size: 16px; line-height: 1.6;">
-                  È passato un po' di tempo dall'ultima volta che ci siamo visti. Che ne dici di concederti una pausa e tornare a trovarci?
-                </p>
-
-                <div style="background: #f5f5f5; padding: 30px; border-radius: 12px; margin: 30px 0; text-align: center;">
-                  <h3 style="color: #8B4513; margin-top: 0;">✨ Vivi un'esperienza indimenticabile</h3>
-                  <p style="margin: 15px 0;">
-                    Rilassati nella nostra spa, goditi la vista mozzafiato sul mare e lasciati coccolare dal nostro servizio esclusivo.
-                  </p>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 30px 0;">
-                  <div style="text-align: center; padding: 20px; background: white; border: 2px solid #f0f0f0; border-radius: 8px;">
-                    <div style="font-size: 32px; margin-bottom: 10px;">🏖️</div>
-                    <p style="margin: 0; font-weight: bold; color: #8B4513;">Vista Mare</p>
-                  </div>
-                  <div style="text-align: center; padding: 20px; background: white; border: 2px solid #f0f0f0; border-radius: 8px;">
-                    <div style="font-size: 32px; margin-bottom: 10px;">💆</div>
-                    <p style="margin: 0; font-weight: bold; color: #8B4513;">Spa Luxury</p>
-                  </div>
-                </div>
-
-                <p style="font-size: 16px; line-height: 1.6;">
-                  Prenota ora il tuo prossimo soggiorno e regala a te stesso un momento di puro relax nel cuore di Polignano a Mare.
-                </p>
-
-                <div style="text-align: center; margin: 40px 0;">
-                  <a href="https://al22suite.com/prenota" style="display: inline-block; background: #8B4513; color: white; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px;">
-                    Prenota Ora
-                  </a>
-                </div>
-
-                <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 30px 0;">
-                  <p style="margin: 0; text-align: center; color: #1976d2;">
-                    <strong>💙 Hai già un account?</strong><br>
-                    <a href="https://al22suite.com/user" style="color: #1976d2; text-decoration: underline;">Accedi per vedere le tue prenotazioni</a>
-                  </p>
-                </div>
+              <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h4 style="margin-top: 0;">Dettagli della tua prenotazione:</h4>
+                <p><strong>Camera:</strong> ${booking.roomName}</p>
+                <p><strong>Ospiti:</strong> ${booking.guests} ${booking.guests === 1 ? "persona" : "persone"}</p>
+                <p><strong>Check-out:</strong> ${new Date(booking.checkOut).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</p>
+                <p><strong>Numero conferma:</strong> ${doc.id.slice(0, 12).toUpperCase()}</p>
               </div>
 
-              <div style="background: #f5f5f5; padding: 20px; text-align: center; border-radius: 0 0 12px 12px;">
-                <p style="color: #666; font-size: 12px; margin: 0;">
-                  Non vuoi più ricevere queste email?<br>
-                  <a href="https://al22suite.com/user" style="color: #8B4513;">Gestisci le tue preferenze</a>
-                </p>
+              <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0;"><strong>📍 Indirizzo:</strong></p>
+                <p style="margin: 5px 0 0 0;">AL 22 Suite & Spa<br>Polignano a Mare, Italia</p>
               </div>
+
+              <p>Se hai bisogno di assistenza o hai domande, non esitare a contattarci!</p>
+
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="https://al22suite.com/user/booking/${doc.id}" style="display: inline-block; background: #8B4513; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                  Visualizza Prenotazione
+                </a>
+              </div>
+
+              <p style="text-align: center; color: #8B4513; font-size: 18px; margin-top: 30px;">
+                Non vediamo l'ora di darti il benvenuto! ✨
+              </p>
+
+              <p style="color: #666; font-size: 12px; margin-top: 30px; text-align: center;">
+                Puoi gestire le tue preferenze di notifica nelle <a href="https://al22suite.com/user">impostazioni del tuo account</a>.
+              </p>
             </div>
           `,
         })
 
-        await db
-          .collection("users")
-          .doc(doc.id)
-          .update({
-            lastPromotionalEmail: today.toISOString().split("T")[0],
-            promotionalEmailCount: promotionalEmailCount + 1,
-          })
-
         emailsSent++
       } catch (emailError) {
-        console.error(`Error sending email to ${user.email}:`, emailError)
+        console.error(`Error sending email to ${booking.email}:`, emailError)
       }
     }
 
-    console.log(`[Cron] Promotional emails sent: ${emailsSent}`)
+    console.log(`[Cron] Check-in reminders sent: ${emailsSent}`)
 
     return NextResponse.json({
       success: true,
       emailsSent,
     })
   } catch (error: any) {
-    console.error("[Cron] Error sending promotional emails:", error)
+    console.error("[Cron] Error sending check-in reminders:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+
