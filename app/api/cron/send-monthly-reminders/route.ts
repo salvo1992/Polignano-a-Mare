@@ -16,16 +16,19 @@ export async function GET(request: NextRequest) {
     const today = new Date()
     const todayStr = today.toISOString().split("T")[0]
 
-    const bookingsSnapshot = await db
-      .collection("bookings")
-      .where("status", "in", ["paid", "confirmed"])
-      .where("checkIn", ">", todayStr)
-      .get()
+    const bookingsSnapshot = await db.collection("bookings").where("status", "in", ["paid", "confirmed"]).get()
 
     let emailsSent = 0
+    let bookingsChecked = 0
 
     for (const doc of bookingsSnapshot.docs) {
       const booking = doc.data()
+
+      if (booking.checkIn <= todayStr) {
+        continue // Skip past bookings
+      }
+
+      bookingsChecked++
 
       const lastReminder = booking.lastMonthlyReminder
         ? new Date(booking.lastMonthlyReminder)
@@ -105,10 +108,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`[Cron] Monthly reminders sent: ${emailsSent}`)
+    console.log(`[Cron] Monthly reminders - Bookings checked: ${bookingsChecked}, Emails sent: ${emailsSent}`)
 
     return NextResponse.json({
       success: true,
+      bookingsChecked,
       emailsSent,
     })
   } catch (error: any) {
@@ -116,4 +120,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+
 
