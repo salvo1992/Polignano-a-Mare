@@ -52,7 +52,7 @@ export function CancelBookingDialog({
     setLoading(true)
     try {
       const response = await fetch("/api/bookings/cancel", {
-        method: "POST",
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bookingId }),
       })

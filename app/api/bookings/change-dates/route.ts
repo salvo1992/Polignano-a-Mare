@@ -1,37 +1,127 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/firebase"
-import { doc, updateDoc, getDoc } from "firebase/firestore"
+import { getAdminDb } from "@/lib/firebase-admin"
+import { FieldValue } from "firebase-admin/firestore"
+import Stripe from "stripe"
+import { sendBookingConfirmationEmail } from "@/lib/email"
+import {
+  calculateNights,
+  calculatePriceByGuests,
+  calculateDaysUntilCheckIn,
+  calculateChangeDatesPenalty,
+} from "@/lib/pricing"
 
-export async function POST(request: NextRequest) {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
+
+export async function PUT(request: NextRequest) {
   try {
-    const { bookingId, checkIn, checkOut, newPrice } = await request.json()
+    const { bookingId, checkIn, checkOut, userId, newPrice, penalty } = await request.json()
 
-    if (!bookingId || !checkIn || !checkOut || !newPrice) {
+    if (!bookingId || !checkIn || !checkOut) {
       return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
     }
 
-    const bookingRef = doc(db, "bookings", bookingId)
-    const bookingSnap = await getDoc(bookingRef)
+    // Validate dates
+    const checkInDate = new Date(checkIn)
+    const checkOutDate = new Date(checkOut)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
 
-    if (!bookingSnap.exists()) {
+    if (checkInDate < today) {
+      return NextResponse.json({ error: "La data di check-in non può essere nel passato" }, { status: 400 })
+    }
+
+    if (checkOutDate <= checkInDate) {
+      return NextResponse.json({ error: "Il check-out deve essere dopo il check-in" }, { status: 400 })
+    }
+
+    const db = getAdminDb()
+    const bookingRef = db.collection("bookings").doc(bookingId)
+    const bookingSnap = await bookingRef.get()
+
+    if (!bookingSnap.exists) {
       return NextResponse.json({ error: "Prenotazione non trovata" }, { status: 404 })
     }
 
-    const checkInDate = new Date(checkIn)
-    const checkOutDate = new Date(checkOut)
-    const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
+    const bookingData = bookingSnap.data()
 
-    await updateDoc(bookingRef, {
+    // Verify user owns this booking
+    if (userId && bookingData?.userId !== userId) {
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
+    }
+
+    const nights = calculateNights(checkIn, checkOut)
+    const guests = bookingData?.guests || 2
+    const basePrice = calculatePriceByGuests(guests, nights)
+
+    // Calculate penalty if within 7 days of original check-in
+    const daysUntilCheckIn = calculateDaysUntilCheckIn(bookingData?.checkIn)
+    const penaltyAmount = calculateChangeDatesPenalty(bookingData?.totalAmount || 0, daysUntilCheckIn)
+    const totalAmount = basePrice + penaltyAmount
+
+    const priceDifference = totalAmount - (bookingData?.totalAmount || 0)
+
+    if (priceDifference > 0) {
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "eur",
+              product_data: {
+                name: `Modifica Date - ${bookingData?.roomName || "Camera"}`,
+                description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${(penaltyAmount / 100).toFixed(2)})` : ""}`,
+              },
+              unit_amount: priceDifference,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/user/booking/${bookingId}?payment=success`,
+        cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/user/booking/${bookingId}?payment=cancelled`,
+        metadata: {
+          bookingId,
+          type: "change_dates",
+          checkIn,
+          checkOut,
+          newPrice: totalAmount.toString(),
+          penalty: penaltyAmount.toString(),
+        },
+      })
+
+      return NextResponse.json({
+        success: true,
+        paymentUrl: session.url,
+      })
+    }
+
+    await bookingRef.update({
       checkIn,
       checkOut,
       nights,
-      totalAmount: newPrice,
-      updatedAt: new Date().toISOString(),
+      totalAmount,
+      updatedAt: FieldValue.serverTimestamp(),
     })
 
-    return NextResponse.json({ success: true })
+    await sendBookingConfirmationEmail({
+      to: bookingData?.email,
+      bookingId,
+      firstName: bookingData?.firstName,
+      lastName: bookingData?.lastName,
+      checkIn,
+      checkOut,
+      roomName: bookingData?.roomName,
+      guests: bookingData?.guests || 2,
+      totalAmount,
+      nights,
+    })
+
+    console.log("[API] Booking dates changed successfully:", bookingId)
+
+    return NextResponse.json({ success: true, nights, totalAmount })
   } catch (error) {
     console.error("Error changing dates:", error)
     return NextResponse.json({ error: "Errore nella modifica delle date" }, { status: 500 })
   }
 }
+

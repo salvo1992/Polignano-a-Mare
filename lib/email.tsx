@@ -58,6 +58,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
     .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
     .detail-label { font-weight: bold; color: #8B4513; }
     .credentials-box { background: #fff3cd; border: 2px solid #ffc107; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    .info-box { background: #d1ecf1; border: 2px solid #0c5460; padding: 20px; border-radius: 8px; margin: 20px 0; color: #0c5460; }
     .button { display: inline-block; background: #8B4513; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
     .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
   </style>
@@ -124,12 +125,18 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
         <p style="font-size: 12px; color: #856404; margin-top: 15px;">⚠️ Ti consigliamo di cambiare la password al primo accesso.</p>
       </div>
       `
-          : ""
+          : `
+      <div class="info-box">
+        <h3 style="margin-top: 0;">👤 Accedi al tuo Account</h3>
+        <p>La prenotazione è stata aggiunta al tuo account esistente. Accedi con le tue credenziali per visualizzare tutti i dettagli e gestire le tue prenotazioni.</p>
+        <p style="margin-bottom: 0;"><strong>Email:</strong> ${data.to}</p>
+      </div>
+      `
       }
       
       <div style="text-align: center;">
         <a href="${siteUrl}/user" class="button">
-          Visualizza Prenotazione
+          ${isNewUser ? "Accedi al tuo Account" : "Visualizza le tue Prenotazioni"}
         </a>
       </div>
       
@@ -141,7 +148,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
     <div class="footer">
       <p>Al 22 Suite & Spa Luxury Experience</p>
       <p>Polignano a Mare, Italia</p>
-      <p>Questa è una email automatica, si prega di non rispondere.</p>
+      <p>Questa �� una email automatica, si prega di non rispondere.</p>
     </div>
   </div>
 </body>

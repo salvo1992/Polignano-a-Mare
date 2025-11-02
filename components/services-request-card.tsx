@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Sparkles, Send } from "lucide-react"
-import { useLanguage } from "@/components/language-provider"
 import { toast } from "sonner"
 
 const AVAILABLE_SERVICES = [
@@ -25,7 +24,6 @@ interface ServicesRequestCardProps {
 }
 
 export function ServicesRequestCard({ bookingId }: ServicesRequestCardProps) {
-  const { t } = useLanguage()
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [notes, setNotes] = useState("")
   const [sending, setSending] = useState(false)
@@ -44,13 +42,32 @@ export function ServicesRequestCard({ bookingId }: ServicesRequestCardProps) {
 
     setSending(true)
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    try {
+      const services = selectedServices.map((id) => AVAILABLE_SERVICES.find((s) => s.id === id)).filter(Boolean)
 
-    toast.success("Richiesta inviata! Ti contatteremo presto per confermare la disponibilità.")
-    setSelectedServices([])
-    setNotes("")
-    setSending(false)
+      const response = await fetch("/api/request-extra-services", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId,
+          services,
+          notes,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to send request")
+      }
+
+      toast.success("Richiesta inviata! Ti contatteremo presto per confermare la disponibilità.")
+      setSelectedServices([])
+      setNotes("")
+    } catch (error: any) {
+      toast.error(error.message || "Errore nell'invio della richiesta")
+    } finally {
+      setSending(false)
+    }
   }
 
   const totalPrice = selectedServices.reduce((sum, serviceId) => {

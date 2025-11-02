@@ -9,10 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, UserIcon, Settings, Shield, Sparkles, Eye } from "lucide-react"
+import { Calendar, UserIcon, Settings, Shield, Sparkles, Eye, CheckCircle2 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { RequireUser } from "@/components/route-guards"
-import { db, secureChangePassword, secureDeleteAccount } from "@/lib/firebase"
+import { db, secureChangePassword, logout } from "@/lib/firebase"
 import { collection, doc, getDoc, getDocs, query, where, updateDoc } from "firebase/firestore"
 import { safe } from "@/lib/safe-defaults"
 import { useLanguage } from "@/components/language-provider"
@@ -24,7 +24,7 @@ interface Booking {
   roomName: string
   checkIn: string
   checkOut: string
-  status: "paid" | "confirmed" | "completed" | "upcoming" | "cancelled"
+  status: "paid" | "confirmed" | "completed" | "upcoming" | "cancelled" | "pending"
   totalAmount: number
   nights: number
 }
@@ -70,35 +70,128 @@ function UserInner() {
     address: "",
   })
 
+  const [loadingBookings, setLoadingBookings] = useState(true)
+  const [bookingsError, setBookingsError] = useState<string | null>(null)
+
   useEffect(() => {
-    if (!user) return
+    if (!user) {
+      console.log("[v0] No user available, skipping bookings load")
+      setLoadingBookings(false)
+      return
+    }
     ;(async () => {
-      const snap = await getDoc(doc(db, "users", user.uid))
-      const data = snap.data() || {}
-      setProfile(data)
-      setEditedProfile({
-        firstName: data?.firstName || "",
-        lastName: data?.lastName || "",
-        phone: data?.phone || "",
-        address: data?.address || "",
-      })
-      setNotif({
-        confirmEmails: data?.notifications?.confirmEmails ?? true,
-        promos: data?.notifications?.promos ?? true,
-        checkinReminders: data?.notifications?.checkinReminders ?? true,
-      })
-      const qs = query(collection(db, "bookings"), where("userId", "==", user.uid))
-      const res = await getDocs(qs)
-      const all: Booking[] = res.docs.map((d) => ({ id: d.id, ...d.data() }) as any)
+      try {
+        console.log("[v0] ===== LOADING USER PROFILE =====")
+        console.log("[v0] User UID:", user.uid)
+        console.log("[v0] User email:", user.email)
 
-      all.sort((a, b) => b.checkIn.localeCompare(a.checkIn))
+        const snap = await getDoc(doc(db, "users", user.uid))
+        const data = snap.data() || {}
+        console.log("[v0] User profile data:", data)
+        setProfile(data)
+        setEditedProfile({
+          firstName: data?.firstName || "",
+          lastName: data?.lastName || "",
+          phone: data?.phone || "",
+          address: data?.address || "",
+        })
+        setNotif({
+          confirmEmails: data?.notifications?.confirmEmails ?? true,
+          promos: data?.notifications?.promos ?? true,
+          checkinReminders: data?.notifications?.checkinReminders ?? true,
+        })
 
-      const today = new Date().toISOString().split("T")[0]
-      const upcoming = all.filter((b) => b.checkIn >= today && (b.status === "paid" || b.status === "confirmed"))
-      const completed = all.filter((b) => b.checkOut < today || b.status === "completed")
+        console.log("[v0] ===== LOADING BOOKINGS =====")
+        console.log("[v0] Searching bookings for user:", user.uid)
+        setLoadingBookings(true)
+        setBookingsError(null)
 
-      setBookingsCompleted(completed)
-      setBookingsUpcoming(upcoming)
+        // Try to find bookings by userId
+        const qsByUserId = query(collection(db, "bookings"), where("userId", "==", user.uid))
+        console.log("[v0] Executing query by userId...")
+        const resByUserId = await getDocs(qsByUserId)
+        console.log("[v0] Query by userId completed. Found:", resByUserId.docs.length, "bookings")
+
+        let all: Booking[] = resByUserId.docs.map((d) => {
+          const bookingData = { id: d.id, ...d.data() } as any
+          console.log("[v0] Booking (by userId):", {
+            id: bookingData.id,
+            roomName: bookingData.roomName,
+            checkIn: bookingData.checkIn,
+            checkOut: bookingData.checkOut,
+            status: bookingData.status,
+            userId: bookingData.userId,
+            email: bookingData.email,
+          })
+          return bookingData
+        })
+
+        // If no bookings found by userId, try by email
+        if (all.length === 0 && user.email) {
+          console.log("[v0] No bookings found by userId, trying by email:", user.email)
+          const qsByEmail = query(collection(db, "bookings"), where("email", "==", user.email))
+          console.log("[v0] Executing query by email...")
+          const resByEmail = await getDocs(qsByEmail)
+          console.log("[v0] Query by email completed. Found:", resByEmail.docs.length, "bookings")
+
+          all = resByEmail.docs.map((d) => {
+            const bookingData = { id: d.id, ...d.data() } as any
+            console.log("[v0] Booking (by email):", {
+              id: bookingData.id,
+              roomName: bookingData.roomName,
+              checkIn: bookingData.checkIn,
+              checkOut: bookingData.checkOut,
+              status: bookingData.status,
+              userId: bookingData.userId,
+              email: bookingData.email,
+            })
+            return bookingData
+          })
+        }
+
+        console.log("[v0] Total bookings found:", all.length)
+
+        if (all.length === 0) {
+          console.log("[v0] ⚠️ No bookings found for this user")
+          console.log("[v0] User UID:", user.uid)
+          console.log("[v0] User email:", user.email)
+          console.log("[v0] Please check if bookings exist in Firestore with matching userId or email")
+        }
+
+        all.sort((a, b) => b.checkIn.localeCompare(a.checkIn))
+
+        const today = new Date().toISOString().split("T")[0]
+        const upcoming = all.filter((b) => {
+          const isUpcoming = b.checkOut >= today
+          const isNotCancelled = b.status !== "cancelled"
+          const isNotCompleted = b.status !== "completed"
+          console.log("[v0] Booking", b.id, "classification:", {
+            checkOut: b.checkOut,
+            today,
+            isUpcoming,
+            status: b.status,
+            isNotCancelled,
+            isNotCompleted,
+            willBeIncluded: isUpcoming && isNotCancelled && isNotCompleted,
+          })
+          return isUpcoming && isNotCancelled && isNotCompleted
+        })
+        const completed = all.filter((b) => b.checkOut < today || b.status === "completed")
+
+        console.log("[v0] Upcoming bookings:", upcoming.length)
+        console.log("[v0] Completed bookings:", completed.length)
+        console.log("[v0] ===== BOOKINGS LOAD COMPLETE =====")
+
+        setBookingsCompleted(completed)
+        setBookingsUpcoming(upcoming)
+        setLoadingBookings(false)
+      } catch (error: any) {
+        console.error("[v0] ❌ ERROR loading bookings:", error)
+        console.error("[v0] Error message:", error.message)
+        console.error("[v0] Error stack:", error.stack)
+        setBookingsError(error.message || "Errore durante il caricamento delle prenotazioni")
+        setLoadingBookings(false)
+      }
     })()
   }, [user])
 
@@ -121,12 +214,26 @@ function UserInner() {
   const handleSaveProfile = async () => {
     if (!user) return
     try {
-      await updateDoc(doc(db, "users", user.uid), editedProfile)
+      const response = await fetch("/api/users/update", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.uid,
+          ...editedProfile,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to update profile")
+      }
+
       setProfile({ ...profile, ...editedProfile })
       setIsEditing(false)
       toast.success("Profilo aggiornato con successo!")
-    } catch (error) {
-      toast.error("Errore durante l'aggiornamento del profilo")
+    } catch (error: any) {
+      console.error("[v0] Error updating profile:", error)
+      toast.error(error.message || "Errore durante l'aggiornamento del profilo")
     }
   }
 
@@ -144,13 +251,30 @@ function UserInner() {
     setChangingPassword(true)
     try {
       await secureChangePassword(user.email, passwordData.currentPassword, passwordData.newPassword)
+
+      const response = await fetch("/api/users/change-password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.uid,
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to change password")
+      }
+
       toast.success("Password cambiata con successo!")
       setPasswordData({ currentPassword: "", newPassword: "" })
     } catch (error: any) {
-      if (error.message.includes("wrong-password")) {
+      console.error("[v0] Error changing password:", error)
+      if (error.message.includes("wrong-password") || error.message.includes("auth/wrong-password")) {
         toast.error("Password attuale errata")
       } else {
-        toast.error("Errore durante il cambio password")
+        toast.error(error.message || "Errore durante il cambio password")
       }
     } finally {
       setChangingPassword(false)
@@ -169,20 +293,37 @@ function UserInner() {
     }
 
     const confirmed = confirm(
-      "Sei sicuro di voler eliminare il tuo account? Questa azione è irreversibile e cancellerà tutti i tuoi dati.",
+      "Sei sicuro di voler eliminare il tuo account? Questa azione è irreversibile e cancellerà tutti i tuoi dati e le prenotazioni passate.",
     )
     if (!confirmed) return
 
     setDeletingAccount(true)
     try {
-      await secureDeleteAccount(deleteData.email, deleteData.currentPassword)
+      await secureChangePassword(deleteData.email, deleteData.currentPassword, deleteData.currentPassword)
+
+      const response = await fetch("/api/users/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.uid,
+          email: deleteData.email,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to delete account")
+      }
+
+      await logout()
       toast.success("Account eliminato con successo")
       router.push("/")
     } catch (error: any) {
+      console.error("[v0] Error deleting account:", error)
       if (error.message.includes("wrong-password")) {
         toast.error("Password errata")
       } else {
-        toast.error("Errore durante l'eliminazione dell'account")
+        toast.error(error.message || "Errore durante l'eliminazione dell'account")
       }
     } finally {
       setDeletingAccount(false)
@@ -230,7 +371,7 @@ function UserInner() {
                         user?.displayName || "Utente",
                       )}
                     </h3>
-                    <p className="text-sm text-muted-foreground">{safe.text(user?.email, "")}</p>
+                    <p className="text-sm text-muted-foreground break-words px-2">{safe.text(user?.email, "")}</p>
                   </div>
 
                   <div className="space-y-3 text-sm">
@@ -335,7 +476,15 @@ function UserInner() {
                       <CardTitle className="font-cinzel text-primary">{t("upcomingBookings")}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      {bookingsUpcoming.length === 0 ? (
+                      {loadingBookings ? (
+                        <p className="text-sm text-muted-foreground">Caricamento prenotazioni...</p>
+                      ) : bookingsError ? (
+                        <div className="text-sm text-destructive">
+                          <p className="font-semibold">Errore:</p>
+                          <p>{bookingsError}</p>
+                          <p className="mt-2 text-xs">Controlla la console per maggiori dettagli</p>
+                        </div>
+                      ) : bookingsUpcoming.length === 0 ? (
                         <p className="text-sm text-muted-foreground">{t("noUpcomingBookings")}</p>
                       ) : (
                         bookingsUpcoming.map((b) => (
@@ -398,7 +547,15 @@ function UserInner() {
                       <CardTitle className="font-cinzel text-primary">{t("completedBookings")}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      {bookingsCompleted.length === 0 ? (
+                      {loadingBookings ? (
+                        <p className="text-sm text-muted-foreground">Caricamento prenotazioni...</p>
+                      ) : bookingsError ? (
+                        <div className="text-sm text-destructive">
+                          <p className="font-semibold">Errore:</p>
+                          <p>{bookingsError}</p>
+                          <p className="mt-2 text-xs">Controlla la console per maggiori dettagli</p>
+                        </div>
+                      ) : bookingsCompleted.length === 0 ? (
                         <p className="text-sm text-muted-foreground">{t("noCompletedBookings")}</p>
                       ) : (
                         bookingsCompleted.map((b) => (
@@ -454,34 +611,45 @@ function UserInner() {
                       <CardDescription>{t("enableDisableAlerts")}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span>{t("confirmationEmails")}</span>
-                        <input
-                          type="checkbox"
-                          checked={notif.confirmEmails}
-                          onChange={(e) => setNotif((v) => ({ ...v, confirmEmails: e.target.checked }))}
-                          className="w-4 h-4"
-                        />
-                      </label>
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span>{t("specialOffers")}</span>
-                        <input
-                          type="checkbox"
-                          checked={notif.promos}
-                          onChange={(e) => setNotif((v) => ({ ...v, promos: e.target.checked }))}
-                          className="w-4 h-4"
-                        />
-                      </label>
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span>{t("checkinReminders")}</span>
-                        <input
-                          type="checkbox"
-                          checked={notif.checkinReminders}
-                          onChange={(e) => setNotif((v) => ({ ...v, checkinReminders: e.target.checked }))}
-                          className="w-4 h-4"
-                        />
-                      </label>
-                      <Button onClick={handleSaveNotifications} className="mt-2">
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                          <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="font-medium">Email di conferma prenotazione</p>
+                            <p className="text-sm text-muted-foreground">
+                              Riceverai sempre un'email di conferma per ogni prenotazione effettuata
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                          <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="font-medium">Promemoria check-in</p>
+                            <p className="text-sm text-muted-foreground">
+                              Riceverai sempre un promemoria il giorno prima del tuo check-in
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-3 mt-3">
+                          <label className="flex items-center justify-between cursor-pointer p-3 hover:bg-muted/50 rounded-lg transition-colors">
+                            <div>
+                              <p className="font-medium">{t("specialOffers")}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Offerte promozionali soggette a condizioni e disponibilità
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={notif.promos}
+                              onChange={(e) => setNotif((v) => ({ ...v, promos: e.target.checked }))}
+                              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                      <Button onClick={handleSaveNotifications} className="mt-4">
                         {t("savePreferences")}
                       </Button>
                     </CardContent>

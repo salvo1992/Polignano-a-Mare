@@ -26,6 +26,7 @@ export default function CheckoutSuccess() {
   const [showPassword, setShowPassword] = useState(false)
   const [copiedPassword, setCopiedPassword] = useState(false)
   const [loggingIn, setLoggingIn] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
 
   useEffect(() => {
     if (!bookingId) {
@@ -38,13 +39,12 @@ export default function CheckoutSuccess() {
         console.log("[v0] Loading booking:", bookingId)
         const bookingData = await getBookingById(bookingId)
         console.log("[v0] Booking loaded:", bookingData)
-        console.log("[v0] Booking has newUserPassword:", !!bookingData?.newUserPassword)
-        if (bookingData?.newUserPassword) {
-          console.log("[v0] Password length:", bookingData.newUserPassword.length)
-        }
-        console.log("[v0] Booking email:", bookingData?.email)
-        console.log("[v0] Booking status:", bookingData?.status)
         setBooking(bookingData)
+
+        if (bookingData && !emailSent) {
+          await sendConfirmationEmail(bookingId)
+          setEmailSent(true)
+        }
       } catch (error) {
         console.error("[v0] Error loading booking:", error)
       } finally {
@@ -54,6 +54,22 @@ export default function CheckoutSuccess() {
 
     loadBooking()
   }, [bookingId])
+
+  const sendConfirmationEmail = async (id: string) => {
+    try {
+      const response = await fetch("/api/resend-booking-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: id }),
+      })
+      const data = await response.json()
+      if (data.success) {
+        console.log("[v0] Confirmation email sent automatically")
+      }
+    } catch (error) {
+      console.error("[v0] Error sending confirmation email:", error)
+    }
+  }
 
   const handleLogin = async () => {
     if (!booking?.newUserPassword) {
@@ -88,26 +104,11 @@ export default function CheckoutSuccess() {
 
     setResendingEmail(true)
     try {
-      const response = await fetch("/api/resend-booking-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId }),
+      await sendConfirmationEmail(bookingId)
+      toast({
+        title: t("emailSent"),
+        description: t("checkYourInbox"),
       })
-
-      const data = await response.json()
-
-      if (data.success) {
-        toast({
-          title: t("emailSent"),
-          description: t("checkYourInbox"),
-        })
-      } else {
-        toast({
-          title: t("error"),
-          description: data.error || t("emailSendFailed"),
-          variant: "destructive",
-        })
-      }
     } catch (error) {
       console.error("[v0] Error resending email:", error)
       toast({
