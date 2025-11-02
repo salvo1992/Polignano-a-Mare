@@ -361,7 +361,7 @@ export default function BookingDetailPage() {
         onOpenChange={setAddGuestOpen}
         bookingId={booking.id}
         currentGuests={booking.guests || 1}
-        maxGuests={booking.maxGuests || 4}
+        maxGuests={4}
         onSuccess={loadBooking}
       />
 
@@ -369,5 +369,6 @@ export default function BookingDetailPage() {
     </main>
   )
 }
+
 
 

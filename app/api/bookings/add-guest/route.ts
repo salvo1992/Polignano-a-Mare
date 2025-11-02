@@ -2,12 +2,10 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getAdminDb } from "@/lib/firebase-admin"
 import { FieldValue } from "firebase-admin/firestore"
 import Stripe from "stripe"
-import { Resend } from "resend"
-import { sendBookingConfirmationEmail } from "@/lib/email"
+import { sendBookingUpdateEmail } from "@/lib/email"
 import { calculateNights } from "@/lib/pricing"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
-const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function PUT(request: NextRequest) {
   try {
@@ -28,12 +26,14 @@ export async function PUT(request: NextRequest) {
     const booking = bookingSnap.data()
     const currentGuests = booking?.guests || 1
     const maxGuests = booking?.maxGuests || 4
+    const originalAmount = booking?.totalAmount || 0
 
     if (newGuestsCount > maxGuests) {
       return NextResponse.json({ error: "Numero massimo di ospiti raggiunto" }, { status: 400 })
     }
 
-    const newTotalAmount = (booking?.totalAmount || 0) + priceDifference
+    const newTotalAmount = originalAmount + priceDifference
+    const nights = calculateNights(booking?.checkIn, booking?.checkOut)
 
     if (priceDifference > 0) {
       const session = await stripe.checkout.sessions.create({
@@ -52,13 +52,15 @@ export async function PUT(request: NextRequest) {
           },
         ],
         mode: "payment",
-        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/user/booking/${bookingId}?payment=success`,
+        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}&booking_id=${bookingId}&type=add_guests`,
         cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/user/booking/${bookingId}?payment=cancelled`,
         metadata: {
           bookingId,
-          type: "add_guest",
+          type: "add_guests",
           newGuestsCount: newGuestsCount.toString(),
           newTotalAmount: newTotalAmount.toString(),
+          priceDifference: priceDifference.toString(),
+          originalAmount: originalAmount.toString(),
         },
       })
 
@@ -72,21 +74,34 @@ export async function PUT(request: NextRequest) {
       guests: newGuestsCount,
       totalAmount: newTotalAmount,
       updatedAt: FieldValue.serverTimestamp(),
+      modifications: FieldValue.arrayUnion({
+        type: "add_guests",
+        timestamp: new Date().toISOString(),
+        oldGuests: currentGuests,
+        newGuests: newGuestsCount,
+        priceDifference,
+      }),
     })
 
-    const nights = calculateNights(booking?.checkIn, booking?.checkOut)
-    await sendBookingConfirmationEmail({
-      to: booking?.email,
-      bookingId,
-      firstName: booking?.firstName,
-      lastName: booking?.lastName,
-      checkIn: booking?.checkIn,
-      checkOut: booking?.checkOut,
-      roomName: booking?.roomName,
-      guests: newGuestsCount,
-      totalAmount: newTotalAmount,
-      nights,
-    })
+    try {
+      await sendBookingUpdateEmail({
+        to: booking?.email || "",
+        bookingId,
+        firstName: booking?.firstName || "",
+        lastName: booking?.lastName || "",
+        roomName: booking?.roomName || "",
+        checkIn: booking?.checkIn || "",
+        checkOut: booking?.checkOut || "",
+        guests: newGuestsCount,
+        nights,
+        originalAmount,
+        newAmount: newTotalAmount,
+        priceDifference,
+        modificationType: "add_guests",
+      })
+    } catch (error) {
+      console.error("[API] Error sending update email:", error)
+    }
 
     console.log("[API] Guests added successfully:", bookingId)
 
@@ -96,3 +111,4 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Errore nell'aggiunta dell'ospite" }, { status: 500 })
   }
 }
+

@@ -15,10 +15,13 @@ import { useToast } from "@/hooks/use-toast"
 export default function CheckoutSuccess() {
   const { t } = useLanguage()
   const router = useRouter()
-  const search = useSearchParams()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const { toast } = useToast()
-  const bookingId = search.get("bookingId") || ""
+
+  const sessionId = searchParams.get("session_id")
+  const bookingId = searchParams.get("booking_id") || searchParams.get("bookingId") || ""
+  const modificationType = searchParams.get("type")
 
   const [loading, setLoading] = useState(true)
   const [booking, setBooking] = useState<any>(null)
@@ -27,6 +30,7 @@ export default function CheckoutSuccess() {
   const [copiedPassword, setCopiedPassword] = useState(false)
   const [loggingIn, setLoggingIn] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const [dbUpdated, setDbUpdated] = useState(false)
 
   useEffect(() => {
     if (!bookingId) {
@@ -37,6 +41,15 @@ export default function CheckoutSuccess() {
     const loadBooking = async () => {
       try {
         console.log("[v0] Loading booking:", bookingId)
+        console.log("[v0] Session ID:", sessionId)
+        console.log("[v0] Modification type:", modificationType)
+
+        if (sessionId && modificationType && !dbUpdated) {
+          console.log("[v0] Processing Stripe payment and updating database...")
+          await updateBookingAfterPayment(sessionId, bookingId, modificationType)
+          setDbUpdated(true)
+        }
+
         const bookingData = await getBookingById(bookingId)
         console.log("[v0] Booking loaded:", bookingData)
         setBooking(bookingData)
@@ -53,7 +66,32 @@ export default function CheckoutSuccess() {
     }
 
     loadBooking()
-  }, [bookingId])
+  }, [bookingId, sessionId, modificationType])
+
+  const updateBookingAfterPayment = async (sessionId: string, bookingId: string, type: string) => {
+    try {
+      const response = await fetch("/api/bookings/update-after-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          bookingId,
+          type,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        console.error("[v0] Error updating booking after payment:", data.error)
+        throw new Error(data.error)
+      }
+
+      console.log("[v0] Booking updated successfully after payment")
+    } catch (error) {
+      console.error("[v0] Error in updateBookingAfterPayment:", error)
+      throw error
+    }
+  }
 
   const sendConfirmationEmail = async (id: string) => {
     try {
@@ -302,3 +340,4 @@ export default function CheckoutSuccess() {
     </main>
   )
 }
+

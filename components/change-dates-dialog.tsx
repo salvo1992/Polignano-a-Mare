@@ -15,12 +15,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "sonner"
 import { Loader2, AlertTriangle } from "lucide-react"
-import {
-  calculateNights,
-  calculatePriceByGuests,
-  calculateDaysUntilCheckIn,
-  calculateChangeDatesPenalty,
-} from "@/lib/pricing"
+import { calculateNights, calculatePriceByGuests, calculateDaysUntilCheckIn } from "@/lib/pricing"
 
 interface ChangeDatesDialogProps {
   open: boolean
@@ -81,6 +76,11 @@ export function ChangeDatesDialog({
       return
     }
 
+    if (checkOut <= checkIn) {
+      toast.error("La data di check-out deve essere dopo il check-in")
+      return
+    }
+
     setLoading(true)
     try {
       const response = await fetch(`/api/bookings/${bookingId}`)
@@ -88,18 +88,19 @@ export function ChangeDatesDialog({
 
       if (!response.ok) throw new Error(data.error)
 
-      setBookingData(data)
-
       const nights = calculateNights(checkIn.toISOString().split("T")[0], checkOut.toISOString().split("T")[0])
       const newBasePrice = calculatePriceByGuests(data.guests || 2, nights)
 
-      const penalty = isWithinSevenDays ? calculateChangeDatesPenalty(data.totalAmount, daysUntilCheckIn) : 0
+      const penalty = isWithinSevenDays ? Math.round((data.totalAmount || 0) * 0.5) : 0
+      const priceDifference = newBasePrice - (data.totalAmount || 0)
       const newTotalPrice = newBasePrice + penalty
 
       setBookingData({
         ...data,
-        newPrice: newTotalPrice,
+        newBasePrice,
+        newTotalPrice,
         penalty,
+        priceDifference,
         nights,
       })
 
@@ -126,8 +127,9 @@ export function ChangeDatesDialog({
           bookingId,
           checkIn: checkIn.toISOString().split("T")[0],
           checkOut: checkOut.toISOString().split("T")[0],
-          newPrice: bookingData.newPrice,
+          newPrice: bookingData.newTotalPrice,
           penalty: bookingData.penalty,
+          priceDifference: bookingData.priceDifference,
         }),
       })
 
@@ -150,7 +152,7 @@ export function ChangeDatesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Cambia le date della prenotazione</DialogTitle>
           <DialogDescription>
@@ -197,8 +199,12 @@ export function ChangeDatesDialog({
         {bookingData && (
           <div className="space-y-3 bg-secondary/50 rounded-lg p-4">
             <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Prezzo originale</span>
+              <span>€{((bookingData.totalAmount || 0) / 100).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Nuovo prezzo base ({bookingData.nights} notti)</span>
-              <span className="font-semibold">€{((bookingData.newPrice - bookingData.penalty) / 100).toFixed(2)}</span>
+              <span className="font-semibold">€{(bookingData.newBasePrice / 100).toFixed(2)}</span>
             </div>
             {bookingData.penalty > 0 && (
               <div className="flex justify-between text-sm text-destructive">
@@ -206,9 +212,17 @@ export function ChangeDatesDialog({
                 <span className="font-semibold">+€{(bookingData.penalty / 100).toFixed(2)}</span>
               </div>
             )}
+            {bookingData.priceDifference !== 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Differenza prezzo</span>
+                <span className={bookingData.priceDifference > 0 ? "text-destructive" : "text-green-600"}>
+                  {bookingData.priceDifference > 0 ? "+" : ""}€{(bookingData.priceDifference / 100).toFixed(2)}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between pt-3 border-t">
-              <span className="font-semibold">Totale</span>
-              <span className="text-2xl font-bold text-primary">€{(bookingData.newPrice / 100).toFixed(2)}</span>
+              <span className="font-semibold">Totale da pagare</span>
+              <span className="text-2xl font-bold text-primary">€{(bookingData.newTotalPrice / 100).toFixed(2)}</span>
             </div>
           </div>
         )}
@@ -217,12 +231,11 @@ export function ChangeDatesDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Annulla
           </Button>
-          {!bookingData ? (
-            <Button onClick={handleCalculatePrice} disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Calcola nuovo prezzo
-            </Button>
-          ) : (
+          <Button onClick={handleCalculatePrice} disabled={loading} variant={bookingData ? "outline" : "default"}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {bookingData ? "Ricalcola" : "Calcola nuovo prezzo"}
+          </Button>
+          {bookingData && (
             <Button onClick={handleConfirm} disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Conferma e paga
@@ -233,3 +246,4 @@ export function ChangeDatesDialog({
     </Dialog>
   )
 }
+

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getAdminDb } from "@/lib/firebase-admin"
 import { FieldValue } from "firebase-admin/firestore"
 import Stripe from "stripe"
-import { sendBookingConfirmationEmail } from "@/lib/email"
+import { sendCancellationEmail } from "@/lib/email"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
 
@@ -39,11 +39,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     const isFullRefund = daysUntilCheckIn >= 7
+    const penalty = isFullRefund ? 0 : Math.round((booking?.totalAmount || 0) * 0.5)
     const refundAmount = isFullRefund ? booking?.totalAmount || 0 : 0
-    const penalty = isFullRefund ? 0 : booking?.totalAmount || 0
 
     let stripeRefundId = null
-    if (isFullRefund && booking?.stripePaymentIntentId) {
+    if (isFullRefund && booking?.stripePaymentIntentId && refundAmount > 0) {
       try {
         const refund = await stripe.refunds.create({
           payment_intent: booking.stripePaymentIntentId,
@@ -51,10 +51,10 @@ export async function DELETE(request: NextRequest) {
           reason: "requested_by_customer",
         })
         stripeRefundId = refund.id
-        console.log("[API] Stripe refund created:", stripeRefundId)
+        console.log("[API] Stripe refund created:", stripeRefundId, "Amount:", refundAmount / 100)
       } catch (error) {
         console.error("[API] Error creating Stripe refund:", error)
-        // Continue with cancellation even if refund fails
+        return NextResponse.json({ error: "Errore nel processare il rimborso" }, { status: 500 })
       }
     }
 
@@ -69,7 +69,7 @@ export async function DELETE(request: NextRequest) {
     })
 
     try {
-      await sendBookingConfirmationEmail({
+      await sendCancellationEmail({
         to: booking?.email || "",
         bookingId,
         firstName: booking?.firstName || "",
@@ -78,8 +78,10 @@ export async function DELETE(request: NextRequest) {
         checkIn: booking?.checkIn || "",
         checkOut: booking?.checkOut || "",
         guests: booking?.guests || 1,
-        totalAmount: booking?.totalAmount || 0,
-        notes: `Prenotazione cancellata. ${isFullRefund ? `Rimborso di €${(refundAmount / 100).toFixed(2)} in elaborazione.` : `Penale di €${(penalty / 100).toFixed(2)} applicata.`}`,
+        originalAmount: booking?.totalAmount || 0,
+        penalty,
+        refundAmount,
+        isFullRefund,
       })
     } catch (error) {
       console.error("[API] Error sending cancellation email:", error)
