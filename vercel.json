@@ -3,10 +3,7 @@
     {
       "path": "/api/cron/send-reminders",
       "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/send-promotional-emails",
-      "schedule": "0 10 1 */2 *"
     }
   ]
 }
+
