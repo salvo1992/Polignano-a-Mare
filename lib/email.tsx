@@ -27,12 +27,12 @@ interface CancellationEmailData {
   roomName: string
   guests: number
   originalAmount: number
-  penalty: number
   refundAmount: number
+  penalty: number
   isFullRefund: boolean
 }
 
-interface BookingUpdateEmailData {
+interface ModificationEmailData {
   to: string
   bookingId: string
   firstName: string
@@ -45,8 +45,9 @@ interface BookingUpdateEmailData {
   originalAmount: number
   newAmount: number
   penalty?: number
-  priceDifference?: number
-  modificationType: "change_dates" | "add_guests"
+  guestAdditionCost?: number
+  dateChangeCost?: number
+  modificationType: "dates" | "guests" | "both"
 }
 
 export async function sendBookingConfirmationEmail(data: BookingEmailData) {
@@ -215,6 +216,11 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
   try {
     console.log("[Email] Sending cancellation email to:", data.to)
 
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+      console.error("[Email] Email service not configured")
+      return { success: false, error: "Email service not configured" }
+    }
+
     const siteUrl = "https://al22suite.com"
 
     const emailHtml = `
@@ -230,7 +236,7 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
     .booking-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
     .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
     .detail-label { font-weight: bold; color: #dc2626; }
-    .refund-box { background: ${data.isFullRefund ? "#d1f4e0" : "#fee"} ; border: 2px solid ${data.isFullRefund ? "#10b981" : "#dc2626"}; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    .refund-box { background: ${data.isFullRefund ? "#d1f4e0" : "#fff3cd"}; border: 2px solid ${data.isFullRefund ? "#10b981" : "#ffc107"}; padding: 20px; border-radius: 8px; margin: 20px 0; }
     .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
   </style>
 </head>
@@ -244,7 +250,7 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
     <div class="content">
       <p>Gentile ${data.firstName} ${data.lastName},</p>
       
-      <p>La tua prenotazione è stata cancellata come richiesto.</p>
+      <p>La tua prenotazione è stata cancellata con successo.</p>
       
       <div class="booking-details">
         <h2 style="color: #dc2626; margin-top: 0;">📋 Dettagli Prenotazione Cancellata</h2>
@@ -281,7 +287,7 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
       </div>
       
       <div class="refund-box">
-        <h3 style="margin-top: 0; color: ${data.isFullRefund ? "#10b981" : "#dc2626"};">
+        <h3 style="margin-top: 0; color: ${data.isFullRefund ? "#059669" : "#856404"};">
           ${data.isFullRefund ? "✅ Rimborso Completo" : "⚠️ Penale Applicata"}
         </h3>
         
@@ -289,13 +295,16 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
           data.isFullRefund
             ? `
           <p><strong>Importo da Rimborsare:</strong> €${(data.refundAmount / 100).toFixed(2)}</p>
-          <p><strong>Penale:</strong> €0.00</p>
-          <p style="margin-top: 15px; font-size: 14px;">Il rimborso verrà elaborato entro 5-10 giorni lavorativi sulla carta utilizzata per il pagamento.</p>
+          <p style="font-size: 14px; margin-top: 15px;">
+            Il rimborso verrà elaborato entro 5-10 giorni lavorativi sulla carta utilizzata per il pagamento.
+          </p>
         `
             : `
-          <p><strong>Penale (50%):</strong> €${(data.penalty / 100).toFixed(2)}</p>
-          <p><strong>Importo da Pagare:</strong> €${(data.penalty / 100).toFixed(2)}</p>
-          <p style="margin-top: 15px; font-size: 14px;">Hai cancellato entro 7 giorni dal check-in. Secondo la nostra politica di cancellazione, è dovuta una penale del 50% dell'importo totale.</p>
+          <p><strong>Penale:</strong> €${(data.penalty / 100).toFixed(2)}</p>
+          <p><strong>Importo da Pagare:</strong> €0,00</p>
+          <p style="font-size: 14px; margin-top: 15px; color: #856404;">
+            ⚠️ La cancellazione è avvenuta a meno di 7 giorni dal check-in. Non è previsto alcun rimborso.
+          </p>
         `
         }
       </div>
@@ -308,7 +317,7 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
     <div class="footer">
       <p>Al 22 Suite & Spa Luxury Experience</p>
       <p>Polignano a Mare, Italia</p>
-      <p>Email: progettocale@gmail.com</p>
+      <p>Questa è una email automatica, si prega di non rispondere.</p>
     </div>
   </div>
 </body>
@@ -318,29 +327,35 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
     const { data: emailData, error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || "Al 22 Suite <noreply@al22suite.com>",
       to: data.to,
-      subject: `❌ Cancellazione Prenotazione - ${data.bookingId}`,
+      subject: `❌ Prenotazione Cancellata - ${data.bookingId}`,
       html: emailHtml,
     })
 
     if (error) {
-      console.error("[Email] Error sending cancellation email:", error)
+      console.error("[Email] Resend API error:", error)
       return { success: false, error: error.message }
     }
 
     console.log("[Email] Cancellation email sent successfully!")
     return { success: true, emailId: emailData?.id }
   } catch (error: any) {
-    console.error("[Email] Error in sendCancellationEmail:", error)
+    console.error("[Email] Unexpected error:", error.message)
     return { success: false, error: error.message }
   }
 }
 
-export async function sendBookingUpdateEmail(data: BookingUpdateEmailData) {
+export async function sendModificationEmail(data: ModificationEmailData) {
   try {
-    console.log("[Email] Sending booking update email to:", data.to)
+    console.log("[Email] Sending modification email to:", data.to)
+
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+      console.error("[Email] Email service not configured")
+      return { success: false, error: "Email service not configured" }
+    }
 
     const siteUrl = "https://al22suite.com"
-    const totalPaid = data.originalAmount + (data.penalty || 0) + (data.priceDifference || 0)
+    const totalSpent = data.newAmount
+    const difference = data.newAmount - data.originalAmount
 
     const emailHtml = `
 <!DOCTYPE html>
@@ -350,20 +365,19 @@ export async function sendBookingUpdateEmail(data: BookingUpdateEmailData) {
   <style>
     body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+    .header { background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
     .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
     .booking-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
     .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-    .detail-label { font-weight: bold; color: #2563eb; }
-    .payment-breakdown { background: #eff6ff; border: 2px solid #2563eb; padding: 20px; border-radius: 8px; margin: 20px 0; }
-    .total-row { font-size: 18px; font-weight: bold; color: #2563eb; padding-top: 15px; margin-top: 15px; border-top: 2px solid #2563eb; }
+    .detail-label { font-weight: bold; color: #8B4513; }
+    .cost-breakdown { background: #f0f9ff; border: 2px solid #0ea5e9; padding: 20px; border-radius: 8px; margin: 20px 0; }
     .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>✅ Prenotazione Modificata</h1>
+      <h1>✏️ Prenotazione Modificata</h1>
       <p>Al 22 Suite & Spa Luxury Experience</p>
     </div>
     
@@ -373,7 +387,7 @@ export async function sendBookingUpdateEmail(data: BookingUpdateEmailData) {
       <p>La tua prenotazione è stata modificata con successo.</p>
       
       <div class="booking-details">
-        <h2 style="color: #2563eb; margin-top: 0;">📋 Nuovi Dettagli Prenotazione</h2>
+        <h2 style="color: #8B4513; margin-top: 0;">📋 Nuovi Dettagli Prenotazione</h2>
         
         <div class="detail-row">
           <span class="detail-label">ID Prenotazione:</span>
@@ -406,18 +420,40 @@ export async function sendBookingUpdateEmail(data: BookingUpdateEmailData) {
         </div>
       </div>
       
-      <div class="payment-breakdown">
-        <h3 style="margin-top: 0; color: #2563eb;">💰 Riepilogo Pagamenti</h3>
+      <div class="cost-breakdown">
+        <h3 style="margin-top: 0; color: #0369a1;">💰 Riepilogo Costi</h3>
         
-        <div class="detail-row" style="border-bottom: 1px solid #bfdbfe;">
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd;">
           <span>Prenotazione Originale:</span>
           <span>€${(data.originalAmount / 100).toFixed(2)}</span>
         </div>
         
         ${
+          data.dateChangeCost
+            ? `
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd;">
+          <span>Cambio Date:</span>
+          <span>+€${(data.dateChangeCost / 100).toFixed(2)}</span>
+        </div>
+        `
+            : ""
+        }
+        
+        ${
+          data.guestAdditionCost
+            ? `
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd;">
+          <span>Aggiunta Ospiti:</span>
+          <span>+€${(data.guestAdditionCost / 100).toFixed(2)}</span>
+        </div>
+        `
+            : ""
+        }
+        
+        ${
           data.penalty
             ? `
-        <div class="detail-row" style="border-bottom: 1px solid #bfdbfe; color: #dc2626;">
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd; color: #dc2626;">
           <span>Penale (50%):</span>
           <span>+€${(data.penalty / 100).toFixed(2)}</span>
         </div>
@@ -425,32 +461,26 @@ export async function sendBookingUpdateEmail(data: BookingUpdateEmailData) {
             : ""
         }
         
-        ${
-          data.priceDifference && data.priceDifference > 0
-            ? `
-        <div class="detail-row" style="border-bottom: 1px solid #bfdbfe; color: #16a34a;">
-          <span>Differenza Prezzo:</span>
-          <span>+€${(data.priceDifference / 100).toFixed(2)}</span>
+        <div style="display: flex; justify-content: space-between; padding: 15px 0 0 0; margin-top: 10px; border-top: 2px solid #0369a1; font-size: 18px;">
+          <span style="font-weight: bold;">Totale Speso:</span>
+          <span style="font-weight: bold; color: #8B4513;">€${(totalSpent / 100).toFixed(2)}</span>
         </div>
+        
+        ${
+          difference > 0
+            ? `
+        <p style="font-size: 14px; margin-top: 15px; color: #0369a1;">
+          ℹ️ Hai pagato un supplemento di €${(difference / 100).toFixed(2)} per le modifiche.
+        </p>
         `
             : ""
         }
-        
-        ${
-          data.priceDifference && data.priceDifference < 0
-            ? `
-        <div class="detail-row" style="border-bottom: 1px solid #bfdbfe; color: #16a34a;">
-          <span>Storno (Rimborso):</span>
-          <span>-€${Math.abs(data.priceDifference / 100).toFixed(2)}</span>
-        </div>
-        `
-            : ""
-        }
-        
-        <div class="detail-row total-row" style="border-bottom: none;">
-          <span>TOTALE SPESO:</span>
-          <span>€${(totalPaid / 100).toFixed(2)}</span>
-        </div>
+      </div>
+      
+      <div style="text-align: center;">
+        <a href="${siteUrl}/user/booking/${data.bookingId}" style="display: inline-block; background: #8B4513; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0;">
+          Visualizza Prenotazione
+        </a>
       </div>
       
       <p style="margin-top: 30px;">Se hai domande o necessiti di assistenza, non esitare a contattarci.</p>
@@ -461,7 +491,7 @@ export async function sendBookingUpdateEmail(data: BookingUpdateEmailData) {
     <div class="footer">
       <p>Al 22 Suite & Spa Luxury Experience</p>
       <p>Polignano a Mare, Italia</p>
-      <p>Email: progettocale@gmail.com</p>
+      <p>Questa è una email automatica, si prega di non rispondere.</p>
     </div>
   </div>
 </body>
@@ -471,19 +501,19 @@ export async function sendBookingUpdateEmail(data: BookingUpdateEmailData) {
     const { data: emailData, error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || "Al 22 Suite <noreply@al22suite.com>",
       to: data.to,
-      subject: `✅ Prenotazione Modificata - ${data.bookingId}`,
+      subject: `✏️ Prenotazione Modificata - ${data.bookingId}`,
       html: emailHtml,
     })
 
     if (error) {
-      console.error("[Email] Error sending update email:", error)
+      console.error("[Email] Resend API error:", error)
       return { success: false, error: error.message }
     }
 
-    console.log("[Email] Update email sent successfully!")
+    console.log("[Email] Modification email sent successfully!")
     return { success: true, emailId: emailData?.id }
   } catch (error: any) {
-    console.error("[Email] Error in sendBookingUpdateEmail:", error)
+    console.error("[Email] Unexpected error:", error.message)
     return { success: false, error: error.message }
   }
 }

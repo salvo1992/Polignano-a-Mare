@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { beds24Client } from "@/lib/beds24-client"
-import { getFirestore } from "firebase-admin/firestore"
-import { admin } from "@/lib/firebase-admin"
+import { getFirestore } from "@/lib/firebase-admin"
 
 /**
  * Sync reviews from Beds24 (Booking.com and Airbnb) to Firebase
@@ -10,6 +9,8 @@ import { admin } from "@/lib/firebase-admin"
 export async function POST() {
   try {
     const reviews = await beds24Client.getReviews()
+
+    console.log(`[v0] Retrieved ${reviews.length} total reviews from Beds24`)
 
     if (reviews.length === 0) {
       return NextResponse.json({
@@ -22,7 +23,7 @@ export async function POST() {
       })
     }
 
-    const db = getFirestore(admin)
+    const db = getFirestore()
     const reviewsRef = db.collection("reviews")
 
     let synced = 0
@@ -30,22 +31,33 @@ export async function POST() {
 
     for (const review of reviews) {
       try {
-        // Check if review already exists by beds24Id
-        const existingQuery = await reviewsRef.where("beds24Id", "==", review.id).limit(1).get()
+        const uniqueId = review.id || `${review.source}_${review.guestName}_${review.date}_${review.rating}`
+
+        console.log(`[v0] Processing review - ID: ${uniqueId}, Comment: "${review.comment}", Rating: ${review.rating}`)
+
+        // Check if review already exists by beds24Id or unique combination
+        const existingQuery = await reviewsRef.where("beds24Id", "==", uniqueId).limit(1).get()
 
         if (!existingQuery.empty) {
+          console.log(`[v0] Review ${uniqueId} already exists, skipping`)
+          skipped++
+          continue
+        }
+
+        if (!review.comment && !review.rating) {
+          console.log(`[v0] Review ${uniqueId} has no content, skipping`)
           skipped++
           continue
         }
 
         // Add review to Firebase
         await reviewsRef.add({
-          beds24Id: review.id,
+          beds24Id: uniqueId,
           bookingId: review.bookingId,
           roomId: review.roomId,
           name: review.guestName,
           rating: review.rating,
-          comment: review.comment,
+          comment: review.comment || "",
           source: review.source,
           date: review.date,
           response: review.response || null,
@@ -55,6 +67,7 @@ export async function POST() {
           createdAt: review.date,
         })
 
+        console.log(`[v0] Successfully synced review ${uniqueId}`)
         synced++
       } catch (error) {
         console.error(`Error syncing review ${review.id}:`, error)
@@ -111,3 +124,4 @@ export async function GET() {
     )
   }
 }
+

@@ -39,6 +39,8 @@ export interface Beds24Booking {
   price: number
   status: string
   referer: string // 'airbnb' | 'booking' | 'direct'
+  apiSourceId?: number
+  apiSource?: string
   created: string
   modified: string
   notes?: string
@@ -366,8 +368,12 @@ export class Beds24Client {
    */
   async getBookings(from?: string, to?: string, includeExtras = true): Promise<Beds24Booking[]> {
     const params = new URLSearchParams()
-    if (from) params.append("arrivalFrom", from)
-    if (to) params.append("arrivalTo", to)
+
+    if (from) params.append("checkInFrom", from)
+    if (to) params.append("checkOutTo", to)
+
+    params.append("limit", "100")
+
     if (includeExtras) {
       params.append("includeInvoice", "true")
       params.append("includeInfoItems", "true")
@@ -377,6 +383,41 @@ export class Beds24Client {
     const endpoint = `/bookings?${params.toString()}`
     const response = await this.request<{ data: Beds24Booking[] }>(endpoint)
     return response.data || []
+  }
+
+  /**
+   * Fetch bookings from Booking.com only (apiSourceId = 19)
+   * Filters client-side since Beds24 API ignores apiSourceId parameter
+   */
+  async getBookingComBookings(from?: string, to?: string): Promise<Beds24Booking[]> {
+    const allBookings = await this.getBookings(from, to, true)
+    const bookingComBookings = allBookings.filter((booking) => booking.apiSourceId === 19)
+    console.log(`[v0] Filtered ${bookingComBookings.length} Booking.com bookings from ${allBookings.length} total`)
+    return bookingComBookings
+  }
+
+  /**
+   * Fetch bookings from Airbnb only (apiSourceId = 10 for iCal, 46 for XML)
+   * Filters client-side since Beds24 API ignores apiSourceId parameter
+   */
+  async getAirbnbBookings(from?: string, to?: string): Promise<Beds24Booking[]> {
+    console.log("[v0] Fetching Airbnb bookings (iCal=10, XML=46)...")
+    const allBookings = await this.getBookings(from, to, true)
+
+    const airbnbBookings = allBookings.filter((booking) => booking.apiSourceId === 10 || booking.apiSourceId === 46)
+
+    const icalCount = airbnbBookings.filter((b) => b.apiSourceId === 10).length
+    const xmlCount = airbnbBookings.filter((b) => b.apiSourceId === 46).length
+
+    console.log(
+      `[v0] Filtered ${airbnbBookings.length} Airbnb bookings from ${allBookings.length} total (iCal: ${icalCount}, XML: ${xmlCount})`,
+    )
+
+    if (airbnbBookings.length === 0) {
+      console.log("[v0] No Airbnb bookings found in Beds24. Make sure Airbnb is connected to your Beds24 account.")
+    }
+
+    return airbnbBookings
   }
 
   /**
@@ -410,6 +451,8 @@ export class Beds24Client {
       const endpoint = `/channels/booking/reviews?${params.toString()}`
       const response = await this.request<{ data: any[] }>(endpoint)
 
+      console.log(`[v0] Retrieved ${response.data?.length || 0} raw reviews from Booking.com API`)
+
       const reviews: Beds24Review[] = []
       const data = response.data || []
 
@@ -417,19 +460,45 @@ export class Beds24Client {
       const limitedData = data.slice(0, limit)
 
       for (const item of limitedData) {
+        let comment = ""
+        if (item.content) {
+          const positive = item.content.positive || ""
+          const negative = item.content.negative || ""
+          const headline = item.content.headline || ""
+
+          // Combine headline, positive and negative comments
+          const parts = []
+          if (headline) parts.push(headline)
+          if (positive) parts.push(positive)
+          if (negative) parts.push(`Negativo: ${negative}`)
+
+          comment = parts.join(" | ")
+        }
+
+        const rating = item.scoring?.review_score || item.rating || 5
+
+        const guestName = item.reviewer?.name || item.guestName || "Guest"
+
+        const date = item.created_timestamp
+          ? item.created_timestamp.split(" ")[0] // Extract YYYY-MM-DD from "YYYY-MM-DD HH:MM:SS"
+          : new Date().toISOString().split("T")[0]
+
+        const responseText = item.reply?.text || undefined
+
         reviews.push({
-          id: item.id || `booking_${item.bookingId || Date.now()}`,
-          bookingId: item.bookingId || "",
-          roomId: item.roomId || "",
-          rating: item.rating || item.score || 5,
-          comment: item.comment || item.review || item.text || "",
-          guestName: item.guestName || item.reviewerName || "Guest",
+          id: item.review_id || `booking_${item.reservation_id || Date.now()}_${Math.random()}`,
+          bookingId: item.reservation_id?.toString() || "",
+          roomId: item.roomId || item.propertyId || "",
+          rating,
+          comment,
+          guestName,
           source: "booking",
-          date: item.date || item.reviewDate || new Date().toISOString().split("T")[0],
-          response: item.response || item.hostResponse || undefined,
+          date,
+          response: responseText,
         })
       }
 
+      console.log(`[v0] Processed ${reviews.length} Booking.com reviews`)
       return reviews
     } catch (error) {
       console.error("Error fetching Booking.com reviews:", error)
@@ -482,8 +551,8 @@ export class Beds24Client {
 
       return reviews
     } catch (error) {
-      console.error("Error fetching Airbnb reviews:", error)
-      // Don't throw for Airbnb as it's beta - just return empty array
+      // Airbnb reviews API is in beta and may not be available for all properties
+      console.log("Airbnb reviews not available (endpoint may not be supported)")
       return []
     }
   }

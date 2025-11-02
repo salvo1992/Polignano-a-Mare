@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { RefreshCw, Download, Calendar, AlertCircle, CheckCircle2 } from "lucide-react"
+import { RefreshCw, Download, Calendar, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export function Beds24SyncPanel() {
@@ -15,6 +15,13 @@ export function Beds24SyncPanel() {
     synced: number
     skipped: number
     total: number
+    breakdown?: {
+      booking: number
+      airbnbIcal: number
+      airbnbXml: number
+      airbnbTotal: number
+      other: number
+    }
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const syncLockRef = useRef(false)
@@ -103,25 +110,60 @@ export function Beds24SyncPanel() {
         </div>
 
         {syncResult && (
-          <Alert className="bg-green-50 border-green-200">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertDescription>
-              <div className="space-y-1">
-                <p className="font-medium text-green-900">Sincronizzazione completata!</p>
-                <div className="flex gap-4 text-sm text-green-800">
-                  <span>
-                    Sincronizzate: <strong>{syncResult.synced}</strong>
-                  </span>
-                  <span>
-                    Saltate: <strong>{syncResult.skipped}</strong>
-                  </span>
-                  <span>
-                    Totali: <strong>{syncResult.total}</strong>
-                  </span>
+          <div className="space-y-3">
+            <Alert className="bg-green-50 border-green-200">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p className="font-medium text-green-900">Sincronizzazione completata!</p>
+                  <div className="flex gap-4 text-sm text-green-800">
+                    <span>
+                      Sincronizzate: <strong>{syncResult.synced}</strong>
+                    </span>
+                    <span>
+                      Saltate: <strong>{syncResult.skipped}</strong>
+                    </span>
+                    <span>
+                      Totali: <strong>{syncResult.total}</strong>
+                    </span>
+                  </div>
+                  {syncResult.breakdown && (
+                    <div className="mt-3 pt-3 border-t border-green-300">
+                      <p className="text-xs font-medium text-green-900 mb-2">Prenotazioni per fonte:</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-green-800">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-blue-600 text-white">Booking.com</Badge>
+                          <span className="font-semibold">{syncResult.breakdown.booking}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-pink-600 text-white">Airbnb</Badge>
+                          <span className="font-semibold">{syncResult.breakdown.airbnbTotal}</span>
+                        </div>
+                        {syncResult.breakdown.airbnbIcal > 0 && (
+                          <div className="text-xs text-green-700 col-span-2">
+                            (iCal: {syncResult.breakdown.airbnbIcal}, XML: {syncResult.breakdown.airbnbXml})
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </AlertDescription>
-          </Alert>
+              </AlertDescription>
+            </Alert>
+
+            {syncResult.breakdown && syncResult.breakdown.airbnbTotal === 0 && (
+              <Alert className="bg-amber-50 border-amber-200">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-900">
+                  <p className="font-medium mb-1">Nessuna prenotazione Airbnb trovata</p>
+                  <p className="text-xs">
+                    Verifica che Airbnb sia correttamente connesso al tuo account Beds24. Se hai appena collegato
+                    Airbnb, potrebbero volerci alcuni minuti prima che le prenotazioni vengano sincronizzate.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         )}
 
         {error && (
@@ -157,4 +199,5 @@ export function Beds24SyncPanel() {
     </Card>
   )
 }
+
 

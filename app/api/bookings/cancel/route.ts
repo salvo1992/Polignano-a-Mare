@@ -39,22 +39,25 @@ export async function DELETE(request: NextRequest) {
     }
 
     const isFullRefund = daysUntilCheckIn >= 7
-    const penalty = isFullRefund ? 0 : Math.round((booking?.totalAmount || 0) * 0.5)
     const refundAmount = isFullRefund ? booking?.totalAmount || 0 : 0
+    const penalty = isFullRefund ? 0 : booking?.totalAmount || 0
 
     let stripeRefundId = null
     if (isFullRefund && booking?.stripePaymentIntentId && refundAmount > 0) {
       try {
+        console.log("[API] Creating Stripe refund for payment intent:", booking.stripePaymentIntentId)
         const refund = await stripe.refunds.create({
           payment_intent: booking.stripePaymentIntentId,
           amount: refundAmount,
           reason: "requested_by_customer",
         })
         stripeRefundId = refund.id
-        console.log("[API] Stripe refund created:", stripeRefundId, "Amount:", refundAmount / 100)
-      } catch (error) {
-        console.error("[API] Error creating Stripe refund:", error)
-        return NextResponse.json({ error: "Errore nel processare il rimborso" }, { status: 500 })
+        console.log("[API] ✅ Stripe refund created successfully:", stripeRefundId)
+        console.log("[API] Refund amount:", refundAmount / 100, "EUR")
+        console.log("[API] Refund status:", refund.status)
+      } catch (error: any) {
+        console.error("[API] ❌ Error creating Stripe refund:", error.message)
+        // Continue with cancellation even if refund fails
       }
     }
 
@@ -79,12 +82,13 @@ export async function DELETE(request: NextRequest) {
         checkOut: booking?.checkOut || "",
         guests: booking?.guests || 1,
         originalAmount: booking?.totalAmount || 0,
-        penalty,
         refundAmount,
+        penalty,
         isFullRefund,
       })
+      console.log("[API] ✅ Cancellation email sent successfully")
     } catch (error) {
-      console.error("[API] Error sending cancellation email:", error)
+      console.error("[API] ❌ Error sending cancellation email:", error)
     }
 
     console.log("[API] Booking cancelled successfully:", bookingId)
@@ -101,4 +105,5 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Errore nella cancellazione" }, { status: 500 })
   }
 }
+
 

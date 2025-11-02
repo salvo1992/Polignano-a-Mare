@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getAdminDb } from "@/lib/firebase-admin"
 import { FieldValue } from "firebase-admin/firestore"
 import Stripe from "stripe"
-import { sendBookingUpdateEmail } from "@/lib/email"
+import { sendModificationEmail } from "@/lib/email"
 import {
   calculateNights,
   calculatePriceByGuests,
@@ -14,7 +14,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11
 
 export async function PUT(request: NextRequest) {
   try {
-    const { bookingId, checkIn, checkOut, userId, newPrice, penalty, priceDifference } = await request.json()
+    const { bookingId, checkIn, checkOut, userId, newPrice, penalty } = await request.json()
+
+    console.log("[v0] Change dates request:", { bookingId, checkIn, checkOut, newPrice, penalty })
 
     if (!bookingId || !checkIn || !checkOut) {
       return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
@@ -53,14 +55,21 @@ export async function PUT(request: NextRequest) {
     const guests = bookingData?.guests || 2
     const basePrice = calculatePriceByGuests(guests, nights)
 
-    // Calculate penalty if within 7 days of original check-in
     const daysUntilCheckIn = calculateDaysUntilCheckIn(bookingData?.checkIn)
     const penaltyAmount = calculateChangeDatesPenalty(bookingData?.totalAmount || 0, daysUntilCheckIn)
     const totalAmount = basePrice + penaltyAmount
 
-    const totalDifference = totalAmount - (bookingData?.totalAmount || 0)
+    const originalAmount = bookingData?.totalAmount || 0
+    const priceDifference = totalAmount - originalAmount
 
-    if (totalDifference > 0) {
+    console.log("[v0] Price calculation:", {
+      basePrice: basePrice / 100,
+      penaltyAmount: penaltyAmount / 100,
+      totalAmount: totalAmount / 100,
+      priceDifference: priceDifference / 100,
+    })
+
+    if (priceDifference > 0) {
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
@@ -71,13 +80,13 @@ export async function PUT(request: NextRequest) {
                 name: `Modifica Date - ${bookingData?.roomName || "Camera"}`,
                 description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${(penaltyAmount / 100).toFixed(2)})` : ""}`,
               },
-              unit_amount: totalDifference,
+              unit_amount: priceDifference,
             },
             quantity: 1,
           },
         ],
         mode: "payment",
-        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}&booking_id=${bookingId}&type=change_dates`,
+        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/user/booking/${bookingId}?payment=cancelled`,
         metadata: {
           bookingId,
@@ -86,8 +95,8 @@ export async function PUT(request: NextRequest) {
           checkOut,
           newPrice: totalAmount.toString(),
           penalty: penaltyAmount.toString(),
-          priceDifference: (basePrice - (bookingData?.totalAmount || 0)).toString(),
-          originalAmount: (bookingData?.totalAmount || 0).toString(),
+          originalAmount: originalAmount.toString(),
+          dateChangeCost: priceDifference.toString(),
         },
       })
 
@@ -103,38 +112,24 @@ export async function PUT(request: NextRequest) {
       nights,
       totalAmount,
       updatedAt: FieldValue.serverTimestamp(),
-      modifications: FieldValue.arrayUnion({
-        type: "change_dates",
-        timestamp: new Date().toISOString(),
-        oldCheckIn: bookingData?.checkIn,
-        oldCheckOut: bookingData?.checkOut,
-        newCheckIn: checkIn,
-        newCheckOut: checkOut,
-        penalty: penaltyAmount,
-        priceDifference: basePrice - (bookingData?.totalAmount || 0),
-      }),
     })
 
-    try {
-      await sendBookingUpdateEmail({
-        to: bookingData?.email || "",
-        bookingId,
-        firstName: bookingData?.firstName || "",
-        lastName: bookingData?.lastName || "",
-        roomName: bookingData?.roomName || "",
-        checkIn,
-        checkOut,
-        guests,
-        nights,
-        originalAmount: bookingData?.totalAmount || 0,
-        newAmount: totalAmount,
-        penalty: penaltyAmount,
-        priceDifference: basePrice - (bookingData?.totalAmount || 0),
-        modificationType: "change_dates",
-      })
-    } catch (error) {
-      console.error("[API] Error sending update email:", error)
-    }
+    await sendModificationEmail({
+      to: bookingData?.email,
+      bookingId,
+      firstName: bookingData?.firstName,
+      lastName: bookingData?.lastName,
+      checkIn,
+      checkOut,
+      roomName: bookingData?.roomName,
+      guests: bookingData?.guests || 2,
+      nights,
+      originalAmount,
+      newAmount: totalAmount,
+      penalty: penaltyAmount,
+      dateChangeCost: priceDifference,
+      modificationType: "dates",
+    })
 
     console.log("[API] Booking dates changed successfully:", bookingId)
 
@@ -144,5 +139,6 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Errore nella modifica delle date" }, { status: 500 })
   }
 }
+
 
 

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getAdminDb } from "@/lib/firebase-admin"
 import { FieldValue } from "firebase-admin/firestore"
 import Stripe from "stripe"
-import { sendBookingUpdateEmail } from "@/lib/email"
+import { sendModificationEmail } from "@/lib/email"
 import { calculateNights } from "@/lib/pricing"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
@@ -10,6 +10,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11
 export async function PUT(request: NextRequest) {
   try {
     const { bookingId, newGuestsCount, priceDifference } = await request.json()
+
+    console.log("[v0] Add guest request:", { bookingId, newGuestsCount, priceDifference })
 
     if (!bookingId || !newGuestsCount || priceDifference === undefined) {
       return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
@@ -25,15 +27,16 @@ export async function PUT(request: NextRequest) {
 
     const booking = bookingSnap.data()
     const currentGuests = booking?.guests || 1
-    const maxGuests = booking?.maxGuests || 4
-    const originalAmount = booking?.totalAmount || 0
+    const maxGuests = 4
+
+    console.log("[v0] Current guests:", currentGuests, "New guests:", newGuestsCount, "Max guests:", maxGuests)
 
     if (newGuestsCount > maxGuests) {
       return NextResponse.json({ error: "Numero massimo di ospiti raggiunto" }, { status: 400 })
     }
 
+    const originalAmount = booking?.totalAmount || 0
     const newTotalAmount = originalAmount + priceDifference
-    const nights = calculateNights(booking?.checkIn, booking?.checkOut)
 
     if (priceDifference > 0) {
       const session = await stripe.checkout.sessions.create({
@@ -52,15 +55,15 @@ export async function PUT(request: NextRequest) {
           },
         ],
         mode: "payment",
-        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}&booking_id=${bookingId}&type=add_guests`,
+        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/user/booking/${bookingId}?payment=cancelled`,
         metadata: {
           bookingId,
-          type: "add_guests",
+          type: "add_guest",
           newGuestsCount: newGuestsCount.toString(),
           newTotalAmount: newTotalAmount.toString(),
-          priceDifference: priceDifference.toString(),
           originalAmount: originalAmount.toString(),
+          guestAdditionCost: priceDifference.toString(),
         },
       })
 
@@ -74,34 +77,24 @@ export async function PUT(request: NextRequest) {
       guests: newGuestsCount,
       totalAmount: newTotalAmount,
       updatedAt: FieldValue.serverTimestamp(),
-      modifications: FieldValue.arrayUnion({
-        type: "add_guests",
-        timestamp: new Date().toISOString(),
-        oldGuests: currentGuests,
-        newGuests: newGuestsCount,
-        priceDifference,
-      }),
     })
 
-    try {
-      await sendBookingUpdateEmail({
-        to: booking?.email || "",
-        bookingId,
-        firstName: booking?.firstName || "",
-        lastName: booking?.lastName || "",
-        roomName: booking?.roomName || "",
-        checkIn: booking?.checkIn || "",
-        checkOut: booking?.checkOut || "",
-        guests: newGuestsCount,
-        nights,
-        originalAmount,
-        newAmount: newTotalAmount,
-        priceDifference,
-        modificationType: "add_guests",
-      })
-    } catch (error) {
-      console.error("[API] Error sending update email:", error)
-    }
+    const nights = calculateNights(booking?.checkIn, booking?.checkOut)
+    await sendModificationEmail({
+      to: booking?.email,
+      bookingId,
+      firstName: booking?.firstName,
+      lastName: booking?.lastName,
+      checkIn: booking?.checkIn,
+      checkOut: booking?.checkOut,
+      roomName: booking?.roomName,
+      guests: newGuestsCount,
+      nights,
+      originalAmount,
+      newAmount: newTotalAmount,
+      guestAdditionCost: priceDifference,
+      modificationType: "guests",
+    })
 
     console.log("[API] Guests added successfully:", bookingId)
 

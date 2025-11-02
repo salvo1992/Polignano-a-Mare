@@ -15,13 +15,11 @@ import { useToast } from "@/hooks/use-toast"
 export default function CheckoutSuccess() {
   const { t } = useLanguage()
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const search = useSearchParams()
   const { user } = useAuth()
   const { toast } = useToast()
-
-  const sessionId = searchParams.get("session_id")
-  const bookingId = searchParams.get("booking_id") || searchParams.get("bookingId") || ""
-  const modificationType = searchParams.get("type")
+  const bookingId = search.get("bookingId") || ""
+  const sessionId = search.get("session_id") || ""
 
   const [loading, setLoading] = useState(true)
   const [booking, setBooking] = useState<any>(null)
@@ -30,66 +28,65 @@ export default function CheckoutSuccess() {
   const [copiedPassword, setCopiedPassword] = useState(false)
   const [loggingIn, setLoggingIn] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
-  const [dbUpdated, setDbUpdated] = useState(false)
 
   useEffect(() => {
-    if (!bookingId) {
+    if (sessionId) {
+      processStripeSession()
+    } else if (bookingId) {
+      loadBooking()
+    } else {
       setLoading(false)
-      return
     }
+  }, [bookingId, sessionId])
 
-    const loadBooking = async () => {
-      try {
-        console.log("[v0] Loading booking:", bookingId)
-        console.log("[v0] Session ID:", sessionId)
-        console.log("[v0] Modification type:", modificationType)
-
-        if (sessionId && modificationType && !dbUpdated) {
-          console.log("[v0] Processing Stripe payment and updating database...")
-          await updateBookingAfterPayment(sessionId, bookingId, modificationType)
-          setDbUpdated(true)
-        }
-
-        const bookingData = await getBookingById(bookingId)
-        console.log("[v0] Booking loaded:", bookingData)
-        setBooking(bookingData)
-
-        if (bookingData && !emailSent) {
-          await sendConfirmationEmail(bookingId)
-          setEmailSent(true)
-        }
-      } catch (error) {
-        console.error("[v0] Error loading booking:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadBooking()
-  }, [bookingId, sessionId, modificationType])
-
-  const updateBookingAfterPayment = async (sessionId: string, bookingId: string, type: string) => {
+  const processStripeSession = async () => {
     try {
-      const response = await fetch("/api/bookings/update-after-payment", {
+      console.log("[v0] Processing Stripe session:", sessionId)
+      const response = await fetch("/api/checkout/process-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          bookingId,
-          type,
-        }),
+        body: JSON.stringify({ sessionId }),
       })
 
       const data = await response.json()
-      if (!response.ok) {
-        console.error("[v0] Error updating booking after payment:", data.error)
-        throw new Error(data.error)
-      }
 
-      console.log("[v0] Booking updated successfully after payment")
+      if (!response.ok) throw new Error(data.error)
+
+      console.log("[v0] Session processed, booking updated:", data.booking)
+      setBooking(data.booking)
+      setEmailSent(true) // Email already sent by process-session API
+
+      toast({
+        title: t("success"),
+        description: "Modifica completata con successo!",
+      })
+    } catch (error: any) {
+      console.error("[v0] Error processing session:", error)
+      toast({
+        title: t("error"),
+        description: error.message || "Errore nell'elaborazione del pagamento",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadBooking = async () => {
+    try {
+      console.log("[v0] Loading booking:", bookingId)
+      const bookingData = await getBookingById(bookingId)
+      console.log("[v0] Booking loaded:", bookingData)
+      setBooking(bookingData)
+
+      if (bookingData && !emailSent) {
+        await sendConfirmationEmail(bookingId)
+        setEmailSent(true)
+      }
     } catch (error) {
-      console.error("[v0] Error in updateBookingAfterPayment:", error)
-      throw error
+      console.error("[v0] Error loading booking:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -111,7 +108,7 @@ export default function CheckoutSuccess() {
 
   const handleLogin = async () => {
     if (!booking?.newUserPassword) {
-      router.push(`/user?highlight=${bookingId}`)
+      router.push(`/user?highlight=${booking?.id || bookingId}`)
       return
     }
 
@@ -124,7 +121,7 @@ export default function CheckoutSuccess() {
         description: t("redirectingToDashboard"),
       })
       setTimeout(() => {
-        router.push(`/user?highlight=${bookingId}`)
+        router.push(`/user?highlight=${booking?.id || bookingId}`)
       }, 1000)
     } catch (error) {
       console.error("[v0] Login failed:", error)
@@ -142,7 +139,7 @@ export default function CheckoutSuccess() {
 
     setResendingEmail(true)
     try {
-      await sendConfirmationEmail(bookingId)
+      await sendConfirmationEmail(booking.id || bookingId)
       toast({
         title: t("emailSent"),
         description: t("checkYourInbox"),
@@ -208,7 +205,7 @@ export default function CheckoutSuccess() {
               <div className="rounded-lg border p-4 bg-muted/30 space-y-3">
                 <div>
                   <div className="text-xs text-muted-foreground">{t("bookingId")}</div>
-                  <div className="font-mono text-sm font-medium">{bookingId}</div>
+                  <div className="font-mono text-sm font-medium">{booking.id || bookingId}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">{t("room")}</div>
@@ -325,7 +322,11 @@ export default function CheckoutSuccess() {
                   )}
                 </Button>
               ) : (
-                <Button onClick={() => router.push(`/user?highlight=${bookingId}`)} className="w-full" size="lg">
+                <Button
+                  onClick={() => router.push(`/user?highlight=${booking?.id || bookingId}`)}
+                  className="w-full"
+                  size="lg"
+                >
                   {t("goToUserArea")}
                 </Button>
               )}
@@ -340,4 +341,3 @@ export default function CheckoutSuccess() {
     </main>
   )
 }
-
