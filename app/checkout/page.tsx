@@ -10,7 +10,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   getBookingById,
   createStripeCheckout,
-  createUniCreditPayment,
   createUserFromBooking,
   linkBookingToUser,
   updateBooking,
@@ -23,7 +22,7 @@ export default function CheckoutPage() {
   const router = useRouter()
   const search = useSearchParams()
   const bookingId = search.get("bookingId") || ""
-  const method = (search.get("method") || "stripe") as "stripe" | "unicredit"
+  const method = "stripe" // Removed unicredit method support, only stripe now
 
   const [booking, setBooking] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -64,53 +63,33 @@ export default function CheckoutPage() {
 
       if (userResult.success && userResult.password) {
         console.log("[v0] New user created, saving password to booking")
-        // Save the generated password to the booking
         await updateBooking(bookingId, {
           newUserPassword: userResult.password,
         })
 
-        // Link booking to user
         await linkBookingToUser(bookingId, booking.email)
         console.log("[v0] Booking linked to user")
       } else if (userResult.success) {
         console.log("[v0] User already exists, linking booking")
-        // User already exists, just link the booking
         await linkBookingToUser(bookingId, booking.email)
       } else {
         console.error("[v0] Failed to create user:", userResult.error)
-        // Continue with payment even if user creation fails
       }
-      // </CHANGE>
 
-      if (method === "stripe") {
-        const res = await createStripeCheckout({
-          bookingId,
-          amount: booking.totalAmount,
-          currency: booking.currency || "EUR",
-          successUrl,
-          cancelUrl,
-          customerEmail: booking.email,
-          metadata: { source: "site" },
-        })
-        window.location.href = res.url
-      } else if (method === "unicredit") {
-        const res = await createUniCreditPayment({
-          bookingId,
-          amount: booking.totalAmount,
-          currency: booking.currency || "EUR",
-          successUrl,
-          cancelUrl,
-          customerEmail: booking.email,
-          metadata: { source: "site" },
-        })
-        window.location.href = res.redirectUrl
-      }
+      const res = await createStripeCheckout({
+        bookingId,
+        amount: booking.totalAmount,
+        currency: booking.currency || "EUR",
+        successUrl,
+        cancelUrl,
+        customerEmail: booking.email,
+        metadata: { source: "site" },
+      })
+      window.location.href = res.url
     } catch (e: any) {
       console.error(e)
       if (e.message?.includes("Invalid API Key") || e.message?.includes("authentication")) {
         setError("Errore di configurazione del pagamento. Contatta l'amministratore del sito.")
-      } else if (e.message?.includes("not available")) {
-        setError("Il metodo di pagamento selezionato non è al momento disponibile. Prova con un altro metodo.")
       } else {
         setError("Si è verificato un errore durante l'elaborazione del pagamento. Riprova più tardi.")
       }
@@ -165,10 +144,6 @@ export default function CheckoutPage() {
                   <div>
                     <div className="text-xs text-muted-foreground">{t("guests")}</div>
                     <div className="font-medium">{booking.guests}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">{t("paymentMethod")}</div>
-                    <div className="font-medium capitalize">{method}</div>
                   </div>
                 </div>
 

@@ -49,9 +49,9 @@ export async function getAllReviewsPage(opts?: {
   const pageSize = opts?.pageSize ?? 12
   const col = collection(db, REVIEWS_COL)
 
-  let qbase = query(col, orderBy("rating", "desc"))
+  let qbase = query(col, orderBy("createdAt", "desc"))
   if (opts?.minRating) {
-    qbase = query(col, where("rating", ">=", opts.minRating), orderBy("rating", "desc"))
+    qbase = query(col, where("rating", ">=", opts.minRating), orderBy("createdAt", "desc"))
   }
 
   let qf = query(qbase, limit(pageSize))
@@ -66,3 +66,4 @@ export async function getAllReviewsPage(opts?: {
 
   return { items, lastDoc: last }
 }
+

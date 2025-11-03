@@ -27,8 +27,6 @@ interface BookingModalProps {
   }
 }
 
-type PayMethod = "stripe" | "paypal" | "unicredit"
-
 export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps) {
   const { t } = useLanguage()
   const router = useRouter()
@@ -37,7 +35,6 @@ export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
-  const [payMethod, setPayMethod] = useState<PayMethod>("stripe")
   const [isProcessing, setIsProcessing] = useState(false)
 
   const handleNext = () => {
@@ -87,8 +84,7 @@ export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps
       // Create booking in Firebase
       const bookingId = await createBooking(payload)
 
-      // Redirect to checkout page (same as /prenota page)
-      const qs = new URLSearchParams({ bookingId, method: payMethod }).toString()
+      const qs = new URLSearchParams({ bookingId, method: "stripe" }).toString()
       router.push(`/checkout?${qs}`)
 
       // Close modal
@@ -112,7 +108,7 @@ export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps
           </DialogTitle>
           <DialogDescription>
             {step === 1 && (t("enterGuestDetails") || "Inserisci i tuoi dati per continuare con la prenotazione")}
-            {step === 2 && (t("selectPaymentMethod") || "Seleziona il metodo di pagamento preferito")}
+            {step === 2 && (t("selectPaymentMethod") || "Conferma il pagamento con Stripe")}
           </DialogDescription>
         </DialogHeader>
 
@@ -152,72 +148,20 @@ export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps
             </div>
           )}
 
-          {/* Step 2: Payment Method */}
+          {/* Step 2: Payment Method - Only Stripe */}
           {step === 2 && (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                {/* Stripe */}
-                <button
-                  type="button"
-                  onClick={() => setPayMethod("stripe")}
-                  aria-pressed={payMethod === "stripe"}
-                  className={[
-                    "relative flex flex-col items-center justify-center rounded-lg px-3 py-4 text-xs",
-                    "border-2 transition-all duration-200 hover:scale-[1.02]",
-                    payMethod === "stripe"
-                      ? "border-[#635BFF] bg-white shadow-md shadow-[#635BFF]/20"
-                      : "border-gray-200 bg-white hover:border-[#635BFF]/50",
-                  ].join(" ")}
-                >
-                  <svg width="56" height="24" viewBox="0 0 60 25" fill="none">
-                    <path
-                      d="M59.64 14.28h-8.06c.19 1.93 1.6 2.55 3.2 2.55 1.64 0 2.96-.37 4.05-.95v3.32a8.33 8.33 0 0 1-4.56 1.1c-4.01 0-6.83-2.5-6.83-7.48 0-4.19 2.39-7.52 6.3-7.52 3.92 0 5.96 3.28 5.96 7.5 0 .4-.04 1.26-.06 1.48zm-5.92-5.62c-1.03 0-2.17.73-2.17 2.58h4.25c0-1.85-1.07-2.58-2.08-2.58zM40.95 20.3c-1.44 0-2.32-.6-2.9-1.04l-.02 4.63-4.12.87V5.57h3.76l.08 1.02a4.7 4.7 0 0 1 3.23-1.29c2.9 0 5.62 2.6 5.62 7.4 0 5.23-2.7 7.6-5.65 7.6zM40 8.95c-.95 0-1.54.34-1.97.81l.02 6.12c.4.44.98.78 1.95.78 1.52 0 2.54-1.65 2.54-3.87 0-2.15-1.04-3.84-2.54-3.84zM28.24 5.57h4.13v14.44h-4.13V5.57zm0-4.7L32.37 0v3.36l-4.13.88V.88zm-4.32 9.35v9.79H19.8V5.57h3.7l.12 1.22c1-1.77 3.07-1.41 3.62-1.22v3.79c-.52-.17-2.29-.43-3.32.86zm-8.55 4.72c0 2.43 2.6 1.68 3.12 1.46v3.36c-.55.3-1.54.54-2.89.54a4.15 4.15 0 0 1-4.27-4.24l.01-13.17 4.02-.86v3.54h3.14V9.1h-3.13v5.85zm-4.91.7c0 2.97-2.31 4.66-5.73 4.66a11.2 11.2 0 0 1-4.46-.93v-3.93c1.38.75 3.1 1.31 4.46 1.31.92 0 1.53-.24 1.53-1C6.26 13.77 0 14.51 0 9.95 0 7.04 2.28 5.3 5.62 5.3c1.36 0 2.72.2 4.09.75v3.88a9.23 9.23 0 0 0-4.1-1.06c-.86 0-1.44.25-1.44.9 0 1.85 6.29.97 6.29 5.88z"
-                      fill="#635BFF"
-                    />
-                  </svg>
-                  <span className="mt-2 text-[11px] font-medium text-gray-700">Stripe</span>
-                </button>
-
-                {/* PayPal */}
-                <button
-                  type="button"
-                  onClick={() => setPayMethod("paypal")}
-                  aria-pressed={payMethod === "paypal"}
-                  className={[
-                    "relative flex flex-col items-center justify-center rounded-lg px-3 py-4 text-xs",
-                    "border-2 transition-all duration-200 hover:scale-[1.02]",
-                    payMethod === "paypal"
-                      ? "border-[#003087] bg-white shadow-md shadow-[#003087]/20"
-                      : "border-gray-200 bg-white hover:border-[#003087]/50",
-                  ].join(" ")}
-                >
-                  <svg width="56" height="24" viewBox="0 0 64 26" fill="none">
-                    <rect x="0" y="0" width="64" height="26" rx="5" fill="#003087" />
-                    <rect x="6" y="5" width="12" height="16" rx="3" fill="#009CDE" />
-                    <rect x="12" y="5" width="12" height="16" rx="3" fill="#001C64" />
-                  </svg>
-                  <span className="mt-2 text-[11px] font-medium text-gray-700">PayPal</span>
-                </button>
-
-                {/* UniCredit */}
-                <button
-                  type="button"
-                  onClick={() => setPayMethod("unicredit")}
-                  aria-pressed={payMethod === "unicredit"}
-                  className={[
-                    "relative flex flex-col items-center justify-center rounded-lg px-3 py-4 text-xs",
-                    "border-2 transition-all duration-200 hover:scale-[1.02]",
-                    payMethod === "unicredit"
-                      ? "border-[#E31E24] bg-white shadow-md shadow-[#E31E24]/20"
-                      : "border-gray-200 bg-white hover:border-[#E31E24]/50",
-                  ].join(" ")}
-                >
-                  <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-                    <rect width="32" height="32" rx="6" fill="#E31E24" />
-                    <path d="M16 9v14M9 16h14" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
-                  </svg>
-                  <span className="mt-2 text-[11px] font-medium text-gray-700">UniCredit</span>
-                </button>
+              <div className="flex items-center gap-3 p-4 bg-white rounded-lg border-2 border-[#635BFF]">
+                <svg width="64" height="26" viewBox="0 0 60 25" fill="none" aria-hidden="true">
+                  <path
+                    d="M59.64 14.28h-8.06c.19 1.93 1.6 2.55 3.2 2.55 1.64 0 2.96-.37 4.05-.95v3.32a8.33 8.33 0 0 1-4.56 1.1c-4.01 0-6.83-2.5-6.83-7.48 0-4.19 2.39-7.52 6.3-7.52 3.92 0 5.96 3.28 5.96 7.5 0 .4-.04 1.26-.06 1.48zm-5.92-5.62c-1.03 0-2.17.73-2.17 2.58h4.25c0-1.85-1.07-2.58-2.08-2.58zM40.95 20.3c-1.44 0-2.32-.6-2.9-1.04l-.02 4.63-4.12.87V5.57h3.76l.08 1.02a4.7 4.7 0 0 1 3.23-1.29c2.9 0 5.62 2.6 5.62 7.4 0 5.23-2.7 7.6-5.65 7.6zM40 8.95c-.95 0-1.54.34-1.97.81l.02 6.12c.4.44.98.78 1.95.78 1.52 0 2.54-1.65 2.54-3.87 0-2.15-1.04-3.84-2.54-3.84zM28.24 5.57h4.13v14.44h-4.13V5.57zm0-4.7L32.37 0v3.36l-4.13.88V.88zm-4.32 9.35v9.79H19.8V5.57h3.7l.12 1.22c1-1.77 3.07-1.41 3.62-1.22v3.79c-.52-.17-2.29-.43-3.32.86zm-8.55 4.72c0 2.43 2.6 1.68 3.12 1.46v3.36c-.55.3-1.54.54-2.89.54a4.15 4.15 0 0 1-4.27-4.24l.01-13.17 4.02-.86v3.54h3.14V9.1h-3.13v5.85zm-4.91.7c0 2.97-2.31 4.66-5.73 4.66a11.2 11.2 0 0 1-4.46-.93v-3.93c1.38.75 3.1 1.31 4.46 1.31.92 0 1.53-.24 1.53-1C6.26 13.77 0 14.51 0 9.95 0 7.04 2.28 5.3 5.62 5.3c1.36 0 2.72.2 4.09.75v3.88a9.23 9.23 0 0 0-4.1-1.06c-.86 0-1.44.25-1.44.9 0 1.85 6.29.97 6.29 5.88z"
+                    fill="#635BFF"
+                  />
+                </svg>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">Stripe</p>
+                  <p className="text-xs text-muted-foreground">Carte, Klarna, Apple Pay, Google Pay</p>
+                </div>
               </div>
 
               {/* Booking Summary */}
@@ -280,3 +224,4 @@ export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps
     </Dialog>
   )
 }
+

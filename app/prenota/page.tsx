@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useEffect, useMemo, useState } from "react"
+import type React from "react"
+import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/header"
@@ -10,10 +11,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Calendar as CalendarIcon, Users, MapPin, Clock, AlertCircle } from "lucide-react"
+import { CalendarIcon, Users, MapPin, Clock, AlertCircle } from "lucide-react"
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
 import { createBooking, type BookingPayload, getAllRooms } from "@/lib/firebase"
-import { useLanguage } from "@/components/language-provider"
 import { checkRoomAvailability } from "@/lib/booking-utils"
 import {
   AlertDialog,
@@ -25,13 +25,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import DateRangePicker from "@/components/date-range-picker"
-import { DateRange } from "react-day-picker"
-
-const tx = (key: string, fallback: string) => {
-  const v = t(key) as string
-  return !v || v === key ? fallback : v
-}
+import DateRangePicker, { type DateRange } from "@/components/date-range-picker"
+import { useLanguage } from "@/components/language-provider"
 
 const ROOM_IDS: Record<string, string> = { deluxe: "1", suite: "2" }
 const ROOM_NAMES: Record<string, string> = {
@@ -39,12 +34,10 @@ const ROOM_NAMES: Record<string, string> = {
   suite: "Camera Matrimoniale con Vasca Idromassaggio",
 }
 
-type PayMethod = "stripe" | "paypal" | "unicredit"
-
 export default function BookingPage() {
   const router = useRouter()
   const search = useSearchParams()
-  const { t } = useLanguage()
+  const { language, t } = useLanguage()
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
 
   // ---- Prezzi / form ----
@@ -65,7 +58,6 @@ export default function BookingPage() {
   const [range, setRange] = useState<DateRange | undefined>(undefined)
 
   // ---- Pagamenti / UI ----
-  const [payMethod, setPayMethod] = useState<PayMethod>("stripe")
   const [showErrorModal, setShowErrorModal] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
@@ -107,8 +99,7 @@ export default function BookingPage() {
   useEffect(() => {
     if (hasError) {
       setErrorMessage(
-        t("bookingErrorDescription") ||
-          "Si è verificato un problema con la transazione. Riprova tra 5 minuti."
+        t("bookingErrorDescription") || "Si è verificato un problema con la transazione. Riprova tra 5 minuti.",
       )
       setShowErrorModal(true)
     }
@@ -143,11 +134,7 @@ export default function BookingPage() {
         setIsCheckingAvailability(true)
         try {
           const roomId = ROOM_IDS[formData.roomType]
-          const isAvailable = await checkRoomAvailability(
-            roomId,
-            formData.checkIn,
-            formData.checkOut
-          )
+          const isAvailable = await checkRoomAvailability(roomId, formData.checkIn, formData.checkOut)
           setAvailabilityStatus({
             available: isAvailable,
             message: isAvailable
@@ -198,9 +185,7 @@ export default function BookingPage() {
       return
     }
     if (!availabilityStatus?.available) {
-      setErrorMessage(
-        t("roomNotAvailableError") || "La camera selezionata non è disponibile in queste date."
-      )
+      setErrorMessage(t("roomNotAvailableError") || "La camera selezionata non è disponibile in queste date.")
       setShowErrorModal(true)
       return
     }
@@ -225,20 +210,16 @@ export default function BookingPage() {
 
     try {
       const bookingId = await createBooking(payload)
-      const qs = new URLSearchParams({ bookingId, method: payMethod }).toString()
+      const qs = new URLSearchParams({ bookingId, method: "stripe" }).toString()
       router.push(`/checkout?${qs}`)
     } catch (err) {
       console.error("[booking] Create booking error:", err)
-      setErrorMessage(
-        t("bookingErrorDescription") || "Si è verificato un problema con la prenotazione."
-      )
+      setErrorMessage(t("bookingErrorDescription") || "Si è verificato un problema con la prenotazione.")
       setShowErrorModal(true)
     }
   }
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
@@ -259,13 +240,12 @@ export default function BookingPage() {
               {t("bookingPageTitle") || "Prenota il Tuo Soggiorno"}
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto">
-              {t("bookingPageSubtitle") ||
-                "Vivi un'esperienza indimenticabile nel cuore di Polignano a Mare"}
+              {t("bookingPageSubtitle") || "Vivi un'esperienza indimenticabile nel cuore di Polignano a Mare"}
             </p>
           </div>
 
           {/* LAYOUT: Form (2col) + Info Cards (1col) */}
-          <div className="grid gap-6 lg:grid-cols-3 max-w-6xl mx-auto">
+          <div className="grid gap-6 lg:grid-cols-3 max-w-5xl mx-auto">
             {/* === FORM PRENOTAZIONE (2 colonne) === */}
             <Card className="lg:col-span-2">
               <CardHeader className="pb-2">
@@ -279,15 +259,9 @@ export default function BookingPage() {
               <CardContent className="space-y-5">
                 {/* Date range - UN SOLO COMANDO */}
                 <div className="border rounded-lg p-4 bg-background/50">
-                  <Label className="mb-2 block font-medium">
-                    {t("bookingDates") || "Date di soggiorno"}
-                  </Label>
+                  <Label className="mb-2 block font-medium">{t("bookingDates") || "Date di soggiorno"}</Label>
 
-                  <DateRangePicker
-                    value={range}
-                    onChange={(next) => setRange(next)}
-                    className="max-w-xl"
-                  />
+                  <DateRangePicker value={range} onChange={(next) => setRange(next)} className="max-w-xl" />
 
                   {/* hidden per submit/validazioni lato form */}
                   <input type="hidden" name="checkIn" value={formData.checkIn} />
@@ -298,12 +272,8 @@ export default function BookingPage() {
                     {isCheckingAvailability && (
                       <Alert>
                         <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>
-                          {t("checkingAvailability") || "Verifica disponibilità…"}
-                        </AlertTitle>
-                        <AlertDescription>
-                          {t("pleaseWait") || "Attendi qualche secondo."}
-                        </AlertDescription>
+                        <AlertTitle>{t("checkingAvailability") || "Verifica disponibilità…"}</AlertTitle>
+                        <AlertDescription>{t("pleaseWait") || "Attendi qualche secondo."}</AlertDescription>
                       </Alert>
                     )}
                     {availabilityStatus && !isCheckingAvailability && (
@@ -317,8 +287,7 @@ export default function BookingPage() {
                         <AlertDescription>
                           {availabilityStatus.available
                             ? t("roomAvailableDesc") || "Procedi con la prenotazione."
-                            : t("roomNotAvailableDesc") ||
-                              "Seleziona altre date o un'altra camera."}
+                            : t("roomNotAvailableDesc") || "Seleziona altre date o un'altra camera."}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -328,9 +297,7 @@ export default function BookingPage() {
                 {/* Dati ospite */}
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="firstName">
-                      {t("bookingFormFirstName") || "Nome"}
-                    </Label>
+                    <Label htmlFor="firstName">{t("bookingFormFirstName") || "Nome"}</Label>
                     <Input
                       id="firstName"
                       name="firstName"
@@ -340,9 +307,7 @@ export default function BookingPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="lastName">
-                      {t("bookingFormLastName") || "Cognome"}
-                    </Label>
+                    <Label htmlFor="lastName">{t("bookingFormLastName") || "Cognome"}</Label>
                     <Input
                       id="lastName"
                       name="lastName"
@@ -367,21 +332,13 @@ export default function BookingPage() {
                   </div>
                   <div>
                     <Label htmlFor="phone">{t("bookingFormPhone") || "Telefono"}</Label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                    />
+                    <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} />
                   </div>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="guests">
-                      {t("bookingFormGuests") || "Numero Ospiti"}
-                    </Label>
+                    <Label htmlFor="guests">{t("bookingFormGuests") || "Numero Ospiti"}</Label>
                     <select
                       id="guests"
                       name="guests"
@@ -396,9 +353,7 @@ export default function BookingPage() {
                     </select>
                   </div>
                   <div>
-                    <Label htmlFor="roomType">
-                      {t("bookingFormRoomType") || "Tipo Camera"}
-                    </Label>
+                    <Label htmlFor="roomType">{t("bookingFormRoomType") || "Tipo Camera"}</Label>
                     <select
                       id="roomType"
                       name="roomType"
@@ -407,108 +362,38 @@ export default function BookingPage() {
                       className="w-full px-3 py-2 border border-input rounded-md bg-background"
                       required
                     >
-                      <option value="">
-                        {t("bookingFormSelectRoom") || "Seleziona una camera"}
-                      </option>
-                      <option value="deluxe">
-                        {t("bookingFormPanoramicSuite") || "Camera familiare con balcone"}
-                      </option>
-                      <option value="suite">
-                        {t("bookingFormjacuziRoom") || "Camera jacuzi"}
-                      </option>
+                      <option value="">{t("bookingFormSelectRoom") || "Seleziona una camera"}</option>
+                      <option value="deluxe">{t("bookingFormPanoramicSuite") || "Camera familiare con balcone"}</option>
+                      <option value="suite">{t("bookingFormjacuziRoom") || "Camera jacuzi"}</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="specialRequests">
-                    {t("bookingFormSpecialRequests") || "Richieste Speciali"}
-                  </Label>
+                  <Label htmlFor="specialRequests">{t("bookingFormSpecialRequests") || "Richieste Speciali"}</Label>
                   <Textarea
                     id="specialRequests"
                     name="specialRequests"
                     value={formData.specialRequests}
                     onChange={handleInputChange}
-                    placeholder={
-                      t("bookingFormSpecialRequestsPlaceholder") ||
-                      "Eventuali richieste particolari…"
-                    }
+                    placeholder={t("bookingFormSpecialRequestsPlaceholder") || "Eventuali richieste particolari…"}
                     rows={3}
                   />
                 </div>
 
-                {/* Metodo di pagamento — stile “originale” più compatto */}
-                <div className="border rounded-lg p-4 bg-background/50">
-                  <p className="font-medium mb-3">
-                    {t("bookingPaymentTitle") || "Metodo di Pagamento"}
-                  </p>
-                  <div className="grid grid-cols-3 gap-3">
-                    {/* Stripe */}
-                    <button
-                      type="button"
-                      onClick={() => setPayMethod("stripe")}
-                      aria-pressed={payMethod === "stripe"}
-                      aria-label={t("bookingPaymentStripe") || "Paga con Stripe"}
-                      className={[
-                        "relative flex flex-col items-center justify-center rounded-lg px-3 py-3 text-sm",
-                        "border-2 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]",
-                        payMethod === "stripe"
-                          ? "border-[#635BFF] bg-white shadow shadow-[#635BFF]/20"
-                          : "border-gray-200 bg-white hover:border-[#635BFF]/50",
-                      ].join(" ")}
-                    >
-                      <svg width="64" height="26" viewBox="0 0 60 25" fill="none" aria-hidden="true">
-                        <path
-                          d="M59.64 14.28h-8.06c.19 1.93 1.6 2.55 3.2 2.55 1.64 0 2.96-.37 4.05-.95v3.32a8.33 8.33 0 0 1-4.56 1.1c-4.01 0-6.83-2.5-6.83-7.48 0-4.19 2.39-7.52 6.3-7.52 3.92 0 5.96 3.28 5.96 7.5 0 .4-.04 1.26-.06 1.48zm-5.92-5.62c-1.03 0-2.17.73-2.17 2.58h4.25c0-1.85-1.07-2.58-2.08-2.58zM40.95 20.3c-1.44 0-2.32-.6-2.9-1.04l-.02 4.63-4.12.87V5.57h3.76l.08 1.02a4.7 4.7 0 0 1 3.23-1.29c2.9 0 5.62 2.6 5.62 7.4 0 5.23-2.7 7.6-5.65 7.6zM40 8.95c-.95 0-1.54.34-1.97.81l.02 6.12c.4.44.98.78 1.95.78 1.52 0 2.54-1.65 2.54-3.87 0-2.15-1.04-3.84-2.54-3.84zM28.24 5.57h4.13v14.44h-4.13V5.57zm0-4.7L32.37 0v3.36l-4.13.88V.88zm-4.32 9.35v9.79H19.8V5.57h3.7l.12 1.22c1-1.77 3.07-1.41 3.62-1.22v3.79c-.52-.17-2.29-.43-3.32.86zm-8.55 4.72c0 2.43 2.6 1.68 3.12 1.46v3.36c-.55.3-1.54.54-2.89.54a4.15 4.15 0 0 1-4.27-4.24l.01-13.17 4.02-.86v3.54h3.14V9.1h-3.13v5.85zm-4.91.7c0 2.97-2.31 4.66-5.73 4.66a11.2 11.2 0 0 1-4.46-.93v-3.93c1.38.75 3.1 1.31 4.46 1.31.92 0 1.53-.24 1.53-1C6.26 13.77 0 14.51 0 9.95 0 7.04 2.28 5.3 5.62 5.3c1.36 0 2.72.2 4.09.75v3.88a9.23 9.23 0 0 0-4.1-1.06c-.86 0-1.44.25-1.44.9 0 1.85 6.29.97 6.29 5.88z"
-                          fill="#635BFF"
-                        />
-                      </svg>
-                      <span className="mt-1 text-[11px] text-gray-700">Carte, Klarna, Apple Pay…</span>
-                    </button>
-
-                    {/* PayPal */}
-                    <button
-                      type="button"
-                      onClick={() => setPayMethod("paypal")}
-                      aria-pressed={payMethod === "paypal"}
-                      aria-label={t("bookingPaymentPaypal") || "Paga con PayPal"}
-                      className={[
-                        "relative flex flex-col items-center justify-center rounded-lg px-3 py-3 text-sm",
-                        "border-2 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]",
-                        payMethod === "paypal"
-                          ? "border-[#003087] bg-white shadow shadow-[#003087]/20"
-                          : "border-gray-200 bg-white hover:border-[#003087]/50",
-                      ].join(" ")}
-                    >
-                      <svg width="64" height="26" viewBox="0 0 64 26" fill="none" aria-hidden="true">
-                        <rect x="0" y="0" width="64" height="26" rx="5" fill="#003087" />
-                        <rect x="6" y="5" width="12" height="16" rx="3" fill="#009CDE" />
-                        <rect x="12" y="5" width="12" height="16" rx="3" fill="#001C64" />
-                      </svg>
-                      <span className="mt-1 text-[11px] text-gray-700">Saldo, Carta, PayPal</span>
-                    </button>
-
-                    {/* UniCredit */}
-                    <button
-                      type="button"
-                      onClick={() => setPayMethod("unicredit")}
-                      aria-pressed={payMethod === "unicredit"}
-                      aria-label="Paga con UniCredit"
-                      className={[
-                        "relative flex flex-col items-center justify-center rounded-lg px-3 py-3 text-sm",
-                        "border-2 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]",
-                        payMethod === "unicredit"
-                          ? "border-[#E31E24] bg-white shadow shadow-[#E31E24]/20"
-                          : "border-gray-200 bg-white hover:border-[#E31E24]/50",
-                      ].join(" ")}
-                    >
-                      <svg width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-                        <rect width="32" height="32" rx="6" fill="#E31E24" />
-                        <path d="M16 9v14M9 16h14" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
-                      </svg>
-                      <span className="mt-1 text-[11px] text-gray-700">UniCredit</span>
-                    </button>
+                <div className="border rounded-lg p-5 bg-gradient-to-br from-[#635BFF]/5 to-[#635BFF]/10">
+                  <div className="flex items-center justify-center mb-3">
+                    <svg width="80" height="33" viewBox="0 0 60 25" fill="none" aria-hidden="true">
+                      <path
+                        d="M59.64 14.28h-8.06c.19 1.93 1.6 2.55 3.2 2.55 1.64 0 2.96-.37 4.05-.95v3.32a8.33 8.33 0 0 1-4.56 1.1c-4.01 0-6.83-2.5-6.83-7.48 0-4.19 2.39-7.52 6.3-7.52 3.92 0 5.96 3.28 5.96 7.5 0 .4-.04 1.26-.06 1.48zm-5.92-5.62c-1.03 0-2.17.73-2.17 2.58h4.25c0-1.85-1.07-2.58-2.08-2.58zM40.95 20.3c-1.44 0-2.32-.6-2.9-1.04l-.02 4.63-4.12.87V5.57h3.76l.08 1.02a4.7 4.7 0 0 1 3.23-1.29c2.9 0 5.62 2.6 5.62 7.4 0 5.23-2.7 7.6-5.65 7.6zM40 8.95c-.95 0-1.54.34-1.97.81l.02 6.12c.4.44.98.78 1.95.78 1.52 0 2.54-1.65 2.54-3.87 0-2.15-1.04-3.84-2.54-3.84zM28.24 5.57h4.13v14.44h-4.13V5.57zm0-4.7L32.37 0v3.36l-4.13.88V.88zm-4.32 9.35v9.79H19.8V5.57h3.7l.12 1.22c1-1.77 3.07-1.41 3.62-1.22v3.79c-.52-.17-2.29-.43-3.32.86zm-8.55 4.72c0 2.43 2.6 1.68 3.12 1.46v3.36c-.55.3-1.54.54-2.89.54a4.15 4.15 0 0 1-4.27-4.24l.01-13.17 4.02-.86v3.54h3.14V9.1h-3.13v5.85zm-4.91.7c0 2.97-2.31 4.66-5.73 4.66a11.2 11.2 0 0 1-4.46-.93v-3.93c1.38.75 3.1 1.31 4.46 1.31.92 0 1.53-.24 1.53-1C6.26 13.77 0 14.51 0 9.95 0 7.04 2.28 5.3 5.62 5.3c1.36 0 2.72.2 4.09.75v3.88a9.23 9.23 0 0 0-4.1-1.06c-.86 0-1.44.25-1.44.9 0 1.85 6.29.97 6.29 5.88z"
+                        fill="#635BFF"
+                      />
+                    </svg>
                   </div>
+                  <p className="text-center text-sm text-muted-foreground">
+                    {t("bookingPaymentDescription") ||
+                      "Pagamento sicuro con carte di credito, Klarna, Apple Pay e Google Pay"}
+                  </p>
                 </div>
 
                 {/* Riepilogo totale */}
@@ -521,7 +406,7 @@ export default function BookingPage() {
                       : t("bookingSummaryCompleteDates") || "Completa date e camera"}
                   </div>
                   <div className="text-xl font-semibold">
-                    {(t("bookingSummaryTotal") || "Totale")}: €{isFinite(total) ? total.toFixed(2) : "0.00"}
+                    {t("bookingSummaryTotal") || "Totale"}: €{isFinite(total) ? total.toFixed(2) : "0.00"}
                   </div>
                 </div>
 
@@ -550,15 +435,11 @@ export default function BookingPage() {
                       <ul className="text-sm text-muted-foreground space-y-1">
                         <li className="flex items-center gap-2">
                           <CalendarIcon className="h-4 w-4 text-primary" />
-                          <span className="font-medium">
-                            {t("bookingCheckIn") || "Check-in: 15:00 – 20:00"}
-                          </span>
+                          <span className="font-medium">{t("bookingCheckIn") || "Check-in: 15:00 – 20:00"}</span>
                         </li>
                         <li className="flex items-center gap-2">
                           <CalendarIcon className="h-4 w-4 text-primary" />
-                          <span className="font-medium">
-                            {t("bookingCheckOut") || "Check-out: 08:00 – 11:00"}
-                          </span>
+                          <span className="font-medium">{t("bookingCheckOut") || "Check-out: 08:00 – 11:00"}</span>
                         </li>
                         <li className="flex items-center gap-2">
                           <Users className="h-4 w-4 text-primary" />
@@ -590,29 +471,44 @@ export default function BookingPage() {
                 </CardContent>
               </Card>
 
-              {/* Card 3 */}
+              {/* Card 3 - Camera Deluxe */}
               <Card className="h-full border-0 bg-gradient-to-br from-secondary/10 via-primary/5 to-accent/5">
                 <CardContent className="p-5">
-                  <h3 className="font-cinzel font-semibold text-primary mb-2">
-                    {t("bookingEstimatedPriceTitle") || "Prezzo stimato"}
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-1">
-                    {nights > 0
-                      ? `${nights} ${
-                          nights > 1 ? t("bookingNightsPlural") || "notti" : t("bookingNights") || "notte"
-                        } • ${formData.guests} ${t("bookingGuests") || "ospite/i"}`
-                      : t("bookingEnterDates") || "Inserisci date e ospiti"}
-                  </p>
-                  <div className="text-3xl font-bold">€{isFinite(total) ? total.toFixed(2) : "0.00"}</div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {t("bookingTaxesIncluded") || "Tasse incluse dove applicabili."}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">
+                        {t("bookingSuiteTitle") || "Camera Familiare con Balcone"}
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground">
+                        {t("bookingSuiteFrom") || "Da"} €{roomPrices.deluxe}/{t("bookingNights") || "notte"}
+                      </p>
+                    </div>
+                    <Button variant="outline" onClick={() => setFormData((s) => ({ ...s, roomType: "deluxe" }))}>
+                      {t("bookingSelectButton") || "Seleziona"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 4 - Camera Suite */}
+              <Card className="h-full border-0 bg-gradient-to-br from-accent/5 via-primary/5 to-secondary/10">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">{t("bookingjacuziTitle") || "Camera jacuzi"}</CardTitle>
+                      <p className="text-xs text-muted-foreground">
+                        {t("bookingjacuziFrom") || "Da"} €{roomPrices.suite}/{t("bookingNights") || "notte"}
+                      </p>
+                    </div>
+                    <Button variant="outline" onClick={() => setFormData((s) => ({ ...s, roomType: "suite" }))}>
+                      {t("bookingSelectButton") || "Seleziona"}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </div>
           </div>
 
-          {/* SEZIONE CAMERE */}
           <div className="text-center mt-12 mb-6">
             <h2 className="text-2xl font-cinzel font-bold text-roman-gradient mb-2">
               {t("bookingOurRoomsTitle") || "Le Nostre Camere"}
@@ -640,14 +536,10 @@ export default function BookingPage() {
                       {t("bookingSuiteTitle") || "Camera Familiare con Balcone"}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      {(t("bookingSuiteFrom") || "Da")} €{roomPrices.deluxe}/
-                      {t("bookingNights") || "notte"}
+                      {t("bookingSuiteFrom") || "Da"} €{roomPrices.deluxe}/{t("bookingNights") || "notte"}
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => setFormData((s) => ({ ...s, roomType: "deluxe" }))}
-                  >
+                  <Button variant="outline" onClick={() => setFormData((s) => ({ ...s, roomType: "deluxe" }))}>
                     {t("bookingSelectButton") || "Seleziona"}
                   </Button>
                 </div>
@@ -667,18 +559,12 @@ export default function BookingPage() {
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-lg">
-                      {t("bookingjacuziTitle") || "Camera jacuzi"}
-                    </CardTitle>
+                    <CardTitle className="text-lg">{t("bookingjacuziTitle") || "Camera jacuzi"}</CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      {(t("bookingjacuziFrom") || "Da")} €{roomPrices.suite}/
-                      {t("bookingNights") || "notte"}
+                      {t("bookingjacuziFrom") || "Da"} €{roomPrices.suite}/{t("bookingNights") || "notte"}
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => setFormData((s) => ({ ...s, roomType: "suite" }))}
-                  >
+                  <Button variant="outline" onClick={() => setFormData((s) => ({ ...s, roomType: "suite" }))}>
                     {t("bookingSelectButton") || "Seleziona"}
                   </Button>
                 </div>
@@ -694,9 +580,7 @@ export default function BookingPage() {
       <AlertDialog open={showErrorModal} onOpenChange={setShowErrorModal}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("bookingErrorTitle") || "Errore nel pagamento"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("bookingErrorTitle") || "Errore nel pagamento"}</AlertDialogTitle>
             <AlertDialogDescription>{errorMessage}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

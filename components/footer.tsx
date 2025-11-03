@@ -38,24 +38,6 @@ const MastercardIcon = (props: any) => (
   </svg>
 )
 
-const UniCreditIcon = (props: any) => (
-  <svg viewBox="0 0 48 32" xmlns="http://www.w3.org/2000/svg" {...props}>
-    <rect width="48" height="32" rx="4" fill="#E30613" />
-    <text
-      x="24"
-      y="19"
-      fill="white"
-      fontSize="7"
-      fontWeight="bold"
-      fontFamily="Arial, sans-serif"
-      textAnchor="middle"
-      letterSpacing="0.5"
-    >
-      UniCredit
-    </text>
-  </svg>
-)
-
 const PayPalIcon = (props: any) => (
   <svg viewBox="0 0 48 32" xmlns="http://www.w3.org/2000/svg" {...props}>
     <rect width="48" height="32" rx="4" fill="#0070BA" />
@@ -250,8 +232,34 @@ export function Footer() {
 
         {/* Bottom Bar */}
         <div className="border-t border-background/20 mt-8 pt-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-background/80">
-            <div className="flex flex-col md:flex-row items-center gap-4">
+          {/* Metodi di pagamento */}
+          <div className="flex flex-col items-center gap-4 pb-8 border-b border-background/20">
+            <p className="text-xs text-background/60 uppercase tracking-wider">Metodi di Pagamento Accettati</p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <div className="h-10 w-16 flex items-center justify-center bg-white rounded-md p-1.5 hover:scale-105 transition-transform">
+                <StripeIcon className="h-full w-full text-[#635BFF]" />
+              </div>
+              <div className="h-10 w-16 flex items-center justify-center hover:scale-105 transition-transform">
+                <VisaIcon className="h-full w-full" />
+              </div>
+              <div className="h-10 w-16 flex items-center justify-center hover:scale-105 transition-transform">
+                <MastercardIcon className="h-full w-full" />
+              </div>
+              <div className="h-10 w-16 flex items-center justify-center hover:scale-105 transition-transform">
+                <PayPalIcon className="h-full w-full" />
+              </div>
+              <div className="h-10 w-16 flex items-center justify-center bg-white rounded-md p-1.5 hover:scale-105 transition-transform">
+                <GooglePayIcon className="h-full w-full" />
+              </div>
+              <div className="h-10 w-16 flex items-center justify-center hover:scale-105 transition-transform">
+                <ApplePayIcon className="h-full w-full" />
+              </div>
+            </div>
+          </div>
+
+          {/* Copyright - ora sotto i metodi di pagamento */}
+          <div className="pt-8">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-background/80">
               <p className="flex items-center gap-2">
                 © COPYRIGHT 2025 - AL 22 Suite & Spa Luxury Experience {t("allRightsReserved")}.
                 <Link
@@ -262,43 +270,14 @@ export function Footer() {
                   <Image src="/images/logo22.jpg" alt="Admin" width={20} height={20} className="rounded-sm" />
                 </Link>
               </p>
-            </div>
 
-            <div className="flex items-center gap-2">
-              <span>POWERED BY </span>
-              <div className="flex items-center gap-1">
-                <Image src="/images/ekobit-logo.png" alt="EkoBit S.r.l." width={16} height={16} className="rounded" />
-                <Link href="https://ekobit.it/" target="_blank" rel="noopener noreferrer" className="font-medium">
-                  EkoBit S.r.l.
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-background/20">
-            <div className="flex flex-col items-center gap-4">
-              <p className="text-xs text-background/60 uppercase tracking-wider">Metodi di Pagamento Accettati</p>
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                <div className="h-10 w-16 flex items-center justify-center bg-white rounded-md p-1.5 hover:scale-105 transition-transform">
-                  <StripeIcon className="h-full w-full text-[#635BFF]" />
-                </div>
-                <div className="h-10 w-16 flex items-center justify-center hover:scale-105 transition-transform">
-                  <VisaIcon className="h-full w-full" />
-                </div>
-                <div className="h-10 w-16 flex items-center justify-center hover:scale-105 transition-transform">
-                  <MastercardIcon className="h-full w-full" />
-                </div>
-                <div className="h-10 w-16 flex items-center justify-center hover:scale-105 transition-transform">
-                  <UniCreditIcon className="h-full w-full" />
-                </div>
-                <div className="h-10 w-16 flex items-center justify-center hover:scale-105 transition-transform">
-                  <PayPalIcon className="h-full w-full" />
-                </div>
-                <div className="h-10 w-16 flex items-center justify-center bg-white rounded-md p-1.5 hover:scale-105 transition-transform">
-                  <GooglePayIcon className="h-full w-full" />
-                </div>
-                <div className="h-10 w-16 flex items-center justify-center hover:scale-105 transition-transform">
-                  <ApplePayIcon className="h-full w-full" />
+              <div className="flex items-center gap-2">
+                <span>POWERED BY </span>
+                <div className="flex items-center gap-1">
+                  <Image src="/images/ekobit-logo.png" alt="EkoBit S.r.l." width={16} height={16} className="rounded" />
+                  <Link href="https://ekobit.it/" target="_blank" rel="noopener noreferrer" className="font-medium">
+                    EkoBit S.r.l.
+                  </Link>
                 </div>
               </div>
             </div>
@@ -308,4 +287,5 @@ export function Footer() {
     </footer>
   )
 }
+
 

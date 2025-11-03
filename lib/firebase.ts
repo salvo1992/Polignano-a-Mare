@@ -30,7 +30,7 @@ import {
   deleteDoc,
   type Timestamp,
 } from "firebase/firestore"
-import { getFunctions, httpsCallable, connectFunctionsEmulator } from "firebase/functions"
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions"
 import { getStorage } from "firebase/storage"
 import { setPersistence, browserLocalPersistence } from "firebase/auth"
 
@@ -50,16 +50,22 @@ export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
 export const functions = getFunctions(app)
-const IS_BROWSER = typeof window !== "undefined";
-const IS_DEV = IS_BROWSER && window.location.hostname.includes("localhost");
-auth.useDeviceLanguage();
+const IS_BROWSER = typeof window !== "undefined"
+const IS_DEV = IS_BROWSER && window.location.hostname.includes("localhost")
+const IS_PROD = !IS_DEV
+
+const googleProvider = new GoogleAuthProvider()
+// Suggerisce la scelta dell'account ad ogni login (utile se l’utente è già loggato con altro account)
+googleProvider.setCustomParameters({ prompt: "select_account" })
 
 if (process.env.NEXT_PUBLIC_USE_FUNCTIONS_EMULATOR === "true") {
   connectFunctionsEmulator(functions, "127.0.0.1", 5001)
 }
 // Garantisce che il redirect mantenga la sessione tra le navigazioni
 ;(async () => {
-  try { await setPersistence(auth, browserLocalPersistence) } catch {}
+  try {
+    await setPersistence(auth, browserLocalPersistence)
+  } catch {}
 })()
 
 // ---------- USER DOC ----------
@@ -118,10 +124,6 @@ async function ensureUserDoc(user: User) {
 }
 
 // ---------- AUTH ----------
-const googleProvider = new GoogleAuthProvider()
-// Suggerisce la scelta dell'account ad ogni login (utile se l’utente è già loggato con altro account)
-googleProvider.setCustomParameters({ prompt: "select_account" })
-
 export async function registerWithEmail(email: string, password: string, displayName?: string) {
   const cred = await createUserWithEmailAndPassword(auth, email, password)
   if (displayName) {
@@ -143,21 +145,20 @@ export async function loginWithGoogle() {
   try {
     if (IS_DEV) {
       // in dev usa popup: più affidabile con Next fast-refresh
-      const { signInWithPopup } = await import("firebase/auth");
-      const cred = await signInWithPopup(auth, googleProvider);
-      await ensureUserDoc(cred.user);
-      return cred.user;
+      const { signInWithPopup } = await import("firebase/auth")
+      const cred = await signInWithPopup(auth, googleProvider)
+      await ensureUserDoc(cred.user)
+      return cred.user
     } else {
       // in prod usa redirect
-      await signInWithRedirect(auth, googleProvider);
-      return null; // si prosegue al redirect
+      await signInWithRedirect(auth, googleProvider)
+      return null // si prosegue al redirect
     }
   } catch (e: any) {
     // propaga l'errore al caller (AuthProvider salva in sessionStorage)
-    throw e;
+    throw e
   }
 }
-
 
 export async function handleGoogleRedirect() {
   try {
@@ -228,8 +229,7 @@ export type BookingPayload = {
   nights?: number
   status?: "pending" | "paid" | "confirmed" | "cancelled"
   origin?: "site" | "booking" | "airbnb" | "manual"
-  paymentId?: string
-  paymentProvider?: "stripe" | "unicredit"
+  paymentProvider?: "stripe"
 }
 
 const BOOKINGS_COL = "bookings"
@@ -377,58 +377,6 @@ export async function createStripeCheckout(args: CreateCheckoutArgs): Promise<{ 
   return response.json()
 }
 
-export async function createUniCreditPayment(args: CreateCheckoutArgs): Promise<{ redirectUrl: string; id: string }> {
-  const response = await fetch("/api/payments/unicredit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(args),
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || "UniCredit payment creation failed")
-  }
-
-  return response.json()
-}
-
-export async function checkPaymentStatus(provider: "stripe" | "unicredit", paymentId: string) {
-  const callable = httpsCallable(functions, "payments-checkPaymentStatus")
-  const res = await callable({ provider, paymentId })
-  return res.data as { status: "pending" | "succeeded" | "failed" | "canceled" | "requires_action" }
-}
-
-export async function processPaymentAndCreateBooking(
-  bookingPayload: BookingPayload,
-  paymentProvider: "stripe" | "unicredit",
-  paymentId: string,
-): Promise<{ success: boolean; bookingId?: string; error?: string }> {
-  try {
-    // Check payment status
-    const paymentStatus = await checkPaymentStatus(paymentProvider, paymentId)
-
-    if (paymentStatus.status !== "succeeded") {
-      return { success: false, error: "Pagamento non confermato" }
-    }
-
-    // Payment successful, create booking
-    const bookingId = await createBooking({
-      ...bookingPayload,
-      status: "paid",
-      paymentId,
-      paymentProvider,
-    })
-
-    // Confirm booking
-    await confirmBooking(bookingId)
-
-    return { success: true, bookingId }
-  } catch (error) {
-    console.error("Error processing payment and booking:", error)
-    return { success: false, error: "Errore durante la creazione della prenotazione" }
-  }
-}
-
 // ---------- USER MANAGEMENT ----------
 export function generateRandomPassword(length = 12): string {
   const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
@@ -518,6 +466,7 @@ export async function linkBookingToUser(bookingId: string, email: string): Promi
     return false
   }
 }
+
 
 
 
