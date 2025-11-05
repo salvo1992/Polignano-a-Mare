@@ -13,7 +13,7 @@ export default function HomePage() {
       <Header />
       <HeroSection />
       <StorySection />
-      <VideoCarousel />
+      {/* <VideoCarousel /> */}
       <ServicesSection />
       <RoomsPreview />
       <ReviewsSection className="mb-16" />
