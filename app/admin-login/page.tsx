@@ -27,9 +27,9 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     if (!isLoading && user?.role === "admin") {
-      router.replace(next)
+      window.location.href = next
     }
-  }, [user, isLoading, next, router])
+  }, [user, isLoading, next])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,7 +69,7 @@ export default function AdminLoginPage() {
                     <Input
                       id="email"
                       type="email"
-                      placeholder="email@gmail.com"
+                      placeholder="admin@email.it"
                       value={form.email}
                       onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
                       required
@@ -143,3 +143,4 @@ export default function AdminLoginPage() {
     </main>
   )
 }
+
