@@ -31,9 +31,37 @@ export const metadata: Metadata = {
     "Experience authentic Italian hospitality at AL 22 Suite & SPA, a luxury bed & breakfast in the heart of Polignano a Mare",
   generator: "next.js",
   icons: {
-    icon: "/images/logo22.jpg",
-    apple: "/images/logo22.jpg",
-    shortcut: "/images/logo22.jpg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.jpg", type: "image/png", sizes: "32x32" },
+    ],
+    apple: "/apple-icon.jpg",
+    shortcut: "/favicon.ico",
+  },
+  metadataBase: new URL("https://al22suite.com"),
+  openGraph: {
+    title: "AL 22 Suite & SPA LUXURY EXPERIENCE",
+    description:
+      "Experience authentic Italian hospitality at AL 22 Suite & SPA, a luxury bed & breakfast in the heart of Polignano a Mare",
+    url: "https://al22suite.com",
+    siteName: "AL 22 Suite & SPA",
+    images: [
+      {
+        url: "/images/logo22.jpg",
+        width: 1200,
+        height: 630,
+        alt: "AL 22 Suite & SPA",
+      },
+    ],
+    locale: "it_IT",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AL 22 Suite & SPA LUXURY EXPERIENCE",
+    description:
+      "Experience authentic Italian hospitality at AL 22 Suite & SPA, a luxury bed & breakfast in the heart of Polignano a Mare",
+    images: ["/images/logo22.jpg"],
   },
 }
 
