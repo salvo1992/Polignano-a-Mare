@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Header } from "@/components/header"
@@ -25,12 +25,6 @@ export default function AdminLoginPage() {
   const [err, setErr] = useState("")
   const [form, setForm] = useState({ email: "", password: "" })
 
-  useEffect(() => {
-    if (!isLoading && user?.role === "admin") {
-      window.location.href = next
-    }
-  }, [user, isLoading, next])
-
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErr("")
@@ -39,6 +33,10 @@ export default function AdminLoginPage() {
       setErr(t("invalidOrInsufficient"))
       return
     }
+    // Give time for cookie to be set before redirecting
+    setTimeout(() => {
+      router.push(next)
+    }, 100)
   }
 
   return (
@@ -69,7 +67,7 @@ export default function AdminLoginPage() {
                     <Input
                       id="email"
                       type="email"
-                      placeholder="admin@email.it"
+                      placeholder="ekobit.cloud@gmail.com"
                       value={form.email}
                       onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
                       required
@@ -143,4 +141,5 @@ export default function AdminLoginPage() {
     </main>
   )
 }
+
 
