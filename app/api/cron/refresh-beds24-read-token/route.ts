@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { Resend } from 'resend'
 
 export const dynamic = 'force-dynamic'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function GET(request: Request) {
   try {
@@ -14,7 +11,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    console.log('[v0] Starting Beds24 read token refresh check')
+    console.log('[CRON] Starting Beds24 read token refresh check')
 
     const storedRefreshToken = process.env.BEDS24_REFRESH_TOKEN
     if (!storedRefreshToken) {
@@ -28,10 +25,10 @@ export async function GET(request: Request) {
     const lastRefresh = tokenData?.readTokenRefreshedAt || 0
     const daysSinceRefresh = (now - lastRefresh) / (1000 * 60 * 60 * 24)
     
-    console.log('[v0] Days since last read token refresh:', daysSinceRefresh)
+    console.log('[CRON] Days since last read token refresh:', Math.floor(daysSinceRefresh))
 
     if (daysSinceRefresh < 55) {
-      console.log('[v0] Read token still valid, no refresh needed')
+      console.log('[CRON] Read token still valid, no refresh needed')
       return NextResponse.json({ 
         success: true, 
         message: 'Read token still valid',
@@ -40,7 +37,7 @@ export async function GET(request: Request) {
       })
     }
 
-    console.log('[v0] Read token needs refresh, calling Beds24 API')
+    console.log('[CRON] Read token needs refresh, calling Beds24 API')
 
     const response = await fetch('https://beds24.com/api/v2/authentication/setup', {
       method: 'GET',
@@ -52,7 +49,7 @@ export async function GET(request: Request) {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('[v0] Beds24 read token refresh failed:', response.status, errorText)
+      console.error('[CRON] Beds24 read token refresh failed:', response.status, errorText)
       throw new Error(`Beds24 API error: ${response.status}`)
     }
 
@@ -68,51 +65,24 @@ export async function GET(request: Request) {
       readTokenExpiresIn: data.expiresIn || 5184000,
     }, { merge: true })
 
-    console.log('[v0] Read token refreshed and saved successfully')
-
-    try {
-      await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL!,
-        to: 'salvo.dauria92@gmail.com',
-        subject: '✅ Beds24 Read Token Refreshed',
-        html: `
-          <h2>Read Token Aggiornato</h2>
-          <p>Il read token di Beds24 è stato refreshato automaticamente.</p>
-          <p><strong>Prossimo refresh previsto:</strong> tra 55 giorni</p>
-        `
-      })
-    } catch (emailError) {
-      console.error('[v0] Failed to send success email:', emailError)
-    }
+    console.log('[CRON] Read token refreshed and saved successfully')
 
     return NextResponse.json({ 
       success: true, 
       message: 'Read token refreshed successfully',
-      expiresIn: data.expiresIn
+      expiresIn: data.expiresIn,
+      timestamp: new Date().toISOString()
     })
 
   } catch (error) {
-    console.error('[v0] Error refreshing Beds24 read token:', error)
-
-    try {
-      await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL!,
-        to: 'salvo.dauria92@gmail.com',
-        subject: '⚠️ Errore Refresh Read Token Beds24',
-        html: `
-          <h2>Errore nel Refresh del Read Token</h2>
-          <p><strong>Errore:</strong> ${error instanceof Error ? error.message : 'Unknown error'}</p>
-          <p>Verifica BEDS24_REFRESH_TOKEN nelle variabili d'ambiente.</p>
-        `
-      })
-    } catch (emailError) {
-      console.error('[v0] Failed to send error email:', emailError)
-    }
+    console.error('[CRON] Error refreshing read token:', error)
 
     return NextResponse.json({ 
       success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
     }, { status: 500 })
   }
 }
+
 
