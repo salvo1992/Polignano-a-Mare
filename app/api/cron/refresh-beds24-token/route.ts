@@ -1,78 +1,35 @@
 import { NextResponse } from 'next/server'
-import { Resend } from 'resend'
-import { beds24Client } from '@/lib/beds24-client'
 
 export const dynamic = 'force-dynamic'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export async function GET(request: Request) {
-  try {
-    // --- AUTH CRON ---
-    const authHeader = request.headers.get('authorization') ?? ''
-    const cronSecret = process.env.CRON_SECRET ?? ''
+  // Leggiamo l'header inviato
+  const authHeader = request.headers.get('authorization') ?? null
 
-    // authHeader es: "Bearer 8721..."
-    const [, token] = authHeader.split(' ') // ["Bearer", "8721..."]
+  // Leggiamo la variabile d’ambiente CRON_SECRET
+  const cronEnv = process.env.CRON_SECRET ?? null
 
-    if (!token || !cronSecret || token.trim() !== cronSecret.trim()) {
-      console.log('[CRON WRITE] Unauthorized', {
-        authHeader,
-        hasEnv: !!cronSecret,
-      })
+  // Token estratto dall’header (seconda parte dopo "Bearer")
+  const headerToken = authHeader?.split(' ')[1] ?? null
 
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 },
-      )
+  // Risposta DEBUG
+  return NextResponse.json({
+    debug: true,
+    message: "DEBUG MODE - RIMUOVI DOPO IL TEST",
+    authHeader,          // quello che Postman/cron-job.org sta inviando
+    cronEnv,             // quello che Next/Vercel vede come variabile d'ambiente
+    headerToken,         // token estratto da "Bearer xxx"
+    equal_raw: authHeader === `Bearer ${cronEnv}`,
+    equal_token: headerToken === cronEnv,
+
+    lengths: {
+      authHeader: authHeader?.length ?? 0,
+      cronEnv: cronEnv?.length ?? 0,
+      headerToken: headerToken?.length ?? 0,
     }
-
-    console.log('[CRON WRITE] Starting Beds24 write token refresh')
-
-    // --- REFRESH WRITE TOKEN ---
-    await beds24Client.forceRefreshWriteToken()
-
-    console.log('[CRON WRITE] Write token refreshed successfully')
-
-    return NextResponse.json({
-      success: true,
-      message: 'Write token refreshed successfully',
-      timestamp: new Date().toISOString(),
-    })
-  } catch (error) {
-    console.error('[CRON WRITE] Error refreshing write token:', error)
-
-    // Prova a mandare l’email di errore (se configurato Resend)
-    try {
-      await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL!,
-        to: 'salvatoredimaria92@gmail.com',
-        subject: '⚠️ Beds24 Write Token Refresh Fallito',
-        html: `
-          <h2>Attenzione: Problema con Beds24 Write Token</h2>
-          <p>Il refresh automatico del write token Beds24 è fallito.</p>
-          <p><strong>Errore:</strong> ${JSON.stringify(error)}</p>
-          <h3>Azione Richiesta:</h3>
-          <ol>
-            <li>Verifica che BEDS24_REFRESH_TOKEN sia valido nelle variabili d'ambiente</li>
-            <li>Se necessario, rigenera il token su Beds24</li>
-          </ol>
-        `,
-      })
-    } catch (emailError) {
-      console.error('[CRON WRITE] Failed to send error email:', emailError)
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString(),
-      },
-      { status: 500 },
-    )
-  }
+  })
 }
+
 
 
 
