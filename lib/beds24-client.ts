@@ -6,8 +6,8 @@
  * - Refresh Token: Generates short-term tokens for POST/PUT/DELETE operations
  */
 
-import { getFirestore } from "firebase-admin/firestore"
-import { admin } from "./firebase-admin"
+import { db } from "./firebase"
+import { doc, getDoc, setDoc } from "firebase/firestore"
 
 const BEDS24_API_URL = process.env.BEDS24_API_URL || "https://beds24.com/api/v2"
 const BEDS24_READ_TOKEN = process.env.BEDS24_READ_TOKEN
@@ -92,14 +92,14 @@ export class Beds24Client {
   }
 
   /**
-   * Get stored token data from Firebase
+   * Get stored token data from Firestore
    */
   private async getStoredToken(): Promise<TokenData | null> {
     try {
-      const db = getFirestore(admin)
-      const tokenDoc = await db.collection("system").doc("beds24_token").get()
+      const tokenRef = doc(db, "system", "beds24_token")
+      const tokenDoc = await getDoc(tokenRef)
 
-      if (!tokenDoc.exists) {
+      if (!tokenDoc.exists()) {
         return null
       }
 
@@ -112,12 +112,12 @@ export class Beds24Client {
   }
 
   /**
-   * Store token data in Firebase
+   * Store token data in Firestore
    */
   private async storeToken(tokenData: TokenData): Promise<void> {
     try {
-      const db = getFirestore(admin)
-      await db.collection("system").doc("beds24_token").set(tokenData)
+      const tokenRef = doc(db, "system", "beds24_token")
+      await setDoc(tokenRef, tokenData)
       this.tokenData = tokenData
     } catch (error) {
       console.error("Error storing token:", error)
@@ -200,14 +200,14 @@ export class Beds24Client {
   }
 
   /**
-   * Get stored write token data from Firebase
+   * Get stored write token data from Firestore
    */
   private async getStoredWriteToken(): Promise<WriteTokenData | null> {
     try {
-      const db = getFirestore(admin)
-      const tokenDoc = await db.collection("system").doc("beds24_write_token").get()
+      const tokenRef = doc(db, "system", "beds24_write_token")
+      const tokenDoc = await getDoc(tokenRef)
 
-      if (!tokenDoc.exists) {
+      if (!tokenDoc.exists()) {
         return null
       }
 
@@ -220,16 +220,37 @@ export class Beds24Client {
   }
 
   /**
-   * Store write token data in Firebase
+   * Store write token data in Firestore
    */
   private async storeWriteToken(tokenData: WriteTokenData): Promise<void> {
     try {
-      const db = getFirestore(admin)
-      await db.collection("system").doc("beds24_write_token").set(tokenData)
+      const tokenRef = doc(db, "system", "beds24_write_token")
+      await setDoc(tokenRef, tokenData)
       this.writeTokenData = tokenData
     } catch (error) {
       console.error("Error storing write token:", error)
       throw error
+    }
+  }
+
+  /**
+   * Get stored refresh token - checks Firestore first, then fallback to env var
+   */
+  private async getStoredRefreshToken(): Promise<string | null> {
+    try {
+      const tokenRef = doc(db, "settings", "beds24Token")
+      const tokenDoc = await getDoc(tokenRef)
+      
+      if (tokenDoc.exists()) {
+        const data = tokenDoc.data()
+        return data.refreshToken
+      }
+      
+      // Fallback to environment variable
+      return BEDS24_REFRESH_TOKEN || null
+    } catch (error) {
+      console.error("[v0] Error getting stored refresh token:", error)
+      return BEDS24_REFRESH_TOKEN || null
     }
   }
 
@@ -244,22 +265,33 @@ export class Beds24Client {
 
     this.refreshPromise = (async () => {
       try {
-        console.log("Refreshing Beds24 write access token...")
+        const refreshToken = await this.getStoredRefreshToken()
+        
+        if (!refreshToken) {
+          throw new Error("No refresh token available")
+        }
+
+        console.log("[v0] Refreshing Beds24 write access token...")
+        console.log("[v0] Using refresh token:", refreshToken.substring(0, 10) + "...")
 
         const response = await fetch(`${this.baseUrl}/authentication/token`, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
-            refreshToken: BEDS24_REFRESH_TOKEN!,
+            "accept": "application/json",
+            "refreshToken": refreshToken,
           },
         })
 
+        console.log("[v0] Token refresh response status:", response.status)
+
         if (!response.ok) {
           const error = await response.text()
+          console.error("[v0] Token refresh error response:", error)
           throw new Error(`Write token refresh failed: ${response.status} - ${error}`)
         }
 
         const data = await response.json()
+        console.log("[v0] Token refresh successful, expires in:", data.expiresIn, "seconds")
 
         // Calculate expiration time (subtract 5 minutes for safety margin)
         const expiresAt = Date.now() + (data.expiresIn - 300) * 1000
@@ -270,9 +302,19 @@ export class Beds24Client {
         }
 
         await this.storeWriteToken(tokenData)
-        console.log("Write access token refreshed successfully")
+        
+        const tokenRef = doc(db, "settings", "beds24Token")
+        const tokenDoc = await getDoc(tokenRef)
+        if (tokenDoc.exists()) {
+          await setDoc(tokenRef, {
+            ...tokenDoc.data(),
+            lastRefreshed: new Date().toISOString()
+          })
+        }
+        
+        console.log("[v0] Write access token refreshed and stored successfully")
       } catch (error) {
-        console.error("Error refreshing write token:", error)
+        console.error("[v0] Error refreshing write token:", error)
         throw error
       } finally {
         this.refreshPromise = null
@@ -587,18 +629,27 @@ export class Beds24Client {
    * Block dates for a room (for maintenance or manual blocking)
    */
   async blockDates(roomId: string, from: string, to: string, reason = "maintenance"): Promise<void> {
-    await this.request("/bookings", {
-      method: "POST",
-      body: JSON.stringify({
-        roomId,
-        arrival: from,
-        departure: to,
-        status: "blocked",
-        notes: reason,
-        firstName: "BLOCKED",
-        lastName: reason.toUpperCase(),
-      }),
-    })
+    console.log("[v0] Blocking dates on Beds24:", { roomId, from, to, reason })
+    
+    try {
+      await this.request("/bookings", {
+        method: "POST",
+        body: JSON.stringify({
+          roomId,
+          arrival: from,
+          departure: to,
+          status: "blocked",
+          notes: reason,
+          firstName: "BLOCKED",
+          lastName: reason.toUpperCase(),
+        }),
+      })
+      
+      console.log("[v0] Successfully blocked dates on Beds24")
+    } catch (error) {
+      console.error("[v0] Error blocking dates on Beds24:", error)
+      throw error
+    }
   }
 
   /**

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, BarChart3, Home, Settings, Users, Clock } from "lucide-react"
+import { Calendar, BarChart3, Home, Settings, Users, Clock } from 'lucide-react'
 import { RequireAdmin } from "@/components/route-guards"
 import { useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
@@ -365,6 +365,16 @@ function AdminInner() {
                               <span className="text-xs sm:text-sm">
                                 {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
                               </span>
+                              {b.origin === "site" && b.services && b.services.length > 0 && (
+                                <span className="text-xs text-primary">
+                                  + {b.services.join(", ")}
+                                </span>
+                              )}
+                              {b.origin === "site" && (!b.services || b.services.length === 0) && (
+                                <span className="text-xs text-muted-foreground">
+                                  Senza servizi aggiuntivi
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))
@@ -467,6 +477,16 @@ function AdminInner() {
                               <span className="text-xs sm:text-sm">
                                 {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
                               </span>
+                              {b.origin === "site" && b.services && b.services.length > 0 && (
+                                <span className="text-xs text-primary">
+                                  + {b.services.join(", ")}
+                                </span>
+                              )}
+                              {b.origin === "site" && (!b.services || b.services.length === 0) && (
+                                <span className="text-xs text-muted-foreground">
+                                  Senza servizi aggiuntivi
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))

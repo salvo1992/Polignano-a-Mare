@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, UserCheck, UserX, Calendar, Mail, Phone, Home } from "lucide-react"
+import { Users, UserCheck, UserX, Calendar, Mail, Phone, Home } from 'lucide-react'
 import { db } from "@/lib/firebase"
 import { collection, query, onSnapshot, orderBy } from "firebase/firestore"
 import type { Booking } from "@/lib/booking-utils"
@@ -27,21 +27,28 @@ export function GuestsTracking() {
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+  const todayTime = today.getTime()
 
   const currentGuests = bookings.filter((b) => {
+    if (b.status !== "confirmed") return false
     const checkIn = new Date(b.checkIn)
     const checkOut = new Date(b.checkOut)
-    return today >= checkIn && today <= checkOut && b.status === "confirmed"
+    checkIn.setHours(0, 0, 0, 0)
+    checkOut.setHours(0, 0, 0, 0)
+    return checkIn.getTime() <= todayTime && checkOut.getTime() >= todayTime
   })
 
   const upcomingGuests = bookings.filter((b) => {
+    if (b.status !== "confirmed") return false
     const checkIn = new Date(b.checkIn)
-    return checkIn > today && b.status === "confirmed"
+    checkIn.setHours(0, 0, 0, 0)
+    return checkIn.getTime() > todayTime
   })
 
   const pastGuests = bookings.filter((b) => {
     const checkOut = new Date(b.checkOut)
-    return checkOut < today
+    checkOut.setHours(0, 0, 0, 0)
+    return checkOut.getTime() < todayTime
   })
 
   const formatDate = (dateString: string) => {
@@ -109,6 +116,19 @@ export function GuestsTracking() {
               </span>
             </div>
           </div>
+
+          {booking.services && booking.services.length > 0 && (
+            <div className="mt-3 pt-3 border-t">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Servizi Aggiuntivi:</p>
+              <div className="flex flex-wrap gap-1">
+                {booking.services.map((service, idx) => (
+                  <Badge key={idx} variant="outline" className="text-xs">
+                    {service}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-3 pt-3 border-t flex items-center justify-between">
             <span className="text-sm text-muted-foreground">

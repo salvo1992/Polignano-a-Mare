@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from "@/components/auth-provider";
 
 export function RequireUser({ children, redirectTo = "/login" }: { children: React.ReactNode; redirectTo?: string }) {
@@ -37,3 +37,6 @@ export function RequireAdmin({ children, redirectTo = "/admin-login" }: { childr
   if (!user || user.role !== "admin") return null;
   return <>{children}</>;
 }
+
+export { RequireAdmin as AdminGuard }
+

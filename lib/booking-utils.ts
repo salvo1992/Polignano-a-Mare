@@ -18,6 +18,14 @@ export interface Booking {
   createdAt: Timestamp
   beds24Id?: string
   syncedAt?: string
+  services?: string[]
+  priceBreakdown?: {
+    subtotal: number
+    serviceFee?: number
+    touristTax?: number
+    total: number
+  }
+  notes?: string
 }
 
 export interface Room {
@@ -95,3 +103,33 @@ export function getBookingPriority(origin: "site" | "booking" | "airbnb"): numbe
       return 999
   }
 }
+
+export function getRoomStatus(
+  roomId: string,
+  bookings: Booking[],
+  maintenanceRooms: string[] = []
+): "available" | "booked" | "maintenance" {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  // Check if room is in maintenance
+  if (maintenanceRooms.includes(roomId)) {
+    return "maintenance"
+  }
+
+  // Check if room has active booking for today
+  const hasActiveBooking = bookings.some((booking) => {
+    if (booking.roomId !== roomId) return false
+    if (booking.status !== "confirmed") return false
+
+    const checkIn = new Date(booking.checkIn)
+    const checkOut = new Date(booking.checkOut)
+    checkIn.setHours(0, 0, 0, 0)
+    checkOut.setHours(0, 0, 0, 0)
+
+    return today >= checkIn && today <= checkOut
+  })
+
+  return hasActiveBooking ? "booked" : "available"
+}
+

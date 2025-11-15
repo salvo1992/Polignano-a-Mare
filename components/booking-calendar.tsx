@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { CalendarIcon, ChevronLeft, ChevronRight, Ban } from "lucide-react"
+import { CalendarIcon, ChevronLeft, ChevronRight, Ban } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,26 +13,36 @@ interface BookingCalendarProps {
   roomId?: string
 }
 
+interface BlockedDate {
+  id: string
+  roomId: string
+  from: string
+  to: string
+  reason: string
+  createdAt: any
+}
+
 export function BookingCalendar({ roomId }: BookingCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
   useEffect(() => {
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
     const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
 
-    let q = query(
+    let bookingsQuery = query(
       collection(db, "bookings"),
       where("checkIn", ">=", startOfMonth.toISOString().split("T")[0]),
       where("checkIn", "<=", endOfMonth.toISOString().split("T")[0]),
     )
 
     if (roomId) {
-      q = query(q, where("roomId", "==", roomId))
+      bookingsQuery = query(bookingsQuery, where("roomId", "==", roomId))
     }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeBookings = onSnapshot(bookingsQuery, (snapshot) => {
       const bookingsData = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -40,7 +50,23 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
       setBookings(bookingsData)
     })
 
-    return () => unsubscribe()
+    let blockedQuery = query(collection(db, "blocked_dates"))
+    if (roomId) {
+      blockedQuery = query(blockedQuery, where("roomId", "==", roomId))
+    }
+
+    const unsubscribeBlocked = onSnapshot(blockedQuery, (snapshot) => {
+      const blockedData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as BlockedDate[]
+      setBlockedDates(blockedData)
+    })
+
+    return () => {
+      unsubscribeBookings()
+      unsubscribeBlocked()
+    }
   }, [currentDate, roomId])
 
   const getDaysInMonth = () => {
@@ -70,8 +96,12 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
   }
 
   const isDateBlocked = (date: Date) => {
-    const dayBookings = getBookingsForDate(date)
-    return dayBookings.some((b) => b.status === "confirmed" || b.status === "pending")
+    const dateStr = date.toISOString().split("T")[0]
+    return blockedDates.some((blocked) => {
+      const from = new Date(blocked.from)
+      const to = new Date(blocked.to)
+      return date >= from && date <= to
+    })
   }
 
   const previousMonth = () => {
@@ -102,7 +132,7 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-lg sm:text-xl mb-4">
           <CalendarIcon className="w-5 h-5" />
-          Calendario Prenotazioni
+          Calendario Prenotazioni {roomId && `- Camera ${roomId}`}
         </CardTitle>
         <div className="flex items-center justify-center gap-2 sm:gap-3">
           <Button variant="outline" size="icon" onClick={previousMonth} className="h-9 w-9 shrink-0 bg-transparent">
@@ -135,8 +165,8 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
             <span>Sito Web</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-gray-200 border border-gray-400" />
-            <span>Bloccato</span>
+            <div className="w-3 h-3 rounded bg-yellow-100 border border-yellow-400" />
+            <span>Manutenzione</span>
           </div>
         </div>
 
@@ -157,7 +187,9 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
             const blocked = isDateBlocked(day)
 
             let bgColor = "bg-green-50 border-green-200"
-            if (hasBookings) {
+            if (blocked) {
+              bgColor = "bg-yellow-50 border-yellow-300"
+            } else if (hasBookings) {
               const hasBookingCom = dayBookings.some((b) => b.origin === "booking")
               const hasAirbnb = dayBookings.some((b) => b.origin === "airbnb")
               const hasSite = dayBookings.some((b) => b.origin === "site")
@@ -186,7 +218,7 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
                 <div className="text-xs sm:text-sm font-medium">{day.getDate()}</div>
                 {blocked && (
                   <div className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1">
-                    <Ban className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-red-600" />
+                    <Ban className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-700" />
                   </div>
                 )}
                 {hasBookings && (
@@ -221,7 +253,15 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
             <h4 className="font-semibold mb-3 text-sm sm:text-base">
               Prenotazioni per {selectedDate.toLocaleDateString("it-IT")}
             </h4>
-            {getBookingsForDate(selectedDate).length === 0 ? (
+            {isDateBlocked(selectedDate) && (
+              <div className="mb-3 p-3 bg-yellow-50 border border-yellow-300 rounded-lg">
+                <div className="flex items-center gap-2 text-yellow-900">
+                  <Ban className="w-4 h-4" />
+                  <span className="font-medium text-sm">Camera in manutenzione</span>
+                </div>
+              </div>
+            )}
+            {getBookingsForDate(selectedDate).length === 0 && !isDateBlocked(selectedDate) ? (
               <p className="text-sm text-muted-foreground">Nessuna prenotazione per questa data</p>
             ) : (
               <div className="space-y-2">
@@ -240,6 +280,11 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
                       <p className="text-xs text-muted-foreground mt-1">
                         {booking.guests} ospiti • €{booking.total}
                       </p>
+                      {booking.services && booking.services.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Servizi: {booking.services.join(", ")}
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-2 items-start sm:flex-col sm:items-end">
                       <Badge
@@ -280,4 +325,5 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
     </Card>
   )
 }
+
 

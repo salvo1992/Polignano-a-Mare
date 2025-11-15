@@ -1,14 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/components/language-provider"
 import { getBookingById, loginWithEmail } from "@/lib/firebase"
-import { Loader2, CheckCircle2, Mail, Copy, Check, Eye, EyeOff, LogIn } from "lucide-react"
+import { Loader2, CheckCircle2, Mail, Copy, Check, Eye, EyeOff, LogIn } from 'lucide-react'
 import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/hooks/use-toast"
 
@@ -55,6 +55,25 @@ export default function CheckoutSuccess() {
       console.log("[v0] Session processed, booking updated:", data.booking)
       setBooking(data.booking)
       setEmailSent(true) // Email already sent by process-session API
+
+      if (data.booking) {
+        try {
+          await fetch("/api/bookings/notify-admin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              bookingId: data.booking.id,
+              roomName: data.booking.roomName,
+              checkIn: data.booking.checkIn,
+              checkOut: data.booking.checkOut,
+              guestName: data.booking.guestName,
+            }),
+          })
+          console.log("[v0] Admin notification sent successfully")
+        } catch (error) {
+          console.error("[v0] Failed to send admin notification:", error)
+        }
+      }
 
       toast({
         title: t("success"),
