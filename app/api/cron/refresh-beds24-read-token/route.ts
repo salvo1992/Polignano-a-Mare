@@ -3,6 +3,8 @@ import { db } from '@/lib/firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import nodemailer from 'nodemailer'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get("authorization")
@@ -151,4 +153,3 @@ async function sendAdminEmail(subject: string, html: string) {
     console.error('[v0] Failed to send admin email:', error)
   }
 }
-
