@@ -8,53 +8,69 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // --- AUTH CRON ---
+    const authHeader = request.headers.get('authorization') ?? ''
+    const cronSecret = process.env.CRON_SECRET ?? ''
+
+    // authHeader es: "Bearer 8721..."
+    const [, token] = authHeader.split(' ') // ["Bearer", "8721..."]
+
+    if (!token || !cronSecret || token.trim() !== cronSecret.trim()) {
+      console.log('[CRON WRITE] Unauthorized', {
+        authHeader,
+        hasEnv: !!cronSecret,
+      })
+
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 },
+      )
     }
 
-    console.log('[CRON] Starting Beds24 write token refresh')
+    console.log('[CRON WRITE] Starting Beds24 write token refresh')
 
+    // --- REFRESH WRITE TOKEN ---
     await beds24Client.forceRefreshWriteToken()
 
-    console.log('[CRON] Write token refreshed successfully')
-    
-    return NextResponse.json({ 
+    console.log('[CRON WRITE] Write token refreshed successfully')
+
+    return NextResponse.json({
       success: true,
       message: 'Write token refreshed successfully',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
-    
   } catch (error) {
-    console.error('[CRON] Error refreshing write token:', error)
-    
+    console.error('[CRON WRITE] Error refreshing write token:', error)
+
+    // Prova a mandare l’email di errore (se configurato Resend)
     try {
       await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL!,
-        to: 'salvo.dauria92@gmail.com',
+        to: 'salvatoredimaria92@gmail.com',
         subject: '⚠️ Beds24 Write Token Refresh Fallito',
         html: `
           <h2>Attenzione: Problema con Beds24 Write Token</h2>
           <p>Il refresh automatico del write token Beds24 è fallito.</p>
-          
           <p><strong>Errore:</strong> ${JSON.stringify(error)}</p>
-          
           <h3>Azione Richiesta:</h3>
           <ol>
             <li>Verifica che BEDS24_REFRESH_TOKEN sia valido nelle variabili d'ambiente</li>
-            <li>Se necessario, rigenera il token su <a href="https://beds24.com/control2.php">Beds24</a></li>
+            <li>Se necessario, rigenera il token su Beds24</li>
           </ol>
-        `
+        `,
       })
     } catch (emailError) {
-      console.error('[CRON] Failed to send error email:', emailError)
+      console.error('[CRON WRITE] Failed to send error email:', emailError)
     }
 
-    return NextResponse.json({ 
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    }, { status: 500 })
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 },
+    )
   }
 }
 
