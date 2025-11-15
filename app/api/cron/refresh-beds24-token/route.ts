@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     try {
       await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL!,
-        to: "salvatoredimaria92@gmail.com",
+        to: process.env.ALERT_EMAIL!,
         subject: "⚠️ Beds24 Write Token Refresh Fallito",
         html: `
           <h2>Problema con il Write Token Beds24</h2>
