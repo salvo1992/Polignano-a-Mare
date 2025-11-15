@@ -139,7 +139,7 @@ export class Beds24Client {
         console.log("Refreshing Beds24 access token...")
 
         const response = await fetch(`${this.baseUrl}/authentication/token`, {
-          method: "POST",
+          method: "GET",
           headers: {
             "Content-Type": "application/json",
             refreshToken: BEDS24_REFRESH_TOKEN!,
@@ -271,16 +271,17 @@ export class Beds24Client {
           throw new Error("No refresh token available")
         }
 
-        console.log("[v0] Refreshing Beds24 write access token...")
+               console.log("[v0] Refreshing Beds24 write access token...")
         console.log("[v0] Using refresh token:", refreshToken.substring(0, 10) + "...")
 
         const response = await fetch(`${this.baseUrl}/authentication/token`, {
-          method: "POST",
+          method: "GET",
           headers: {
-            "accept": "application/json",
-            "refreshToken": refreshToken,
+            accept: "application/json",
+            refreshToken: refreshToken,
           },
         })
+
 
         console.log("[v0] Token refresh response status:", response.status)
 

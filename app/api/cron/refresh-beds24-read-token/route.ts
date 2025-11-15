@@ -56,16 +56,15 @@ export async function GET(request: Request) {
     // -----------------------------
     // 🔄 REFRESH DEL READ TOKEN
     // -----------------------------
-    const response = await fetch(
-      "https://beds24.com/api/v2/authentication/setup",
-      {
-        method: "GET",
-        headers: {
-          accept: "application/json",
-          refreshToken: storedRefreshToken
-        }
-      }
-    )
+     console.log('[CRON] Read token needs refresh, calling Beds24 /authentication/token')
+
+    const response = await fetch('https://beds24.com/api/v2/authentication/token', {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        refreshToken: storedRefreshToken,
+      },
+    })
 
     if (!response.ok) {
       const errorText = await response.text()
