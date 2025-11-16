@@ -136,31 +136,29 @@ export async function GET(request: Request) {
 
           if (booking.origin === "website" && !booking.beds24Id) {
             try {
-              console.log(`[v0] Blocking dates on Beds24 for website booking ${booking.id}`)
-              const beds24RoomId = process.env[`BEDS24_ROOM_ID_${booking.roomId === "2" ? "DELUXE" : "SUITE"}`]
+              console.log(`[v0] Blocking dates on Beds24 for website booking ${booking.id}, room ${booking.roomId}`)
               
-              if (beds24RoomId) {
-                const blockResult = await beds24Client.blockDates(
-                  beds24RoomId,
-                  fromDate,
-                  toDate,
-                  `website-booking-${booking.id}`
-                )
+              // Usa direttamente il roomId della prenotazione (2 = Deluxe, 3 = Suite)
+              const blockResult = await beds24Client.blockDates(
+                booking.roomId, // Usa direttamente "2" o "3"
+                fromDate,
+                toDate,
+                `website-booking-${booking.id}`
+              )
                 
-                if (blockResult.success && blockResult.bookingId) {
-                  syncedToBeds24 = true
-                  beds24BookingId = blockResult.bookingId
-                  beds24Blocks++
-                  
-                  // Aggiorna la prenotazione con il beds24Id
-                  await db.collection("bookings").doc(booking.id).update({
-                    beds24Id: blockResult.bookingId,
-                    syncedToBeds24: true,
-                    beds24SyncedAt: new Date().toISOString(),
-                  })
-                  
-                  console.log(`[v0] Blocked on Beds24 with ID ${blockResult.bookingId}`)
-                }
+              if (blockResult.success && blockResult.bookingId) {
+                syncedToBeds24 = true
+                beds24BookingId = blockResult.bookingId
+                beds24Blocks++
+                
+                // Aggiorna la prenotazione con il beds24Id
+                await db.collection("bookings").doc(booking.id).update({
+                  beds24Id: blockResult.bookingId,
+                  syncedToBeds24: true,
+                  beds24SyncedAt: new Date().toISOString(),
+                })
+                
+                console.log(`[v0] Blocked on Beds24 with ID ${blockResult.bookingId}`)
               }
             } catch (beds24Error) {
               console.error(`[v0] Error blocking on Beds24 for booking ${booking.id}:`, beds24Error)
@@ -326,4 +324,3 @@ function getRoomName(roomId: string): string {
   }
   return roomMap[roomId] || `Camera ${roomId}`
 }
-

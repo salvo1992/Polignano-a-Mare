@@ -125,6 +125,9 @@ export async function POST(request: Request) {
           continue
         }
 
+        const localRoomId = convertBeds24RoomIdToLocal(booking.roomId.toString())
+        console.log(`[v0] Processing booking ${booking.id} - Beds24 roomId: ${booking.roomId}, Local roomId: ${localRoomId}`)
+
         const firebaseBooking = {
           checkIn: checkInDate,
           checkOut: checkOutDate,
@@ -138,9 +141,10 @@ export async function POST(request: Request) {
           currency: "EUR",
           status: booking.status === "confirmed" ? "confirmed" : "pending",
           origin: bookingSource,
-          roomId: booking.roomId.toString(),
-          roomName: getRoomName(booking.roomId.toString()),
+          roomId: localRoomId, // Use local room ID instead of Beds24 room ID
+          roomName: getRoomName(localRoomId),
           beds24Id: booking.id,
+          beds24RoomId: booking.roomId.toString(), // Keep original Beds24 room ID for reference
           apiSourceId: booking.apiSourceId,
           apiSource: booking.apiSource,
           createdAt: parseDate(booking.created) || new Date().toISOString(),
@@ -226,6 +230,8 @@ function getRoomName(roomId: string): string {
   const roomMap: Record<string, string> = {
     "621530": "Camera Familiare con Balcone",
     "621531": "Camera Matrimoniale con Vasca Idromassaggio",
+    "2": "Camera Familiare con Balcone", // Added local room IDs
+    "3": "Camera Matrimoniale con Vasca Idromassaggio",
   }
   return roomMap[roomId] || "Camera Sconosciuta"
 }
@@ -252,5 +258,10 @@ function parseDate(dateString: string | undefined): string | null {
   }
 }
 
-
-
+function convertBeds24RoomIdToLocal(beds24RoomId: string): string {
+  const roomIdMap: Record<string, string> = {
+    "621530": "2", // Camera Familiare con Balcone (Deluxe)
+    "621531": "3", // Camera Matrimoniale con Vasca Idromassaggio (Suite)
+  }
+  return roomIdMap[beds24RoomId] || beds24RoomId
+}

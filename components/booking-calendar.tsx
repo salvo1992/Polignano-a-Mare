@@ -28,31 +28,50 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
+  const normalizeRoomId = (id: string | undefined): string[] => {
+    if (!id) return []
+    const mapping: Record<string, string[]> = {
+      "2": ["2"], // Deluxe - only this room
+      "3": ["3"], // Suite - only this room
+      "621530": ["621530"],
+      "621531": ["621531"],
+    }
+    return mapping[id] || [id]
+  }
+
   useEffect(() => {
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
     const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
 
+    const roomIdsToQuery = roomId ? normalizeRoomId(roomId) : undefined
+
     let bookingsQuery = query(
       collection(db, "bookings"),
-      where("checkIn", ">=", startOfMonth.toISOString().split("T")[0]),
-      where("checkIn", "<=", endOfMonth.toISOString().split("T")[0]),
+      where("checkOut", ">", startOfMonth.toISOString().split("T")[0]),
     )
 
-    if (roomId) {
-      bookingsQuery = query(bookingsQuery, where("roomId", "==", roomId))
+    if (roomIdsToQuery && roomIdsToQuery.length > 0) {
+      bookingsQuery = query(bookingsQuery, where("roomId", "in", roomIdsToQuery))
     }
 
     const unsubscribeBookings = onSnapshot(bookingsQuery, (snapshot) => {
-      const bookingsData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Booking[]
+      const bookingsData = snapshot.docs
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        .filter((booking: any) => {
+          const checkIn = new Date(booking.checkIn)
+          const checkOut = new Date(booking.checkOut)
+          return checkIn <= endOfMonth && checkOut > startOfMonth
+        }) as Booking[]
+      
       setBookings(bookingsData)
     })
 
     let blockedQuery = query(collection(db, "blocked_dates"))
-    if (roomId) {
-      blockedQuery = query(blockedQuery, where("roomId", "==", roomId))
+    if (roomIdsToQuery && roomIdsToQuery.length > 0) {
+      blockedQuery = query(blockedQuery, where("roomId", "in", roomIdsToQuery))
     }
 
     const unsubscribeBlocked = onSnapshot(blockedQuery, (snapshot) => {
@@ -91,16 +110,27 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
     return bookings.filter((booking) => {
       const checkIn = new Date(booking.checkIn)
       const checkOut = new Date(booking.checkOut)
-      return date >= checkIn && date <= checkOut
+      
+      checkIn.setHours(0, 0, 0, 0)
+      checkOut.setHours(0, 0, 0, 0)
+      const dateToCheck = new Date(date)
+      dateToCheck.setHours(0, 0, 0, 0)
+      
+      return dateToCheck >= checkIn && dateToCheck < checkOut
     })
   }
 
   const isDateBlocked = (date: Date) => {
-    const dateStr = date.toISOString().split("T")[0]
     return blockedDates.some((blocked) => {
       const from = new Date(blocked.from)
       const to = new Date(blocked.to)
-      return date >= from && date <= to
+      
+      from.setHours(0, 0, 0, 0)
+      to.setHours(0, 0, 0, 0)
+      const dateToCheck = new Date(date)
+      dateToCheck.setHours(0, 0, 0, 0)
+      
+      return dateToCheck >= from && dateToCheck < to
     })
   }
 
@@ -325,5 +355,3 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
     </Card>
   )
 }
-
-

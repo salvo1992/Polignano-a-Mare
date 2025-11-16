@@ -20,6 +20,7 @@ import { PriceManagement } from "@/components/price-management"
 import { Beds24SyncPanel } from "@/components/beds24-sync-panel"
 import { Beds24ReviewsSync } from "@/components/beds24-reviews-sync"
 import { BookingBlockDates } from "@/components/booking-block-dates"
+import { BookingCalendarFiltered } from "@/components/booking-calendar-filtered"
 import type { Booking, Room } from "@/lib/booking-utils"
 
 interface BnBSettings {
@@ -39,6 +40,7 @@ export default function AdminPage() {
 function AdminInner() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const [bnbSettings, setBnbSettings] = useState<BnBSettings>({
     checkInTime: "15:00",
     checkOutTime: "11:00",
@@ -103,7 +105,14 @@ function AdminInner() {
     loadSettings()
   }, [])
 
+  useEffect(() => {
+    if (rooms.length > 0 && !selectedRoomId) {
+      setSelectedRoomId(rooms[0].id)
+    }
+  }, [rooms, selectedRoomId])
+
   const today = new Date().toISOString().split("T")[0]
+    const selectedRoom = rooms.find((r) => r.id === selectedRoomId)
   const currentAndUpcoming = bookings.filter((b) => b.checkOut >= today)
   const recent = currentAndUpcoming.slice(0, 5)
   const bookingComBookings = currentAndUpcoming.filter((b) => b.origin === "booking")
@@ -234,7 +243,7 @@ function AdminInner() {
                           >
                             <div className="flex-1 min-w-0">
                               <p className="font-medium truncate">
-                                {b.guestFirst} {b.guestLast}
+                                {b.guestFirst || b.firstName || "Nome"} {b.guestLast || b.lastName || "non disponibile"}
                               </p>
                               <p className="text-xs text-muted-foreground truncate">
                                 {b.roomName} • {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
@@ -252,7 +261,7 @@ function AdminInner() {
                               >
                                 {b.origin}
                               </Badge>
-                              <p className="text-sm font-medium">€{b.total}</p>
+                              <p className="text-sm font-medium">€{b.total || b.totalAmount || "0"}</p>
                             </div>
                           </div>
                         ))
@@ -339,7 +348,7 @@ function AdminInner() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">
-                                  {b.guestFirst} {b.guestLast}
+                                  {b.guestFirst || b.firstName || "Nome non disponibile"} {b.guestLast || b.lastName || ""}
                                 </p>
                                 <p className="text-sm text-muted-foreground truncate">
                                   {b.email} • {b.phone}
@@ -357,7 +366,7 @@ function AdminInner() {
                                 >
                                   {b.origin}
                                 </Badge>
-                                <Badge className="text-xs">€{b.total}</Badge>
+                                <Badge className="text-xs">€{b.total || b.totalAmount || "0"}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -393,7 +402,7 @@ function AdminInner() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">
-                                  {b.guestFirst} {b.guestLast}
+                                  {b.guestFirst || b.firstName || "Nome non disponibile"} {b.guestLast || b.lastName || ""}
                                 </p>
                                 <p className="text-sm text-muted-foreground truncate">
                                   {b.email} • {b.phone}
@@ -401,7 +410,7 @@ function AdminInner() {
                               </div>
                               <div className="flex gap-2 flex-shrink-0">
                                 <Badge className="bg-blue-600 text-xs">Booking.com</Badge>
-                                <Badge className="text-xs">€{b.total}</Badge>
+                                <Badge className="text-xs">€{b.total || b.totalAmount || "0"}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -427,7 +436,7 @@ function AdminInner() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">
-                                  {b.guestFirst} {b.guestLast}
+                                  {b.guestFirst || b.firstName || "Nome non disponibile"} {b.guestLast || b.lastName || ""}
                                 </p>
                                 <p className="text-sm text-muted-foreground truncate">
                                   {b.email} • {b.phone}
@@ -435,7 +444,7 @@ function AdminInner() {
                               </div>
                               <div className="flex gap-2 flex-shrink-0">
                                 <Badge className="bg-pink-600 text-xs">Airbnb</Badge>
-                                <Badge className="text-xs">€{b.total}</Badge>
+                                <Badge className="text-xs">€{b.total || b.totalAmount || "0"}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -461,7 +470,7 @@ function AdminInner() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">
-                                  {b.guestFirst} {b.guestLast}
+                                  {b.firstName || b.guestFirst || "Nome non disponibile"} {b.lastName || b.guestLast || ""}
                                 </p>
                                 <p className="text-sm text-muted-foreground truncate">
                                   {b.email} • {b.phone}
@@ -469,7 +478,7 @@ function AdminInner() {
                               </div>
                               <div className="flex gap-2 flex-shrink-0">
                                 <Badge className="bg-emerald-600 text-xs">Sito Web</Badge>
-                                <Badge className="text-xs">€{b.total}</Badge>
+                                <Badge className="text-xs">€{b.totalAmount || b.total || "0"}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -510,20 +519,38 @@ function AdminInner() {
                   <CardDescription>Visualizza le prenotazioni per camera</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Tabs defaultValue={rooms[0]?.id} className="space-y-4">
-                    <TabsList className="w-full justify-start overflow-x-auto flex-nowrap">
+                  <div className="space-y-4">
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        variant={selectedRoomId === null ? "default" : "outline"}
+                        onClick={() => setSelectedRoomId(null)}
+                        className="flex-1 sm:flex-none"
+                      >
+                        Tutte le Camere
+                      </Button>
                       {rooms.map((room) => (
-                        <TabsTrigger key={room.id} value={room.id} className="whitespace-nowrap">
+                        <Button
+                          key={room.id}
+                          variant={selectedRoomId === room.id ? "default" : "outline"}
+                          onClick={() => setSelectedRoomId(room.id)}
+                          className="flex-1 sm:flex-none"
+                        >
                           {room.name}
-                        </TabsTrigger>
+                        </Button>
                       ))}
-                    </TabsList>
-                    {rooms.map((room) => (
-                      <TabsContent key={room.id} value={room.id}>
-                        <BookingCalendar roomId={room.id} />
-                      </TabsContent>
-                    ))}
-                  </Tabs>
+                    </div>
+                    
+                    {selectedRoomId && selectedRoom ? (
+  <BookingCalendarFiltered 
+    bookings={bookings}
+    roomId={selectedRoomId}
+    roomName={selectedRoom.name}
+  />
+) : (
+  <BookingCalendar />
+)}
+
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -643,5 +670,3 @@ function AdminInner() {
     </main>
   )
 }
-
-
