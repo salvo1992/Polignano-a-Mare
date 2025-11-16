@@ -271,17 +271,16 @@ export class Beds24Client {
           throw new Error("No refresh token available")
         }
 
-               console.log("[v0] Refreshing Beds24 write access token...")
+        console.log("[v0] Refreshing Beds24 write access token...")
         console.log("[v0] Using refresh token:", refreshToken.substring(0, 10) + "...")
 
         const response = await fetch(`${this.baseUrl}/authentication/token`, {
-          method: "GET",
+          method: "POST",
           headers: {
-            accept: "application/json",
-            refreshToken: refreshToken,
+            "accept": "application/json",
+            "refreshToken": refreshToken,
           },
         })
-
 
         console.log("[v0] Token refresh response status:", response.status)
 
@@ -635,7 +634,7 @@ export class Beds24Client {
     try {
       await this.request("/bookings", {
         method: "POST",
-        body: JSON.stringify({
+        body: JSON.stringify([{
           roomId,
           arrival: from,
           departure: to,
@@ -643,7 +642,7 @@ export class Beds24Client {
           notes: reason,
           firstName: "BLOCKED",
           lastName: reason.toUpperCase(),
-        }),
+        }]),
       })
       
       console.log("[v0] Successfully blocked dates on Beds24")

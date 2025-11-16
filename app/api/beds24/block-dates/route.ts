@@ -3,6 +3,8 @@ import { beds24Client } from "@/lib/beds24-client"
 import { db } from "@/lib/firebase"
 import { collection, addDoc, serverTimestamp } from "firebase/firestore"
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Block dates on Beds24 (syncs to Airbnb and Booking.com)
  * Used for maintenance or manual blocking
@@ -16,15 +18,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields: roomId, from, to" }, { status: 400 })
     }
 
-    console.log(`[v0] Blocking dates for room ${roomId}: ${from} to ${to}`)
+    console.log(`[v0] Blocking dates for room ${roomId}: ${from} to ${to}, reason: ${reason}`)
+    console.log(`[v0] Blocking dates on Beds24:`, { roomId, from, to, reason })
 
     let beds24Success = false
+    let beds24Error = null
+    let beds24BookingId = null
+
     try {
-      await beds24Client.blockDates(roomId, from, to, reason || "maintenance")
+      const result = await beds24Client.blockDates(roomId, from, to, reason || "maintenance")
       beds24Success = true
-      console.log(`[v0] Dates blocked successfully on Beds24`)
-    } catch (beds24Error) {
-      console.error("[v0] Failed to block dates on Beds24 (will save to Firestore only):", beds24Error)
+      beds24BookingId = result // Store the booking ID returned by Beds24
+      console.log(`[v0] Successfully blocked dates on Beds24`)
+    } catch (error) {
+      beds24Error = error
+      console.error("[v0] Failed to block dates on Beds24 (saving to Firestore only):", error)
     }
 
     const blockedDatesRef = collection(db, "blocked_dates")
@@ -35,11 +43,13 @@ export async function POST(request: Request) {
       reason: reason || "maintenance",
       createdAt: serverTimestamp(),
       syncedToBeds24: beds24Success,
+      beds24BookingId: beds24BookingId,
+      beds24Error: beds24Error ? String(beds24Error) : null,
     })
 
     const message = beds24Success
-      ? "Dates blocked successfully on all platforms (Beds24, Airbnb, Booking.com)"
-      : "Dates blocked on site only. Please block manually on Beds24 dashboard to sync with Airbnb/Booking.com"
+      ? "Date bloccate con successo su tutte le piattaforme (Beds24, Airbnb, Booking.com)"
+      : "Date bloccate sul sito. ATTENZIONE: Blocco su Beds24 fallito - blocca manualmente su Airbnb/Booking.com"
 
     return NextResponse.json({
       success: true,
@@ -54,4 +64,5 @@ export async function POST(request: Request) {
     )
   }
 }
+
 

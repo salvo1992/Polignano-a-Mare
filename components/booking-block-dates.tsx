@@ -1,14 +1,23 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Ban, CheckCircle2, AlertCircle } from "lucide-react"
+import { Ban, CheckCircle2, AlertCircle, Unlock } from 'lucide-react'
 import { Alert, AlertDescription } from "@/components/ui/alert"
+
+interface BlockedDate {
+  id: string
+  roomId: string
+  from: string
+  to: string
+  reason: string
+  createdAt: any
+}
 
 export function BookingBlockDates() {
   const [roomId, setRoomId] = useState("")
@@ -18,6 +27,30 @@ export function BookingBlockDates() {
   const [blocking, setBlocking] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
+  const [unblocking, setUnblocking] = useState<string | null>(null)
+  const [loadingBlocked, setLoadingBlocked] = useState(true)
+
+  useEffect(() => {
+    loadBlockedDates()
+  }, [])
+
+  const loadBlockedDates = async () => {
+    try {
+      setLoadingBlocked(true)
+      const response = await fetch("/api/beds24/blocked-dates")
+      const data = await response.json()
+      
+      if (response.ok) {
+        setBlockedDates(data.blockedDates || [])
+      }
+    } catch (err) {
+      console.error("Error loading blocked dates:", err)
+    } finally {
+      setLoadingBlocked(false)
+    }
+  }
 
   const blockDates = async () => {
     if (!roomId || !from || !to) {
@@ -48,12 +81,44 @@ export function BookingBlockDates() {
       setTo("")
       setReason("maintenance")
 
+      await loadBlockedDates()
+
       setTimeout(() => setSuccess(false), 5000)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore sconosciuto")
     } finally {
       setBlocking(false)
     }
+  }
+
+  const unblockDates = async (blockId: string) => {
+    setUnblocking(blockId)
+    setError(null)
+
+    try {
+      const response = await fetch("/api/beds24/unblock-dates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blockId }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Errore nello sblocco delle date")
+      }
+
+      await loadBlockedDates()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore sconosciuto")
+    } finally {
+      setUnblocking(null)
+    }
+  }
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
   return (
@@ -119,6 +184,49 @@ export function BookingBlockDates() {
           <Ban className="w-4 h-4 mr-2" />
           {blocking ? "Blocco in corso..." : "Blocca Date"}
         </Button>
+
+        {blockedDates.length > 0 && (
+          <div className="pt-4 border-t space-y-3">
+            <h4 className="font-medium text-sm">Date Bloccate ({blockedDates.length})</h4>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {blockedDates.map((blocked) => (
+                <div 
+                  key={blocked.id} 
+                  className="flex items-center justify-between p-3 bg-muted rounded-lg text-sm"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium">
+                      Camera {blocked.roomId === "1" ? "Familiare" : "Matrimoniale"}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {formatDate(blocked.from)} - {formatDate(blocked.to)}
+                    </p>
+                    {blocked.reason && (
+                      <p className="text-muted-foreground text-xs italic mt-1">
+                        {blocked.reason}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => unblockDates(blocked.id)}
+                    disabled={unblocking === blocked.id}
+                  >
+                    <Unlock className="w-3 h-3 mr-1" />
+                    {unblocking === blocked.id ? "..." : "Sblocca"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {loadingBlocked && (
+          <p className="text-xs text-muted-foreground text-center py-2">
+            Caricamento date bloccate...
+          </p>
+        )}
 
         <div className="pt-4 border-t">
           <p className="text-xs text-muted-foreground">

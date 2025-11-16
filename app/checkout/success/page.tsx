@@ -56,6 +56,33 @@ export default function CheckoutSuccess() {
       setBooking(data.booking)
       setEmailSent(true) // Email already sent by process-session API
 
+      if (data.booking?.roomId && data.booking?.checkIn && data.booking?.checkOut) {
+        try {
+          console.log("[v0] Blocking dates on Beds24 for booking:", data.booking.id)
+          
+          const blockResponse = await fetch("/api/beds24/block-dates", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              roomId: data.booking.roomId,
+              from: data.booking.checkIn,
+              to: data.booking.checkOut,
+              reason: `website_booking_${data.booking.id}`
+            }),
+          })
+
+          const blockResult = await blockResponse.json()
+          
+          if (blockResult.success) {
+            console.log("[v0] Dates blocked successfully on Beds24")
+          } else {
+            console.warn("[v0] Date blocking completed with warnings:", blockResult.message)
+          }
+        } catch (blockError) {
+          console.error("[v0] Error blocking dates on Beds24:", blockError)
+        }
+      }
+
       if (data.booking) {
         try {
           await fetch("/api/bookings/notify-admin", {
