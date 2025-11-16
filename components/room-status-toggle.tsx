@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Home, Wrench, CheckCircle } from "lucide-react"
 import { db } from "@/lib/firebase"
-import { collection, query, where, onSnapshot } from "firebase/firestore"
+import { collection, query, where, onSnapshot ,doc, updateDoc } from "firebase/firestore"
 import type { Room } from "@/lib/booking-utils"
 
 interface RoomStatusToggleProps {
@@ -165,6 +165,25 @@ export function RoomStatusToggle({ room }: RoomStatusToggleProps) {
       unsubBlocked()
     }
   }, [room, roomType])
+
+
+   useEffect(() => {
+    const syncStatus = async () => {
+      try {
+        // Se non è cambiato rispetto a quello salvato, non scriviamo niente
+        if (room.status === currentStatus) return
+
+        const roomRef = doc(db, "rooms", String(room.id))
+        await updateDoc(roomRef, { status: currentStatus })
+      } catch (error) {
+        console.error("[RoomStatusToggle] Errore aggiornando lo stato della stanza:", error)
+      }
+    }
+
+    if (room.id) {
+      syncStatus()
+    }
+  }, [room.id, room.status, currentStatus])
 
   const getStatusColor = (status: RoomStatus) => {
     switch (status) {

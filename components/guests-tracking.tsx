@@ -30,16 +30,18 @@ export function GuestsTracking() {
   const todayTime = today.getTime()
 
   const currentGuests = bookings.filter((b) => {
-    if (b.status !== "confirmed") return false
+    const status = String(b.status || "").toLowerCase()
+    if (status !== "confirmed" && status !== "pending") return false
     const checkIn = new Date(b.checkIn)
     const checkOut = new Date(b.checkOut)
     checkIn.setHours(0, 0, 0, 0)
     checkOut.setHours(0, 0, 0, 0)
-    return checkIn.getTime() <= todayTime && checkOut.getTime() >= todayTime
+    return checkIn.getTime() <= todayTime && checkOut.getTime() > todayTime
   })
 
   const upcomingGuests = bookings.filter((b) => {
-    if (b.status !== "confirmed") return false
+    const status = String(b.status || "").toLowerCase()
+    if (status !== "confirmed" && status !== "pending") return false
     const checkIn = new Date(b.checkIn)
     checkIn.setHours(0, 0, 0, 0)
     return checkIn.getTime() > todayTime
@@ -48,7 +50,7 @@ export function GuestsTracking() {
   const pastGuests = bookings.filter((b) => {
     const checkOut = new Date(b.checkOut)
     checkOut.setHours(0, 0, 0, 0)
-    return checkOut.getTime() < todayTime
+    return checkOut.getTime() <= todayTime
   })
 
   const formatDate = (dateString: string) => {
@@ -64,6 +66,10 @@ export function GuestsTracking() {
   }
 
   const GuestCard = ({ booking, status }: { booking: Booking; status: "current" | "upcoming" | "past" }) => {
+    const firstName = booking.guestFirst || (booking as any).firstName || "N/A"
+    const lastName = booking.guestLast || (booking as any).lastName || ""
+    const totalAmount = booking.total || (booking as any).totalAmount || 0
+    
     return (
       <Card className="mb-3">
         <CardContent className="p-4">
@@ -74,7 +80,7 @@ export function GuestsTracking() {
               </div>
               <div>
                 <h4 className="font-semibold text-lg">
-                  {booking.guestFirst} {booking.guestLast}
+                  {firstName} {lastName}
                 </h4>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge
@@ -132,7 +138,7 @@ export function GuestsTracking() {
 
           <div className="mt-3 pt-3 border-t flex items-center justify-between">
             <span className="text-sm text-muted-foreground">
-              Totale: <strong className="text-foreground">€{booking.total}</strong>
+              Totale: <strong className="text-foreground">€{totalAmount}</strong>
             </span>
             <Badge variant={booking.status === "confirmed" ? "default" : "secondary"}>
               {booking.status === "confirmed" ? "Confermata" : booking.status}

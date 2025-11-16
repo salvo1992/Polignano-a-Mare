@@ -21,12 +21,19 @@ import { Beds24SyncPanel } from "@/components/beds24-sync-panel"
 import { Beds24ReviewsSync } from "@/components/beds24-reviews-sync"
 import { BookingBlockDates } from "@/components/booking-block-dates"
 import { BookingCalendarFiltered } from "@/components/booking-calendar-filtered"
+import { AdminSecuritySettings } from "@/components/admin-security-settings"
 import type { Booking, Room } from "@/lib/booking-utils"
 
 interface BnBSettings {
   checkInTime: string
   checkOutTime: string
   cancellationPolicy: string
+}
+
+interface BookingCalendarFilteredProps {
+  bookings: Booking[]
+  roomId: string
+  roomName: string
 }
 
 export default function AdminPage() {
@@ -112,7 +119,7 @@ function AdminInner() {
   }, [rooms, selectedRoomId])
 
   const today = new Date().toISOString().split("T")[0]
-    const selectedRoom = rooms.find((r) => r.id === selectedRoomId)
+  const selectedRoom = rooms.find((r) => r.id === selectedRoomId)
   const currentAndUpcoming = bookings.filter((b) => b.checkOut >= today)
   const recent = currentAndUpcoming.slice(0, 5)
   const bookingComBookings = currentAndUpcoming.filter((b) => b.origin === "booking")
@@ -541,15 +548,14 @@ function AdminInner() {
                     </div>
                     
                     {selectedRoomId && selectedRoom ? (
-  <BookingCalendarFiltered 
-    bookings={bookings}
-    roomId={selectedRoomId}
-    roomName={selectedRoom.name}
-  />
-) : (
-  <BookingCalendar />
-)}
-
+                      <BookingCalendarFiltered 
+                        bookings={bookings}
+                        roomId={selectedRoomId}
+                        roomName={selectedRoom.name}
+                      />
+                    ) : (
+                      <BookingCalendar />
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -566,6 +572,8 @@ function AdminInner() {
               </div>
 
               <BookingBlockDates />
+
+              <AdminSecuritySettings />
 
               <Card>
                 <CardHeader>
