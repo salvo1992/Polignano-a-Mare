@@ -43,7 +43,7 @@ const rooms = [
 export function RoomsPreview() {
   const [hoveredRoom, setHoveredRoom] = useState<number | null>(null)
   const { t } = useLanguage()
-  const { prices, loading } = useRoomPrices()
+  const { prices: roomPrices, loading } = useRoomPrices()
 
   return (
     <section className="py-20 bg-background">
@@ -55,7 +55,7 @@ export function RoomsPreview() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
           {rooms.map((room, index) => {
-            const roomPrice = prices[room.roomId] || 0
+            const roomPrice = roomPrices[room.roomId] || 0
             const priceDisplay = loading ? "..." : `€${roomPrice}`
 
             return (
@@ -81,6 +81,15 @@ export function RoomsPreview() {
                   <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-semibold">
                     {priceDisplay}/{t("perNight")}
                   </div>
+                  <Link href={`/camere/${room.id}`} className="absolute top-14 right-4">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="text-xs h-7 hover:bg-primary hover:text-primary-foreground transition-colors"
+                    >
+                      {t("details")}
+                    </Button>
+                  </Link>
                 </div>
 
                 <div className="p-6">

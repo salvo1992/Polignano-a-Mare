@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Users, Bed, Bath, Mountain, Star, Heart, Share2 } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
-import { useRoomPrices } from "@/hooks/use-room-prices"
+import { useDynamicPrice } from "@/hooks/use-dynamic-price"
 
 const SITE_URL = "https://22suite.ekobit.it" as const
 
@@ -63,7 +63,9 @@ const rooms = [
 
 export function RoomsGrid() {
   const { t } = useLanguage()
-  const { prices } = useRoomPrices()
+  const today = new Date().toISOString().split("T")[0]
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0]
+  const { calculatePrice, loading } = useDynamicPrice()
 
   const [favorites, setFavorites] = useState<number[]>(() => {
     if (typeof window === "undefined") return []
@@ -88,7 +90,7 @@ export function RoomsGrid() {
   const getRoomUrl = (roomId: number) => `${SITE_URL}/camere/${roomId}`
 
   const getWhatsAppHref = (room: (typeof rooms)[number]) => {
-    const price = prices[room.id.toString()] || room.originalPrice
+    const price = calculatePrice(room.id.toString(), today, tomorrow)
     const text = `${t("checkAvailability")}: ${room.name}
 ${getRoomUrl(room.id)}
 
@@ -101,7 +103,7 @@ ${t("pricePerNightLabel")} €${price}${t("perNight")}`
       {rooms.map((room) => {
         const isFav = favorites.includes(room.id)
         const waHref = getWhatsAppHref(room)
-        const price = prices[room.id.toString()] || room.originalPrice
+        const price = calculatePrice(room.id.toString(), today, tomorrow)
 
         return (
           <div
@@ -154,7 +156,7 @@ ${t("pricePerNightLabel")} €${price}${t("perNight")}`
                     <div className="text-xs line-through opacity-75">€{room.originalPrice}</div>
                   )}
                   <div className="font-bold">
-                    €{price}
+                    €{loading ? "..." : price}
                     {t("perNight")}
                   </div>
                 </div>
@@ -215,4 +217,3 @@ ${t("pricePerNightLabel")} €${price}${t("perNight")}`
     </div>
   )
 }
-

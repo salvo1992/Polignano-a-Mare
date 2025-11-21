@@ -49,7 +49,7 @@ export default function CamerePage() {
   const { ref: descRef, isVisible: descVisible } = useScrollAnimation()
   const { t } = useLanguage()
 
-  const { prices: dynamicPrices } = useRoomPrices()
+  const { prices: roomPrices, loading } = useRoomPrices()
 
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
@@ -222,7 +222,7 @@ export default function CamerePage() {
         <div className="container mx-auto px-4">
           <div className="grid lg:grid-cols-2 gap-6 lg:gap-8 mb-16">
             {ROOMS.map((room) => {
-              const currentPrice = dynamicPrices[room.id] || room.price
+              const currentPrice = roomPrices[room.id] || 0
               const currentOriginalPrice = room.originalPrice
               const gallery = roomPhotoGalleries[room.id as keyof typeof roomPhotoGalleries]
               const totalPhotos = gallery.length
@@ -247,7 +247,9 @@ export default function CamerePage() {
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">A partire da</p>
                       <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="text-2xl sm:text-3xl font-bold text-primary">€{currentPrice}</span>
+                        <span className="text-2xl sm:text-3xl font-bold text-primary">
+                          €{loading ? "..." : currentPrice}
+                        </span>
                         <span className="text-base sm:text-lg text-muted-foreground line-through">
                           €{currentOriginalPrice}
                         </span>

@@ -2,7 +2,6 @@
 
 import type React from "react"
 import { useEffect, useMemo, useState } from "react"
-import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
@@ -11,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { CalendarIcon, Users, MapPin, Clock, AlertCircle } from "lucide-react"
+import { CalendarIcon, Users, MapPin, Clock, AlertCircle, Sparkles } from "lucide-react"
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
 import { createBooking, type BookingPayload, getAllRooms } from "@/lib/firebase"
 import { checkRoomAvailability } from "@/lib/booking-utils"
@@ -25,14 +24,26 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import DateRangePicker, { type DateRange } from "@/components/date-range-picker"
+import { BookingCalendarPicker, type DateRange } from "@/components/booking-calendar-picker"
 import { useLanguage } from "@/components/language-provider"
+import { useDynamicPrice } from "@/hooks/use-dynamic-price"
 
 const ROOM_IDS: Record<string, string> = { deluxe: "1", suite: "2" }
 const ROOM_NAMES: Record<string, string> = {
   deluxe: "Camera Familiare con Balcone",
   suite: "Camera Matrimoniale con Vasca Idromassaggio",
 }
+
+const AVAILABLE_SERVICES = [
+  { name: "Massaggio Rilassante Romano", price: 80 },
+  { name: "Cena Romantica Imperiale", price: 120 },
+  { name: "Tour Enogastronomico dei Castelli", price: 95 },
+  { name: "Trattamento Viso alle Terme", price: 65 },
+  { name: "Passeggiata a Cavallo", price: 75 },
+  { name: "Corso di Cucina Romana", price: 85 },
+  { name: "Tour Fotografico Roma Antica", price: 110 },
+  { name: "Yoga al Tramonto", price: 45 },
+]
 
 export default function BookingPage() {
   const router = useRouter()
@@ -154,6 +165,14 @@ export default function BookingPage() {
     checkAvailability()
   }, [formData.checkIn, formData.checkOut, formData.roomType, t])
 
+  // ---- Calculate dynamic price based on selected dates and room ----
+  const { pricePerNight: dynamicPrice, loading: priceLoading } = useDynamicPrice(
+    ROOM_IDS[formData.roomType] || "",
+    formData.checkIn,
+    formData.checkOut,
+    Number(formData.guests || "2"),
+  )
+
   // ---- Notti e totale ----
   const nights = useMemo(() => {
     const ci = formData.checkIn ? new Date(formData.checkIn) : null
@@ -163,7 +182,7 @@ export default function BookingPage() {
     return diff > 0 ? diff : 0
   }, [formData.checkIn, formData.checkOut])
 
-  const basePrice = roomPrices[formData.roomType] ?? 0
+  const basePrice = dynamicPrice || roomPrices[formData.roomType] || 0
   const extraGuests = Math.max(0, Number(formData.guests || "1") - 2)
   const extraFeePerNight = extraGuests * 20
   const total = nights * (basePrice + extraFeePerNight)
@@ -261,7 +280,11 @@ export default function BookingPage() {
                 <div className="border rounded-lg p-4 bg-background/50">
                   <Label className="mb-2 block font-medium">{t("bookingDates") || "Date di soggiorno"}</Label>
 
-                  <DateRangePicker value={range} onChange={(next) => setRange(next)} className="max-w-xl" />
+                  <BookingCalendarPicker
+                    value={range}
+                    onChange={(next) => setRange(next)}
+                    roomId={ROOM_IDS[formData.roomType] || "2"}
+                  />
 
                   {/* hidden per submit/validazioni lato form */}
                   <input type="hidden" name="checkIn" value={formData.checkIn} />
@@ -471,105 +494,43 @@ export default function BookingPage() {
                 </CardContent>
               </Card>
 
-              {/* Card 3 - Camera Deluxe */}
               <Card className="h-full border-0 bg-gradient-to-br from-secondary/10 via-primary/5 to-accent/5">
                 <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg">
-                        {t("bookingSuiteTitle") || "Camera Familiare con Balcone"}
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground">
-                        {t("bookingSuiteFrom") || "Da"} €{roomPrices.deluxe}/{t("bookingNights") || "notte"}
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="h-5 w-5 text-primary mt-1" />
+                    <div className="w-full">
+                      <h3 className="font-cinzel font-semibold text-primary mb-2">Servizi Extra Disponibili</h3>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Dopo la prenotazione potrai richiedere questi servizi aggiuntivi
                       </p>
+                      <div className="space-y-2 max-h-48 overflow-y-auto mb-4">
+                        {AVAILABLE_SERVICES.map((service, index) => (
+                          <div key={index} className="flex justify-between items-center text-sm">
+                            <span className="text-muted-foreground">{service.name}</span>
+                            <span className="font-medium text-primary">€{service.price}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-primary/20 hover:bg-primary/5 bg-transparent"
+                        onClick={() => {
+                          if (typeof window !== "undefined") {
+                            window.alert(
+                              "Completa prima la prenotazione per richiedere servizi extra. Potrai farlo dalla tua area personale dopo aver effettuato il check-in.",
+                            )
+                          }
+                        }}
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Richiedi Servizi
+                      </Button>
                     </div>
-                    <Button variant="outline" onClick={() => setFormData((s) => ({ ...s, roomType: "deluxe" }))}>
-                      {t("bookingSelectButton") || "Seleziona"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Card 4 - Camera Suite */}
-              <Card className="h-full border-0 bg-gradient-to-br from-accent/5 via-primary/5 to-secondary/10">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{t("bookingjacuziTitle") || "Camera jacuzi"}</CardTitle>
-                      <p className="text-xs text-muted-foreground">
-                        {t("bookingjacuziFrom") || "Da"} €{roomPrices.suite}/{t("bookingNights") || "notte"}
-                      </p>
-                    </div>
-                    <Button variant="outline" onClick={() => setFormData((s) => ({ ...s, roomType: "suite" }))}>
-                      {t("bookingSelectButton") || "Seleziona"}
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
             </div>
-          </div>
-
-          <div className="text-center mt-12 mb-6">
-            <h2 className="text-2xl font-cinzel font-bold text-roman-gradient mb-2">
-              {t("bookingOurRoomsTitle") || "Le Nostre Camere"}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {t("bookingOurRoomsSubtitle") || "Scopri dove soggiornerai"}
-            </p>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2 max-w-5xl mx-auto">
-            {/* DELUXE */}
-            <Card className="overflow-hidden">
-              <div className="relative h-56">
-                <Image
-                  src="/images/room-1.jpg"
-                  alt={t("bookingSuiteAlt") || "Camera familiare con balcone"}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">
-                      {t("bookingSuiteTitle") || "Camera Familiare con Balcone"}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      {t("bookingSuiteFrom") || "Da"} €{roomPrices.deluxe}/{t("bookingNights") || "notte"}
-                    </p>
-                  </div>
-                  <Button variant="outline" onClick={() => setFormData((s) => ({ ...s, roomType: "deluxe" }))}>
-                    {t("bookingSelectButton") || "Seleziona"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* SUITE */}
-            <Card className="overflow-hidden">
-              <div className="relative h-56">
-                <Image
-                  src="/images/room-2.jpg"
-                  alt={t("bookingjacuziAlt") || "Camera jacuzi con vista"}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{t("bookingjacuziTitle") || "Camera jacuzi"}</CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      {t("bookingjacuziFrom") || "Da"} €{roomPrices.suite}/{t("bookingNights") || "notte"}
-                    </p>
-                  </div>
-                  <Button variant="outline" onClick={() => setFormData((s) => ({ ...s, roomType: "suite" }))}>
-                    {t("bookingSelectButton") || "Seleziona"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>

@@ -13,7 +13,9 @@ import { useLanguage } from "@/components/language-provider"
 import { useRoomPrices } from "@/hooks/use-room-prices"
 import { checkRoomAvailability } from "@/lib/booking-utils"
 import { BookingModal } from "@/components/booking-modal"
-import DateRangePicker, { type DateRange } from "@/components/date-range-picker"
+import type { DateRange } from "@/components/date-range-picker"
+import { useDynamicPrice } from "@/hooks/use-dynamic-price"
+import { BookingCalendarPicker } from "@/components/booking-calendar-picker"
 
 interface BookingWidgetProps {
   roomId: string
@@ -38,7 +40,14 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
     return `${y}-${m}-${day}`
   }
 
-  const basePrice = prices[selectedRoomType] || 180
+  const { pricePerNight: dynamicPrice, loading: priceLoading } = useDynamicPrice(
+    selectedRoomType,
+    dateRange?.from ? toInputDate(dateRange.from) : "",
+    dateRange?.to ? toInputDate(dateRange.to) : "",
+    guests,
+  )
+
+  const basePrice = dynamicPrice || prices[selectedRoomType] || 180
   const originalPrice = selectedRoomType === "1" ? 220 : 180
   const discount = originalPrice - basePrice
 
@@ -131,7 +140,13 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
 
             <div>
               <Label>{t("bookingDates") || "Date di soggiorno"}</Label>
-              <DateRangePicker value={dateRange} onChange={setDateRange} className="mt-2" />
+              <BookingCalendarPicker
+                value={dateRange}
+                onChange={setDateRange}
+                roomId={selectedRoomType}
+                className="mt-1"
+                compact={true}
+              />
             </div>
 
             <div>

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, BarChart3, Home, Settings, Users, Clock } from 'lucide-react'
+import { Calendar, BarChart3, Home, Settings, Users, Clock, Euro } from "lucide-react"
 import { RequireAdmin } from "@/components/route-guards"
 import { useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
@@ -16,12 +16,12 @@ import { collection, onSnapshot, orderBy, query, doc, setDoc, getDoc } from "fir
 import { BookingCalendar } from "@/components/booking-calendar"
 import { RoomStatusToggle } from "@/components/room-status-toggle"
 import { GuestsTracking } from "@/components/guests-tracking"
-import { PriceManagement } from "@/components/price-management"
 import { Beds24SyncPanel } from "@/components/beds24-sync-panel"
 import { Beds24ReviewsSync } from "@/components/beds24-reviews-sync"
 import { BookingBlockDates } from "@/components/booking-block-dates"
 import { BookingCalendarFiltered } from "@/components/booking-calendar-filtered"
 import { AdminSecuritySettings } from "@/components/admin-security-settings"
+import { DynamicPricingManagement } from "@/components/dynamic-pricing-management"
 import type { Booking, Room } from "@/lib/booking-utils"
 
 interface BnBSettings {
@@ -160,7 +160,7 @@ function AdminInner() {
             Pannello Amministratore
           </h1>
           <Tabs defaultValue="dashboard" className="space-y-4 sm:space-y-6">
-            <TabsList className="grid w-full grid-cols-5 h-auto gap-1 p-1">
+            <TabsList className="grid w-full grid-cols-6 h-auto gap-1 p-1">
               <TabsTrigger value="dashboard" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Dashboard</span>
@@ -176,6 +176,10 @@ function AdminInner() {
               <TabsTrigger value="guests" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Ospiti</span>
+              </TabsTrigger>
+              <TabsTrigger value="pricing" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+                <Euro className="h-4 w-4" />
+                <span className="hidden sm:inline">Prezzi</span>
               </TabsTrigger>
               <TabsTrigger value="settings" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Settings className="h-4 w-4" />
@@ -355,7 +359,8 @@ function AdminInner() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">
-                                  {b.guestFirst || b.firstName || "Nome non disponibile"} {b.guestLast || b.lastName || ""}
+                                  {b.guestFirst || b.firstName || "Nome non disponibile"}{" "}
+                                  {b.guestLast || b.lastName || ""}
                                 </p>
                                 <p className="text-sm text-muted-foreground truncate">
                                   {b.email} • {b.phone}
@@ -382,14 +387,10 @@ function AdminInner() {
                                 {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
                               </span>
                               {b.origin === "site" && b.services && b.services.length > 0 && (
-                                <span className="text-xs text-primary">
-                                  + {b.services.join(", ")}
-                                </span>
+                                <span className="text-xs text-primary">+ {b.services.join(", ")}</span>
                               )}
                               {b.origin === "site" && (!b.services || b.services.length === 0) && (
-                                <span className="text-xs text-muted-foreground">
-                                  Senza servizi aggiuntivi
-                                </span>
+                                <span className="text-xs text-muted-foreground">Senza servizi aggiuntivi</span>
                               )}
                             </div>
                           </div>
@@ -409,7 +410,8 @@ function AdminInner() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">
-                                  {b.guestFirst || b.firstName || "Nome non disponibile"} {b.guestLast || b.lastName || ""}
+                                  {b.guestFirst || b.firstName || "Nome non disponibile"}{" "}
+                                  {b.guestLast || b.lastName || ""}
                                 </p>
                                 <p className="text-sm text-muted-foreground truncate">
                                   {b.email} • {b.phone}
@@ -443,7 +445,8 @@ function AdminInner() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">
-                                  {b.guestFirst || b.firstName || "Nome non disponibile"} {b.guestLast || b.lastName || ""}
+                                  {b.guestFirst || b.firstName || "Nome non disponibile"}{" "}
+                                  {b.guestLast || b.lastName || ""}
                                 </p>
                                 <p className="text-sm text-muted-foreground truncate">
                                   {b.email} • {b.phone}
@@ -477,7 +480,8 @@ function AdminInner() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">
-                                  {b.firstName || b.guestFirst || "Nome non disponibile"} {b.lastName || b.guestLast || ""}
+                                  {b.firstName || b.guestFirst || "Nome non disponibile"}{" "}
+                                  {b.lastName || b.guestLast || ""}
                                 </p>
                                 <p className="text-sm text-muted-foreground truncate">
                                   {b.email} • {b.phone}
@@ -494,14 +498,10 @@ function AdminInner() {
                                 {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
                               </span>
                               {b.origin === "site" && b.services && b.services.length > 0 && (
-                                <span className="text-xs text-primary">
-                                  + {b.services.join(", ")}
-                                </span>
+                                <span className="text-xs text-primary">+ {b.services.join(", ")}</span>
                               )}
                               {b.origin === "site" && (!b.services || b.services.length === 0) && (
-                                <span className="text-xs text-muted-foreground">
-                                  Senza servizi aggiuntivi
-                                </span>
+                                <span className="text-xs text-muted-foreground">Senza servizi aggiuntivi</span>
                               )}
                             </div>
                           </div>
@@ -546,9 +546,9 @@ function AdminInner() {
                         </Button>
                       ))}
                     </div>
-                    
+
                     {selectedRoomId && selectedRoom ? (
-                      <BookingCalendarFiltered 
+                      <BookingCalendarFiltered
                         bookings={bookings}
                         roomId={selectedRoomId}
                         roomName={selectedRoom.name}
@@ -565,6 +565,10 @@ function AdminInner() {
               <GuestsTracking />
             </TabsContent>
 
+            <TabsContent value="pricing" className="space-y-4 sm:space-y-6">
+              <DynamicPricingManagement />
+            </TabsContent>
+
             <TabsContent value="settings" className="space-y-4 sm:space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <Beds24SyncPanel />
@@ -574,16 +578,6 @@ function AdminInner() {
               <BookingBlockDates />
 
               <AdminSecuritySettings />
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="font-cinzel text-primary">Gestione Prezzi Camere</CardTitle>
-                  <CardDescription>Aggiorna i prezzi delle camere</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <PriceManagement />
-                </CardContent>
-              </Card>
 
               <Card>
                 <CardHeader>
@@ -678,3 +672,4 @@ function AdminInner() {
     </main>
   )
 }
+

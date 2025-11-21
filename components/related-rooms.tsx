@@ -143,4 +143,3 @@ export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
     </div>
   )
 }
-
