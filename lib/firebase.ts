@@ -299,10 +299,31 @@ export async function listAllBookingsForAdmin(limitN = 100) {
 }
 
 export async function cancelBooking(id: string) {
+  const booking = await getBookingById(id)
+
   await updateDoc(doc(db, BOOKINGS_COL, id), {
     status: "cancelled",
     updatedAt: serverTimestamp(),
   })
+
+  // Auto-unblock dates on Beds24 if booking was from the site
+  if (booking && booking.origin === "site") {
+    try {
+      // Call unblock API to remove the blocked dates from Beds24
+      await fetch("/api/beds24/unblock-booking-dates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId: booking.roomId,
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+        }),
+      })
+      console.log("[v0] Dates unblocked on Beds24 after cancellation")
+    } catch (error) {
+      console.error("[v0] Failed to unblock dates on Beds24:", error)
+    }
+  }
 }
 
 export async function confirmBooking(id: string) {
@@ -366,7 +387,10 @@ export async function createStripeCheckout(args: CreateCheckoutArgs): Promise<{ 
   const response = await fetch("/api/payments/stripe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(args),
+    body: JSON.stringify({
+      ...args,
+      paymentType: "deposit", // Always pay 30% deposit for new bookings
+    }),
   })
 
   if (!response.ok) {
@@ -466,7 +490,6 @@ export async function linkBookingToUser(bookingId: string, email: string): Promi
     return false
   }
 }
-
 
 
 

@@ -34,8 +34,11 @@ export const getAdminDb = () => {
   return admin.firestore()
 }
 
+export const adminDb = getAdminDb
+
 export const getAdminAuth = () => {
   return admin.auth()
 }
 
 export { admin }
+

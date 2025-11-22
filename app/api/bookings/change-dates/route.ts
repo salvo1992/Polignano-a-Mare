@@ -3,12 +3,7 @@ import { getAdminDb } from "@/lib/firebase-admin"
 import { FieldValue } from "firebase-admin/firestore"
 import Stripe from "stripe"
 import { sendModificationEmail } from "@/lib/email"
-import {
-  calculateNights,
-  calculatePriceByGuests,
-  calculateDaysUntilCheckIn,
-  calculateChangeDatesPenalty,
-} from "@/lib/pricing"
+import { calculateNights, calculateDaysUntilCheckIn, calculateChangeDatesPenalty } from "@/lib/pricing"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
 
@@ -51,10 +46,25 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
     }
 
-    const nights = calculateNights(checkIn, checkOut)
-    const guests = bookingData?.guests || 2
-    const basePrice = calculatePriceByGuests(guests, nights)
+    const priceResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/bookings/calculate-price`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bookingId,
+        checkIn,
+        checkOut,
+        roomId: bookingData?.roomId,
+      }),
+    })
 
+    if (!priceResponse.ok) {
+      throw new Error("Failed to calculate new price")
+    }
+
+    const priceData = await priceResponse.json()
+    const basePrice = priceData.newPrice * 100 // Convert to cents
+
+    const nights = calculateNights(checkIn, checkOut)
     const daysUntilCheckIn = calculateDaysUntilCheckIn(bookingData?.checkIn)
     const penaltyAmount = calculateChangeDatesPenalty(bookingData?.totalAmount || 0, daysUntilCheckIn)
     const totalAmount = basePrice + penaltyAmount
@@ -67,9 +77,14 @@ export async function PUT(request: NextRequest) {
       penaltyAmount: penaltyAmount / 100,
       totalAmount: totalAmount / 100,
       priceDifference: priceDifference / 100,
+      daysUntilCheckIn,
     })
 
     if (priceDifference > 0) {
+      // Client needs to pay additional amount
+      const depositAmount = Math.round(priceDifference * 0.3) // 30% deposit on difference
+      const balanceAmount = priceDifference - depositAmount // 70% balance
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
@@ -77,33 +92,121 @@ export async function PUT(request: NextRequest) {
             price_data: {
               currency: "eur",
               product_data: {
-                name: `Modifica Date - ${bookingData?.roomName || "Camera"}`,
-                description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${(penaltyAmount / 100).toFixed(2)})` : ""}`,
+                name: `Acconto Modifica Date - ${bookingData?.roomName || "Camera"}`,
+                description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${(penaltyAmount / 100).toFixed(2)})` : ""}\nAcconto 30% della differenza, saldo 70% da pagare 7 giorni prima del check-in`,
               },
-              unit_amount: priceDifference,
+              unit_amount: depositAmount,
             },
             quantity: 1,
           },
         ],
         mode: "payment",
-        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/user/booking/${bookingId}?payment=success`,
         cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/user/booking/${bookingId}?payment=cancelled`,
         metadata: {
           bookingId,
           type: "change_dates",
           checkIn,
           checkOut,
-          newPrice: totalAmount.toString(),
+          newTotalAmount: totalAmount.toString(),
           penalty: penaltyAmount.toString(),
           originalAmount: originalAmount.toString(),
-          dateChangeCost: priceDifference.toString(),
+          priceDifference: priceDifference.toString(),
+          depositAmount: depositAmount.toString(),
+          balanceAmount: balanceAmount.toString(),
         },
+      })
+
+      console.log("[v0] Checkout session created for price increase:", {
+        depositAmount: depositAmount / 100,
+        balanceAmount: balanceAmount / 100,
+        sessionUrl: session.url,
       })
 
       return NextResponse.json({
         success: true,
+        paymentRequired: true,
         paymentUrl: session.url,
+        depositAmount: depositAmount / 100,
+        balanceAmount: balanceAmount / 100,
+        message: `Richiesto acconto aggiuntivo di €${(depositAmount / 100).toFixed(2)}`,
       })
+    }
+
+    if (priceDifference < 0) {
+      const refundAmount = Math.abs(priceDifference)
+
+      console.log("[v0] Issuing automatic refund:", {
+        refundAmount: refundAmount / 100,
+        paymentId: bookingData?.paymentId,
+      })
+
+      if (bookingData?.paymentId) {
+        try {
+          const refund = await stripe.refunds.create({
+            payment_intent: bookingData.paymentId,
+            amount: refundAmount,
+            reason: "requested_by_customer",
+            metadata: {
+              bookingId,
+              reason: "date_change_price_decrease",
+              originalAmount: (originalAmount / 100).toFixed(2),
+              newAmount: (totalAmount / 100).toFixed(2),
+            },
+          })
+
+          console.log("[v0] Refund issued successfully:", refund.id)
+
+          await bookingRef.update({
+            checkIn,
+            checkOut,
+            nights,
+            totalAmount,
+            depositPaid: Math.round(totalAmount * 0.3), // Recalculate 30% deposit on new total
+            balanceDue: Math.round(totalAmount * 0.7), // Recalculate 70% balance on new total
+            lastRefund: {
+              id: refund.id,
+              amount: refundAmount,
+              reason: "date_change_price_decrease",
+              createdAt: FieldValue.serverTimestamp(),
+            },
+            updatedAt: FieldValue.serverTimestamp(),
+          })
+
+          await sendModificationEmail({
+            to: bookingData?.email,
+            bookingId,
+            firstName: bookingData?.firstName,
+            lastName: bookingData?.lastName,
+            checkIn,
+            checkOut,
+            roomName: bookingData?.roomName,
+            guests: bookingData?.guests || 2,
+            nights,
+            originalAmount,
+            newAmount: totalAmount,
+            penalty: penaltyAmount,
+            dateChangeCost: priceDifference,
+            modificationType: "dates",
+            refundAmount,
+          })
+
+          console.log("[API] Booking dates changed with refund:", bookingId)
+
+          return NextResponse.json({
+            success: true,
+            nights,
+            totalAmount: totalAmount / 100,
+            priceDifference: priceDifference / 100,
+            refundIssued: true,
+            refundAmount: refundAmount / 100,
+            message: `Date modificate. Rimborso di €${(refundAmount / 100).toFixed(2)} in corso.`,
+          })
+        } catch (refundError) {
+          console.error("[v0] Error issuing refund:", refundError)
+          // Continue with booking update even if refund fails
+        }
+      }
     }
 
     await bookingRef.update({
@@ -111,6 +214,8 @@ export async function PUT(request: NextRequest) {
       checkOut,
       nights,
       totalAmount,
+      depositPaid: Math.round(totalAmount * 0.3),
+      balanceDue: Math.round(totalAmount * 0.7),
       updatedAt: FieldValue.serverTimestamp(),
     })
 
@@ -133,12 +238,20 @@ export async function PUT(request: NextRequest) {
 
     console.log("[API] Booking dates changed successfully:", bookingId)
 
-    return NextResponse.json({ success: true, nights, totalAmount })
+    return NextResponse.json({
+      success: true,
+      nights,
+      totalAmount: totalAmount / 100,
+      priceDifference: priceDifference / 100,
+      refundIssued: false,
+      message: "Date modificate con successo",
+    })
   } catch (error) {
     console.error("Error changing dates:", error)
     return NextResponse.json({ error: "Errore nella modifica delle date" }, { status: 500 })
   }
 }
+
 
 
 

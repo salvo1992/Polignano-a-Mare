@@ -7,6 +7,7 @@ import { Footer } from "@/components/footer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ExtraServicesModal } from "@/components/extra-services-modal"
 import {
   getBookingById,
   createStripeCheckout,
@@ -30,6 +31,7 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string>("")
   const [successUrl, setSuccessUrl] = useState("")
   const [cancelUrl, setCancelUrl] = useState("")
+  const [showServicesModal, setShowServicesModal] = useState(false)
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -54,6 +56,10 @@ export default function CheckoutPage() {
   }, [booking])
 
   const handlePay = async () => {
+    setShowServicesModal(true)
+  }
+
+  const handleCompleteServicesSelection = async () => {
     if (!bookingId || !booking || !successUrl || !cancelUrl) return
     setPaying(true)
     setError("")
@@ -169,6 +175,20 @@ export default function CheckoutPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ExtraServicesModal
+        open={showServicesModal}
+        onOpenChange={setShowServicesModal}
+        onComplete={handleCompleteServicesSelection}
+        bookingData={{
+          roomId: booking?.roomId || "",
+          checkIn: booking?.checkIn || "",
+          checkOut: booking?.checkOut || "",
+          guests: booking?.guests || 1,
+          userEmail: booking?.email || "",
+          userName: `${booking?.firstName || ""} ${booking?.lastName || ""}`.trim(),
+        }}
+      />
 
       <Footer />
     </main>

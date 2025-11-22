@@ -27,6 +27,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { BookingCalendarPicker, type DateRange } from "@/components/booking-calendar-picker"
 import { useLanguage } from "@/components/language-provider"
 import { useDynamicPrice } from "@/hooks/use-dynamic-price"
+import { ExtraServicesModal } from "@/components/extra-services-modal"
 
 const ROOM_IDS: Record<string, string> = { deluxe: "1", suite: "2" }
 const ROOM_NAMES: Record<string, string> = {
@@ -73,6 +74,7 @@ export default function BookingPage() {
   const [errorMessage, setErrorMessage] = useState("")
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
   const [availabilityStatus, setAvailabilityStatus] = useState<{ available: boolean; message: string } | null>(null)
+  const [showExtraServicesModal, setShowExtraServicesModal] = useState(false)
 
   const hasError = search.get("error") === "payment_failed"
 
@@ -209,6 +211,19 @@ export default function BookingPage() {
       return
     }
 
+    handleProceedToCheckout()
+  }
+
+  const handleProceedToCheckout = async () => {
+    setShowExtraServicesModal(true)
+  }
+
+  const handleExtraServicesComplete = () => {
+    // Continue with normal payment flow after services modal
+    proceedToPayment()
+  }
+
+  const proceedToPayment = async () => {
     const payload: BookingPayload = {
       checkIn: formData.checkIn,
       checkOut: formData.checkOut,
@@ -243,314 +258,332 @@ export default function BookingPage() {
   }
 
   return (
-    <main className="min-h-screen">
-      <Header />
+    <>
+      <main className="min-h-screen">
+        <Header />
 
-      <div className="pt-20 pb-16">
-        <div className="container mx-auto px-4">
-          {/* HERO */}
-          <div
-            ref={heroRef}
-            className={`mb-8 text-center transition-all duration-1000 ${
-              heroVisible ? "animate-fade-in-up opacity-100" : "opacity-0 translate-y-[50px]"
-            }`}
-          >
-            <h1 className="text-4xl md:text-6xl font-cinzel font-bold text-roman-gradient mb-3 animate-text-shimmer">
-              {t("bookingPageTitle") || "Prenota il Tuo Soggiorno"}
-            </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto">
-              {t("bookingPageSubtitle") || "Vivi un'esperienza indimenticabile nel cuore di Polignano a Mare"}
-            </p>
-          </div>
+        <div className="pt-20 pb-16">
+          <div className="container mx-auto px-4">
+            {/* HERO */}
+            <div
+              ref={heroRef}
+              className={`mb-8 text-center transition-all duration-1000 ${
+                heroVisible ? "animate-fade-in-up opacity-100" : "opacity-0 translate-y-[50px]"
+              }`}
+            >
+              <h1 className="text-4xl md:text-6xl font-cinzel font-bold text-roman-gradient mb-3 animate-text-shimmer">
+                {t("bookingPageTitle") || "Prenota il Tuo Soggiorno"}
+              </h1>
+              <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto">
+                {t("bookingPageSubtitle") || "Vivi un'esperienza indimenticabile nel cuore di Polignano a Mare"}
+              </p>
+            </div>
 
-          {/* LAYOUT: Form (2col) + Info Cards (1col) */}
-          <div className="grid gap-6 lg:grid-cols-3 max-w-5xl mx-auto">
-            {/* === FORM PRENOTAZIONE (2 colonne) === */}
-            <Card className="lg:col-span-2">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-2xl font-cinzel text-primary">
-                  {t("bookingDetailsTitle") || "Dettagli Prenotazione"}
-                </CardTitle>
-                <CardDescription>
-                  {t("bookingDetailsSubtitle") || "Compila il modulo per prenotare il tuo soggiorno"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                {/* Date range - UN SOLO COMANDO */}
-                <div className="border rounded-lg p-4 bg-background/50">
-                  <Label className="mb-2 block font-medium">{t("bookingDates") || "Date di soggiorno"}</Label>
+            {/* LAYOUT: Form (2col) + Info Cards (1col) */}
+            <div className="grid gap-6 lg:grid-cols-3 max-w-5xl mx-auto">
+              {/* === FORM PRENOTAZIONE (2 colonne) === */}
+              <Card className="lg:col-span-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-2xl font-cinzel text-primary">
+                    {t("bookingDetailsTitle") || "Dettagli Prenotazione"}
+                  </CardTitle>
+                  <CardDescription>
+                    {t("bookingDetailsSubtitle") || "Compila il modulo per prenotare il tuo soggiorno"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {/* Date range - UN SOLO COMANDO */}
+                  <div className="border rounded-lg p-4 bg-background/50">
+                    <Label className="mb-2 block font-medium">{t("bookingDates") || "Date di soggiorno"}</Label>
 
-                  <BookingCalendarPicker
-                    value={range}
-                    onChange={(next) => setRange(next)}
-                    roomId={ROOM_IDS[formData.roomType] || "2"}
-                  />
-
-                  {/* hidden per submit/validazioni lato form */}
-                  <input type="hidden" name="checkIn" value={formData.checkIn} />
-                  <input type="hidden" name="checkOut" value={formData.checkOut} />
-
-                  {/* Avvisi disponibilità */}
-                  <div className="mt-3">
-                    {isCheckingAvailability && (
-                      <Alert>
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>{t("checkingAvailability") || "Verifica disponibilità…"}</AlertTitle>
-                        <AlertDescription>{t("pleaseWait") || "Attendi qualche secondo."}</AlertDescription>
-                      </Alert>
-                    )}
-                    {availabilityStatus && !isCheckingAvailability && (
-                      <Alert variant={availabilityStatus.available ? "default" : "destructive"}>
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>
-                          {availabilityStatus.available
-                            ? t("roomAvailable") || "Camera disponibile"
-                            : t("roomNotAvailable") || "Camera non disponibile"}
-                        </AlertTitle>
-                        <AlertDescription>
-                          {availabilityStatus.available
-                            ? t("roomAvailableDesc") || "Procedi con la prenotazione."
-                            : t("roomNotAvailableDesc") || "Seleziona altre date o un'altra camera."}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                </div>
-
-                {/* Dati ospite */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="firstName">{t("bookingFormFirstName") || "Nome"}</Label>
-                    <Input
-                      id="firstName"
-                      name="firstName"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      required
+                    <BookingCalendarPicker
+                      value={range}
+                      onChange={(next) => setRange(next)}
+                      roomId={ROOM_IDS[formData.roomType] || "2"}
                     />
-                  </div>
-                  <div>
-                    <Label htmlFor="lastName">{t("bookingFormLastName") || "Cognome"}</Label>
-                    <Input
-                      id="lastName"
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-                </div>
 
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="email">{t("bookingFormEmail") || "Email"}</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">{t("bookingFormPhone") || "Telefono"}</Label>
-                    <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} />
-                  </div>
-                </div>
+                    {/* hidden per submit/validazioni lato form */}
+                    <input type="hidden" name="checkIn" value={formData.checkIn} />
+                    <input type="hidden" name="checkOut" value={formData.checkOut} />
 
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="guests">{t("bookingFormGuests") || "Numero Ospiti"}</Label>
-                    <select
-                      id="guests"
-                      name="guests"
-                      value={formData.guests}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                    >
-                      <option value="1">1</option>
-                      <option value="2">2</option>
-                      <option value="3">3</option>
-                      <option value="4">4</option>
-                    </select>
+                    {/* Avvisi disponibilità */}
+                    <div className="mt-3">
+                      {isCheckingAvailability && (
+                        <Alert>
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>{t("checkingAvailability") || "Verifica disponibilità…"}</AlertTitle>
+                          <AlertDescription>{t("pleaseWait") || "Attendi qualche secondo."}</AlertDescription>
+                        </Alert>
+                      )}
+                      {availabilityStatus && !isCheckingAvailability && (
+                        <Alert variant={availabilityStatus.available ? "default" : "destructive"}>
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>
+                            {availabilityStatus.available
+                              ? t("roomAvailable") || "Camera disponibile"
+                              : t("roomNotAvailable") || "Camera non disponibile"}
+                          </AlertTitle>
+                          <AlertDescription>
+                            {availabilityStatus.available
+                              ? t("roomAvailableDesc") || "Procedi con la prenotazione."
+                              : t("roomNotAvailableDesc") || "Seleziona altre date o un'altra camera."}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="roomType">{t("bookingFormRoomType") || "Tipo Camera"}</Label>
-                    <select
-                      id="roomType"
-                      name="roomType"
-                      value={formData.roomType}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                      required
-                    >
-                      <option value="">{t("bookingFormSelectRoom") || "Seleziona una camera"}</option>
-                      <option value="deluxe">{t("bookingFormPanoramicSuite") || "Camera familiare con balcone"}</option>
-                      <option value="suite">{t("bookingFormjacuziRoom") || "Camera jacuzi"}</option>
-                    </select>
-                  </div>
-                </div>
 
-                <div>
-                  <Label htmlFor="specialRequests">{t("bookingFormSpecialRequests") || "Richieste Speciali"}</Label>
-                  <Textarea
-                    id="specialRequests"
-                    name="specialRequests"
-                    value={formData.specialRequests}
-                    onChange={handleInputChange}
-                    placeholder={t("bookingFormSpecialRequestsPlaceholder") || "Eventuali richieste particolari…"}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="border rounded-lg p-5 bg-gradient-to-br from-[#635BFF]/5 to-[#635BFF]/10">
-                  <div className="flex items-center justify-center mb-3">
-                    <svg width="80" height="33" viewBox="0 0 60 25" fill="none" aria-hidden="true">
-                      <path
-                        d="M59.64 14.28h-8.06c.19 1.93 1.6 2.55 3.2 2.55 1.64 0 2.96-.37 4.05-.95v3.32a8.33 8.33 0 0 1-4.56 1.1c-4.01 0-6.83-2.5-6.83-7.48 0-4.19 2.39-7.52 6.3-7.52 3.92 0 5.96 3.28 5.96 7.5 0 .4-.04 1.26-.06 1.48zm-5.92-5.62c-1.03 0-2.17.73-2.17 2.58h4.25c0-1.85-1.07-2.58-2.08-2.58zM40.95 20.3c-1.44 0-2.32-.6-2.9-1.04l-.02 4.63-4.12.87V5.57h3.76l.08 1.02a4.7 4.7 0 0 1 3.23-1.29c2.9 0 5.62 2.6 5.62 7.4 0 5.23-2.7 7.6-5.65 7.6zM40 8.95c-.95 0-1.54.34-1.97.81l.02 6.12c.4.44.98.78 1.95.78 1.52 0 2.54-1.65 2.54-3.87 0-2.15-1.04-3.84-2.54-3.84zM28.24 5.57h4.13v14.44h-4.13V5.57zm0-4.7L32.37 0v3.36l-4.13.88V.88zm-4.32 9.35v9.79H19.8V5.57h3.7l.12 1.22c1-1.77 3.07-1.41 3.62-1.22v3.79c-.52-.17-2.29-.43-3.32.86zm-8.55 4.72c0 2.43 2.6 1.68 3.12 1.46v3.36c-.55.3-1.54.54-2.89.54a4.15 4.15 0 0 1-4.27-4.24l.01-13.17 4.02-.86v3.54h3.14V9.1h-3.13v5.85zm-4.91.7c0 2.97-2.31 4.66-5.73 4.66a11.2 11.2 0 0 1-4.46-.93v-3.93c1.38.75 3.1 1.31 4.46 1.31.92 0 1.53-.24 1.53-1C6.26 13.77 0 14.51 0 9.95 0 7.04 2.28 5.3 5.62 5.3c1.36 0 2.72.2 4.09.75v3.88a9.23 9.23 0 0 0-4.1-1.06c-.86 0-1.44.25-1.44.9 0 1.85 6.29.97 6.29 5.88z"
-                        fill="#635BFF"
+                  {/* Dati ospite */}
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="firstName">{t("bookingFormFirstName") || "Nome"}</Label>
+                      <Input
+                        id="firstName"
+                        name="firstName"
+                        value={formData.firstName}
+                        onChange={handleInputChange}
+                        required
                       />
-                    </svg>
-                  </div>
-                  <p className="text-center text-sm text-muted-foreground">
-                    {t("bookingPaymentDescription") ||
-                      "Pagamento sicuro con carte di credito, Klarna, Apple Pay e Google Pay"}
-                  </p>
-                </div>
-
-                {/* Riepilogo totale */}
-                <div className="flex items-center justify-between bg-muted/40 rounded-lg px-4 py-3">
-                  <div className="text-sm text-muted-foreground">
-                    {nights > 0
-                      ? `${nights} ${
-                          nights > 1 ? t("bookingNightsPlural") || "notti" : t("bookingNights") || "notte"
-                        } • ${formData.guests} ${t("bookingGuests") || "ospite/i"}`
-                      : t("bookingSummaryCompleteDates") || "Completa date e camera"}
-                  </div>
-                  <div className="text-xl font-semibold">
-                    {t("bookingSummaryTotal") || "Totale"}: €{isFinite(total) ? total.toFixed(2) : "0.00"}
-                  </div>
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full text-lg py-6"
-                  disabled={!availabilityStatus?.available || isCheckingAvailability}
-                  onClick={handleSubmit}
-                >
-                  {t("bookingConfirmButton") || "Conferma Prenotazione"}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* === INFO CARDS (colonna destra) === */}
-            <div className="space-y-4 lg:sticky lg:top-24 h-max">
-              {/* Card 1 */}
-              <Card className="h-full border-0 bg-gradient-to-br from-primary/5 via-accent/5 to-secondary/10">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <Clock className="h-5 w-5 text-primary mt-1" />
+                    </div>
                     <div>
-                      <h3 className="font-cinzel font-semibold text-primary mb-2">
-                        {t("bookingCheckInOutTitle") || "Check-in / Check-out"}
-                      </h3>
-                      <ul className="text-sm text-muted-foreground space-y-1">
-                        <li className="flex items-center gap-2">
-                          <CalendarIcon className="h-4 w-4 text-primary" />
-                          <span className="font-medium">{t("bookingCheckIn") || "Check-in: 15:00 – 20:00"}</span>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <CalendarIcon className="h-4 w-4 text-primary" />
-                          <span className="font-medium">{t("bookingCheckOut") || "Check-out: 08:00 – 11:00"}</span>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-primary" />
-                          <span>{t("bookingMaxGuests") || "Max 4 ospiti per camera"}</span>
-                        </li>
-                      </ul>
+                      <Label htmlFor="lastName">{t("bookingFormLastName") || "Cognome"}</Label>
+                      <Input
+                        id="lastName"
+                        name="lastName"
+                        value={formData.lastName}
+                        onChange={handleInputChange}
+                        required
+                      />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
 
-              {/* Card 2 */}
-              <Card className="h-full border-0 bg-gradient-to-br from-accent/5 via-secondary/10 to-primary/5">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <MapPin className="h-5 w-5 text-primary mt-1" />
+                  <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <h3 className="font-cinzel font-semibold text-primary mb-2">
-                        {t("bookingHowToReachTitle") || "Come Raggiungerci"}
-                      </h3>
-                      <div className="space-y-1 text-sm text-muted-foreground">
-                        <p>{t("bookingLocation") || "Centro storico, Polignano a Mare (BA)"}</p>
-                        <p>{t("bookingAirport") || "Aeroporto Bari: ~45 min"}</p>
-                        <p>{t("bookingStation") || "Stazione FS: ~10 min a piedi"}</p>
-                        <p>{t("bookingBeach") || "Lama Monachile: ~5 min a piedi"}</p>
-                      </div>
+                      <Label htmlFor="email">{t("bookingFormEmail") || "Email"}</Label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">{t("bookingFormPhone") || "Telefono"}</Label>
+                      <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
 
-              <Card className="h-full border-0 bg-gradient-to-br from-secondary/10 via-primary/5 to-accent/5">
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="h-5 w-5 text-primary mt-1" />
-                    <div className="w-full">
-                      <h3 className="font-cinzel font-semibold text-primary mb-2">Servizi Extra Disponibili</h3>
-                      <p className="text-xs text-muted-foreground mb-3">
-                        Dopo la prenotazione potrai richiedere questi servizi aggiuntivi
-                      </p>
-                      <div className="space-y-2 max-h-48 overflow-y-auto mb-4">
-                        {AVAILABLE_SERVICES.map((service, index) => (
-                          <div key={index} className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">{service.name}</span>
-                            <span className="font-medium text-primary">€{service.price}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full border-primary/20 hover:bg-primary/5 bg-transparent"
-                        onClick={() => {
-                          if (typeof window !== "undefined") {
-                            window.alert(
-                              "Completa prima la prenotazione per richiedere servizi extra. Potrai farlo dalla tua area personale dopo aver effettuato il check-in.",
-                            )
-                          }
-                        }}
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="guests">{t("bookingFormGuests") || "Numero Ospiti"}</Label>
+                      <select
+                        id="guests"
+                        name="guests"
+                        value={formData.guests}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-input rounded-md bg-background"
                       >
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Richiedi Servizi
-                      </Button>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="roomType">{t("bookingFormRoomType") || "Tipo Camera"}</Label>
+                      <select
+                        id="roomType"
+                        name="roomType"
+                        value={formData.roomType}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                        required
+                      >
+                        <option value="">{t("bookingFormSelectRoom") || "Seleziona una camera"}</option>
+                        <option value="deluxe">
+                          {t("bookingFormPanoramicSuite") || "Camera familiare con balcone"}
+                        </option>
+                        <option value="suite">{t("bookingFormjacuziRoom") || "Camera jacuzi"}</option>
+                      </select>
                     </div>
                   </div>
+
+                  <div>
+                    <Label htmlFor="specialRequests">{t("bookingFormSpecialRequests") || "Richieste Speciali"}</Label>
+                    <Textarea
+                      id="specialRequests"
+                      name="specialRequests"
+                      value={formData.specialRequests}
+                      onChange={handleInputChange}
+                      placeholder={t("bookingFormSpecialRequestsPlaceholder") || "Eventuali richieste particolari…"}
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="border rounded-lg p-5 bg-gradient-to-br from-[#635BFF]/5 to-[#635BFF]/10">
+                    <div className="flex items-center justify-center mb-3">
+                      <svg width="80" height="33" viewBox="0 0 60 25" fill="none" aria-hidden="true">
+                        <path
+                          d="M59.64 14.28h-8.06c.19 1.93 1.6 2.55 3.2 2.55 1.64 0 2.96-.37 4.05-.95v3.32a8.33 8.33 0 0 1-4.56 1.1c-4.01 0-6.83-2.5-6.83-7.48 0-4.19 2.39-7.52 6.3-7.52 3.92 0 5.96 3.28 5.96 7.5 0 .4-.04 1.26-.06 1.48zm-5.92-5.62c-1.03 0-2.17.73-2.17 2.58h4.25c0-1.85-1.07-2.58-2.08-2.58zM40.95 20.3c-1.44 0-2.32-.6-2.9-1.04l-.02 4.63-4.12.87V5.57h3.76l.08 1.02a4.7 4.7 0 0 1 3.23-1.29c2.9 0 5.62 2.6 5.62 7.4 0 5.23-2.7 7.6-5.65 7.6zM40 8.95c-.95 0-1.54.34-1.97.81l.02 6.12c.4.44.98.78 1.95.78 1.52 0 2.54-1.65 2.54-3.87 0-2.15-1.04-3.84-2.54-3.84zM28.24 5.57h4.13v14.44h-4.13V5.57zm0-4.7L32.37 0v3.36l-4.13.88V.88zm-4.32 9.35v9.79H19.8V5.57h3.7l.12 1.22c1-1.77 3.07-1.41 3.62-1.22v3.79c-.52-.17-2.29-.43-3.32.86zm-8.55 4.72c0 2.43 2.6 1.68 3.12 1.46v3.36c-.55.3-1.54.54-2.89.54a4.15 4.15 0 0 1-4.27-4.24l.01-13.17 4.02-.86v3.54h3.14V9.1h-3.13v5.85zm-4.91.7c0 2.97-2.31 4.66-5.73 4.66a11.2 11.2 0 0 1-4.46-.93v-3.93c1.38.75 3.1 1.31 4.46 1.31.92 0 1.53-.24 1.53-1C6.26 13.77 0 14.51 0 9.95 0 7.04 2.28 5.3 5.62 5.3c1.36 0 2.72.2 4.09.75v3.88a9.23 9.23 0 0 0-4.1-1.06c-.86 0-1.44.25-1.44.9 0 1.85 6.29.97 6.29 5.88z"
+                          fill="#635BFF"
+                        />
+                      </svg>
+                    </div>
+                    <p className="text-center text-sm text-muted-foreground">
+                      {t("bookingPaymentDescription") ||
+                        "Pagamento sicuro con carte di credito, Klarna, Apple Pay e Google Pay"}
+                    </p>
+                  </div>
+
+                  {/* Riepilogo totale */}
+                  <div className="flex items-center justify-between bg-muted/40 rounded-lg px-4 py-3">
+                    <div className="text-sm text-muted-foreground">
+                      {nights > 0
+                        ? `${nights} ${
+                            nights > 1 ? t("bookingNightsPlural") || "notti" : t("bookingNights") || "notte"
+                          } • ${formData.guests} ${t("bookingGuests") || "ospite/i"}`
+                        : t("bookingSummaryCompleteDates") || "Completa date e camera"}
+                    </div>
+                    <div className="text-xl font-semibold">
+                      {t("bookingSummaryTotal") || "Totale"}: €{isFinite(total) ? total.toFixed(2) : "0.00"}
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full text-lg py-6"
+                    disabled={!availabilityStatus?.available || isCheckingAvailability}
+                    onClick={handleSubmit}
+                  >
+                    {t("bookingConfirmButton") || "Conferma Prenotazione"}
+                  </Button>
                 </CardContent>
               </Card>
+
+              {/* === INFO CARDS (colonna destra) === */}
+              <div className="space-y-4 lg:sticky lg:top-24 h-max">
+                {/* Card 1 */}
+                <Card className="h-full border-0 bg-gradient-to-br from-primary/5 via-accent/5 to-secondary/10">
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-3">
+                      <Clock className="h-5 w-5 text-primary mt-1" />
+                      <div>
+                        <h3 className="font-cinzel font-semibold text-primary mb-2">
+                          {t("bookingCheckInOutTitle") || "Check-in / Check-out"}
+                        </h3>
+                        <ul className="text-sm text-muted-foreground space-y-1">
+                          <li className="flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4 text-primary" />
+                            <span className="font-medium">{t("bookingCheckIn") || "Check-in: 15:00 – 20:00"}</span>
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4 text-primary" />
+                            <span className="font-medium">{t("bookingCheckOut") || "Check-out: 08:00 – 11:00"}</span>
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-primary" />
+                            <span>{t("bookingMaxGuests") || "Max 4 ospiti per camera"}</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 2 */}
+                <Card className="h-full border-0 bg-gradient-to-br from-accent/5 via-secondary/10 to-primary/5">
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-3">
+                      <MapPin className="h-5 w-5 text-primary mt-1" />
+                      <div>
+                        <h3 className="font-cinzel font-semibold text-primary mb-2">
+                          {t("bookingHowToReachTitle") || "Come Raggiungerci"}
+                        </h3>
+                        <div className="space-y-1 text-sm text-muted-foreground">
+                          <p>{t("bookingLocation") || "Centro storico, Polignano a Mare (BA)"}</p>
+                          <p>{t("bookingAirport") || "Aeroporto Bari: ~45 min"}</p>
+                          <p>{t("bookingStation") || "Stazione FS: ~10 min a piedi"}</p>
+                          <p>{t("bookingBeach") || "Lama Monachile: ~5 min a piedi"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="h-full border-0 bg-gradient-to-br from-secondary/10 via-primary/5 to-accent/5">
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-3">
+                      <Sparkles className="h-5 w-5 text-primary mt-1" />
+                      <div className="w-full">
+                        <h3 className="font-cinzel font-semibold text-primary mb-2">Servizi Extra Disponibili</h3>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          Dopo la prenotazione potrai richiedere questi servizi aggiuntivi
+                        </p>
+                        <div className="space-y-2 max-h-48 overflow-y-auto mb-4">
+                          {AVAILABLE_SERVICES.map((service, index) => (
+                            <div key={index} className="flex justify-between items-center text-sm">
+                              <span className="text-muted-foreground">{service.name}</span>
+                              <span className="font-medium text-primary">€{service.price}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full border-primary/20 hover:bg-primary/5 bg-transparent"
+                          onClick={() => {
+                            if (typeof window !== "undefined") {
+                              window.alert(
+                                "Completa prima la prenotazione per richiedere servizi extra. Potrai farlo dalla tua area personale dopo aver effettuato il check-in.",
+                              )
+                            }
+                          }}
+                        >
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Richiedi Servizi
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <Footer />
+        <Footer />
 
-      {/* MODALE ERRORE */}
-      <AlertDialog open={showErrorModal} onOpenChange={setShowErrorModal}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("bookingErrorTitle") || "Errore nel pagamento"}</AlertDialogTitle>
-            <AlertDialogDescription>{errorMessage}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setShowErrorModal(false)}>
-              {t("bookingErrorOkButton") || "Ok"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </main>
+        {/* MODALE ERRORE */}
+        <AlertDialog open={showErrorModal} onOpenChange={setShowErrorModal}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("bookingErrorTitle") || "Errore nel pagamento"}</AlertDialogTitle>
+              <AlertDialogDescription>{errorMessage}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setShowErrorModal(false)}>
+                {t("bookingErrorOkButton") || "Ok"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </main>
+
+      <ExtraServicesModal
+        open={showExtraServicesModal}
+        onOpenChange={setShowExtraServicesModal}
+        onComplete={handleExtraServicesComplete}
+        bookingData={{
+          roomId: ROOM_IDS[formData.roomType]!,
+          checkIn: formData.checkIn,
+          checkOut: formData.checkOut,
+          guests: Number(formData.guests),
+          userEmail: formData.email,
+          userName: `${formData.firstName} ${formData.lastName}`,
+        }}
+      />
+    </>
   )
 }

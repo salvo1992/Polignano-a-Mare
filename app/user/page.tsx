@@ -18,6 +18,7 @@ import { safe } from "@/lib/safe-defaults"
 import { useLanguage } from "@/components/language-provider"
 import Image from "next/image"
 import { toast } from "sonner"
+import { UserServicesRequests } from "@/components/user-services-requests"
 
 interface Booking {
   id: string
@@ -396,12 +397,15 @@ function UserInner() {
 
             <div className="lg:col-span-3">
               <Tabs defaultValue="profile" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="profile" className="flex items-center gap-2">
                     <UserIcon className="h-4 w-4" /> {t("profile")}
                   </TabsTrigger>
                   <TabsTrigger value="bookings" className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" /> {t("bookings")}
+                  </TabsTrigger>
+                  <TabsTrigger value="services" className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" /> Servizi
                   </TabsTrigger>
                   <TabsTrigger value="settings" className="flex items-center gap-2">
                     <Settings className="h-4 w-4" /> {t("settings")}
@@ -602,6 +606,10 @@ function UserInner() {
                       )}
                     </CardContent>
                   </Card>
+                </TabsContent>
+
+                <TabsContent value="services">
+                  <UserServicesRequests />
                 </TabsContent>
 
                 <TabsContent value="settings" className="space-y-6">

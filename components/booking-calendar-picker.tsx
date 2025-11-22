@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, isSameDay } from "date-fns"
@@ -222,24 +221,6 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
           </Button>
         </div>
 
-        <div className={cn("flex flex-wrap gap-1.5 justify-center", compact ? "text-[10px]" : "text-xs")}>
-          <Badge className={cn("bg-blue-500", compact ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0.5")}>
-            Bassa
-          </Badge>
-          <Badge className={cn("bg-green-500", compact ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0.5")}>
-            Media
-          </Badge>
-          <Badge className={cn("bg-yellow-500", compact ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0.5")}>
-            Medio-Alta
-          </Badge>
-          <Badge className={cn("bg-orange-500", compact ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0.5")}>
-            Alta
-          </Badge>
-          <Badge className={cn("bg-red-500", compact ? "text-[9px] px-1 py-0" : "text-[10px] px-1.5 py-0.5")}>
-            Super-Alta
-          </Badge>
-        </div>
-
         <div className={cn("grid grid-cols-7", compact ? "gap-0.5" : "gap-1")}>
           {["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"].map((day) => (
             <div key={day} className={cn("text-center font-semibold p-1", compact ? "text-[10px]" : "text-xs")}>
@@ -250,8 +231,6 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
             <div key={`empty-${i}`} />
           ))}
           {daysInMonth.map((day) => {
-            const category = getSeasonCategory(day)
-            const colorClass = getCategoryColor(category)
             const isPast = day < today
             const isSelected = isInRange(day)
             const isEdge = isStartOrEnd(day)
@@ -260,12 +239,11 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
               <button
                 key={day.toISOString()}
                 onClick={() => !isPast && handleDayClick(day)}
-                disabled={isPast || loading}
+                disabled={isPast}
                 className={cn(
                   "rounded-lg text-white text-center transition-all relative",
                   compact ? "p-2 min-h-[36px]" : "p-4 min-h-[52px]",
-                  colorClass,
-                  "hover:opacity-80",
+                  "bg-primary hover:opacity-80", // Single color for all days
                   isPast && "opacity-30 cursor-not-allowed",
                   isSelected && !isEdge && "ring-2 ring-white brightness-110",
                   isEdge && "ring-4 ring-yellow-300 scale-105 brightness-125 shadow-lg shadow-yellow-400/50",

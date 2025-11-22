@@ -2,7 +2,7 @@ import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 import Stripe from "stripe"
 import { admin, getFirestore } from "@/lib/firebase-admin"
-import { sendBookingConfirmationEmail } from "@/lib/email"
+import { sendBookingConfirmationEmail, sendModificationEmail } from "@/lib/email"
 
 export const runtime = "nodejs"
 
@@ -87,15 +87,124 @@ export async function POST(req: Request) {
       const bookingData = bookingSnap.data() as any
       console.log("[Webhook] Booking found:", bookingId, "Email:", bookingData.email)
 
-      // ✅ aggiorna prenotazione
+      const paymentType = session.metadata?.type || session.metadata?.paymentType || "deposit"
+
+      if (paymentType === "change_dates") {
+        console.log("[Webhook] Processing change_dates payment")
+
+        const newTotalAmount = Number.parseInt(session.metadata?.newTotalAmount || "0")
+        const depositAmount = Number.parseInt(session.metadata?.depositAmount || "0")
+        const balanceAmount = Number.parseInt(session.metadata?.balanceAmount || "0")
+        const checkIn = session.metadata?.checkIn
+        const checkOut = session.metadata?.checkOut
+
+        const currentDepositPaid = bookingData.depositPaid || 0
+        const currentBalanceDue = bookingData.balanceDue || 0
+
+        await bookingRef.update({
+          checkIn,
+          checkOut,
+          totalAmount: newTotalAmount,
+          depositPaid: currentDepositPaid + depositAmount,
+          balanceDue: currentBalanceDue + balanceAmount,
+          lastPayment: {
+            type: "change_dates_deposit",
+            amount: depositAmount,
+            paymentId: String(session.payment_intent || session.id),
+            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+
+        console.log("[Webhook] Date change payment processed:", {
+          newTotalAmount: newTotalAmount / 100,
+          depositPaid: (currentDepositPaid + depositAmount) / 100,
+          balanceDue: (currentBalanceDue + balanceAmount) / 100,
+          newCheckIn: checkIn,
+          newCheckOut: checkOut,
+        })
+
+        try {
+          const nights = Math.ceil(
+            (new Date(checkOut || bookingData.checkOut).getTime() -
+              new Date(checkIn || bookingData.checkIn).getTime()) /
+              (1000 * 60 * 60 * 24),
+          )
+
+          console.log("[Webhook] Sending date change confirmation email")
+          await sendModificationEmail({
+            to: bookingData.email,
+            bookingId: bookingId,
+            firstName: bookingData.firstName,
+            lastName: bookingData.lastName,
+            checkIn: checkIn || bookingData.checkIn,
+            checkOut: checkOut || bookingData.checkOut,
+            roomName: bookingData.roomName,
+            guests: bookingData.guests,
+            nights,
+            originalAmount: bookingData.totalAmount,
+            newAmount: newTotalAmount,
+            penalty: depositAmount > 0 ? Number.parseInt(session.metadata?.penalty || "0") : undefined,
+            dateChangeCost: balanceAmount + depositAmount,
+            modificationType: "dates",
+          })
+          console.log("[Webhook] Date change confirmation email sent successfully")
+        } catch (emailError: any) {
+          console.error("[Webhook] Error sending date change email:", emailError.message)
+        }
+
+        await markProcessed(event.id, { ok: true, bookingId, type: "change_dates" })
+        return NextResponse.json({ received: true, bookingId, type: "change_dates" })
+      }
+
+      if (paymentType === "balance") {
+        // Handle balance payment
+        console.log("[Webhook] Processing balance payment")
+
+        const balanceAmount = session.amount_total || 0
+
+        await bookingRef.update({
+          status: "paid",
+          balanceDue: 0,
+          balancePaidAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastPayment: {
+            type: "balance",
+            amount: balanceAmount,
+            paymentId: String(session.payment_intent || session.id),
+            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+
+        console.log("[Webhook] Balance payment processed:", balanceAmount / 100)
+
+        await markProcessed(event.id, { ok: true, bookingId, type: "balance" })
+        return NextResponse.json({ received: true, bookingId, type: "balance" })
+      }
+
+      // Default: deposit payment for new booking
+      const depositAmount = session.amount_total || 0
+      const fullAmount = session.metadata?.fullAmount
+        ? Number.parseInt(session.metadata.fullAmount)
+        : bookingData.totalAmount
+      const balanceDue = fullAmount - depositAmount
+
       await bookingRef.update({
-        status: "paid",
+        status: "deposit_paid",
         paymentId: String(session.payment_intent || session.id),
         paymentProvider: "stripe",
-        paidAt: admin.firestore.FieldValue.serverTimestamp(),
+        paymentType: "deposit",
+        depositPaid: depositAmount,
+        balanceDue: balanceDue,
+        totalAmount: fullAmount,
+        depositPaidAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       })
-      console.log("[Webhook] Booking updated to paid")
+      console.log("[Webhook] Deposit payment processed:", {
+        depositPaid: depositAmount / 100,
+        balanceDue: balanceDue / 100,
+        totalAmount: fullAmount / 100,
+      })
 
       // ✅ crea/collega utente
       let uid = ""
@@ -217,3 +326,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 })
   }
 }
+

@@ -32,22 +32,27 @@ export async function POST(request: NextRequest) {
       bookingId,
       successUrl,
       cancelUrl,
-      customerEmail, // opzionale, se lo passi dal checkout
+      customerEmail,
+      paymentType, // Added paymentType to determine if it's deposit or full payment
     } = body
 
     if (!amount || !currency || !bookingId || !successUrl || !cancelUrl) {
       return NextResponse.json({ error: "Parametri mancanti" }, { status: 400 })
     }
 
+    const isDeposit = paymentType === "deposit"
+    const finalAmount = isDeposit ? Math.round(amount * 0.3) : amount
+
     console.log("[v0] Creating Stripe session:", {
       amount,
+      finalAmount,
+      isDeposit,
       currency,
       bookingId,
       hasCustomerEmail: !!customerEmail,
     })
 
     const session = await stripe.checkout.sessions.create({
-      // ✅ metodi che vuoi vedere a cassa (devono essere abilitati in Dashboard)
       payment_method_types: [
         "card",
         "klarna",
@@ -64,11 +69,13 @@ export async function POST(request: NextRequest) {
       success_url: successUrl,
       cancel_url: cancelUrl,
 
-      // ✅ doppio riferimento alla prenotazione
       client_reference_id: String(bookingId),
-      metadata: { bookingId: String(bookingId) },
+      metadata: {
+        bookingId: String(bookingId),
+        paymentType: isDeposit ? "deposit" : "full",
+        fullAmount: String(amount),
+      },
 
-      // opzionali ma utili
       customer_email: customerEmail,
       locale: "it",
       billing_address_collection: "required",
@@ -83,10 +90,12 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: String(currency).toLowerCase(),
             product_data: {
-              name: "Prenotazione Camera",
-              description: `Prenotazione #${bookingId}`,
+              name: isDeposit ? "Acconto Prenotazione Camera (30%)" : "Saldo Prenotazione Camera (70%)",
+              description: isDeposit
+                ? `Acconto per Prenotazione #${bookingId} - Saldo dovuto 7 giorni prima del check-in`
+                : `Saldo finale per Prenotazione #${bookingId}`,
             },
-            unit_amount: amount, // in centesimi
+            unit_amount: finalAmount,
           },
           quantity: 1,
         },
@@ -107,4 +116,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

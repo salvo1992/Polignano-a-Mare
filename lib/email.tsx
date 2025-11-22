@@ -77,6 +77,9 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
     const siteUrl = "https://al22suite.com"
     console.log("[Email] Using site URL:", siteUrl)
 
+    const depositAmount = Math.round(data.totalAmount * 0.3)
+    const remainingBalance = data.totalAmount - depositAmount
+
     const emailHtml = `
 <!DOCTYPE html>
 <html>
@@ -85,14 +88,14 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
   <style>
     body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+    .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
     .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
     .booking-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
     .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-    .detail-label { font-weight: bold; color: #8B4513; }
-    .credentials-box { background: #fff3cd; border: 2px solid #ffc107; padding: 20px; border-radius: 8px; margin: 20px 0; }
-    .info-box { background: #d1ecf1; border: 2px solid #0c5460; padding: 20px; border-radius: 8px; margin: 20px 0; color: #0c5460; }
-    .button { display: inline-block; background: #8B4513; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+    .detail-label { font-weight: bold; color: #1e40af; }
+    .credentials-box { background: #fef3c7; border: 2px solid #f59e0b; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    .info-box { background: #dbeafe; border: 2px solid #3b82f6; padding: 20px; border-radius: 8px; margin: 20px 0; color: #1e40af; }
+    .button { display: inline-block; background: #1e40af; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
     .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
   </style>
 </head>
@@ -109,7 +112,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
       <p>Grazie per aver scelto Al 22 Suite & Spa! La tua prenotazione è stata confermata con successo.</p>
       
       <div class="booking-details">
-        <h2 style="color: #8B4513; margin-top: 0;">📋 Dettagli Prenotazione</h2>
+        <h2 style="color: #1e40af; margin-top: 0;">📋 Dettagli Prenotazione</h2>
         
         <div class="detail-row">
           <span class="detail-label">ID Prenotazione:</span>
@@ -141,9 +144,18 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
           <span>${data.guests}</span>
         </div>
         
-        <div class="detail-row" style="border-bottom: none; font-size: 18px; margin-top: 10px;">
-          <span class="detail-label">Totale Pagato:</span>
-          <span style="color: #8B4513; font-weight: bold;">€${(data.totalAmount / 100).toFixed(2)}</span>
+        <div class="detail-row">
+          <span class="detail-label">Acconto Pagato (30%):</span>
+          <span style="color: #059669; font-weight: bold;">€${(depositAmount / 100).toFixed(2)}</span>
+        </div>
+        
+        <div class="detail-row" style="border-bottom: none;">
+          <span class="detail-label">Saldo Rimanente (70%):</span>
+          <span style="color: #dc2626; font-weight: bold;">€${(remainingBalance / 100).toFixed(2)}</span>
+        </div>
+        
+        <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border-radius: 8px; font-size: 14px;">
+          ⚠️ <strong>Importante:</strong> Il saldo di €${(remainingBalance / 100).toFixed(2)} sarà pagato <strong>7 giorni prima del check-in</strong>. Riceverai un promemoria via email.
         </div>
       </div>
       
@@ -301,9 +313,9 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
         `
             : `
           <p><strong>Penale:</strong> €${(data.penalty / 100).toFixed(2)}</p>
-          <p><strong>Importo da Pagare:</strong> €0,00</p>
+          <p><strong>Importo da Rimborsare:</strong> €${(data.refundAmount / 100).toFixed(2)}</p>
           <p style="font-size: 14px; margin-top: 15px; color: #856404;">
-            ⚠️ La cancellazione è avvenuta a meno di 7 giorni dal check-in. Non è previsto alcun rimborso.
+            ⚠️ La cancellazione è avvenuta a meno di 7 giorni dal check-in. È stata applicata una penale del 50%.
           </p>
         `
         }
@@ -354,7 +366,8 @@ export async function sendModificationEmail(data: ModificationEmailData) {
     }
 
     const siteUrl = "https://al22suite.com"
-    const totalSpent = data.newAmount
+    const depositPaid = Math.round(data.newAmount * 0.3)
+    const balanceRemaining = data.newAmount - depositPaid
     const difference = data.newAmount - data.originalAmount
 
     const emailHtml = `
@@ -365,12 +378,13 @@ export async function sendModificationEmail(data: ModificationEmailData) {
   <style>
     body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #8B4513 0%, #D2691E 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+    .header { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
     .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
     .booking-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
     .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-    .detail-label { font-weight: bold; color: #8B4513; }
-    .cost-breakdown { background: #f0f9ff; border: 2px solid #0ea5e9; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    .detail-label { font-weight: bold; color: #1e40af; }
+    .cost-breakdown { background: #dbeafe; border: 2px solid #3b82f6; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    .info-box { background: #fef3c7; border: 2px solid #f59e0b; padding: 20px; border-radius: 8px; margin: 20px 0; color: #856404; }
     .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
   </style>
 </head>
@@ -384,10 +398,10 @@ export async function sendModificationEmail(data: ModificationEmailData) {
     <div class="content">
       <p>Gentile ${data.firstName} ${data.lastName},</p>
       
-      <p>La tua prenotazione è stata modificata con successo.</p>
+      <p>La tua prenotazione è stata modificata con successo. Ecco i nuovi dettagli:</p>
       
       <div class="booking-details">
-        <h2 style="color: #8B4513; margin-top: 0;">📋 Nuovi Dettagli Prenotazione</h2>
+        <h2 style="color: #1e40af; margin-top: 0;">📋 Nuovi Dettagli Prenotazione</h2>
         
         <div class="detail-row">
           <span class="detail-label">ID Prenotazione:</span>
@@ -421,7 +435,7 @@ export async function sendModificationEmail(data: ModificationEmailData) {
       </div>
       
       <div class="cost-breakdown">
-        <h3 style="margin-top: 0; color: #0369a1;">💰 Riepilogo Costi</h3>
+        <h3 style="margin-top: 0; color: #1e40af;">💰 Riepilogo Pagamenti</h3>
         
         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd;">
           <span>Prenotazione Originale:</span>
@@ -429,56 +443,51 @@ export async function sendModificationEmail(data: ModificationEmailData) {
         </div>
         
         ${
-          data.dateChangeCost
-            ? `
-        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd;">
-          <span>Cambio Date:</span>
-          <span>+€${(data.dateChangeCost / 100).toFixed(2)}</span>
-        </div>
-        `
-            : ""
-        }
-        
-        ${
-          data.guestAdditionCost
-            ? `
-        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd;">
-          <span>Aggiunta Ospiti:</span>
-          <span>+€${(data.guestAdditionCost / 100).toFixed(2)}</span>
-        </div>
-        `
-            : ""
-        }
-        
-        ${
           data.penalty
             ? `
         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd; color: #dc2626;">
-          <span>Penale (50%):</span>
+          <span>Penale Cambio Date:</span>
           <span>+€${(data.penalty / 100).toFixed(2)}</span>
         </div>
         `
             : ""
         }
         
-        <div style="display: flex; justify-content: space-between; padding: 15px 0 0 0; margin-top: 10px; border-top: 2px solid #0369a1; font-size: 18px;">
-          <span style="font-weight: bold;">Totale Speso:</span>
-          <span style="font-weight: bold; color: #8B4513;">€${(totalSpent / 100).toFixed(2)}</span>
-        </div>
-        
         ${
-          difference > 0
+          data.dateChangeCost
             ? `
-        <p style="font-size: 14px; margin-top: 15px; color: #0369a1;">
-          ℹ️ Hai pagato un supplemento di €${(difference / 100).toFixed(2)} per le modifiche.
-        </p>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd;">
+          <span>Differenza Prezzo:</span>
+          <span>+€${(data.dateChangeCost / 100).toFixed(2)}</span>
+        </div>
         `
             : ""
         }
+        
+        <div style="display: flex; justify-content: space-between; padding: 15px 0 0 0; margin-top: 10px; border-top: 2px solid #1e40af; font-size: 18px;">
+          <span style="font-weight: bold;">Nuovo Totale:</span>
+          <span style="font-weight: bold; color: #1e40af;">€${(data.newAmount / 100).toFixed(2)}</span>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; margin-top: 15px; border-top: 1px solid #bae6fd;">
+          <span>Acconto Totale Pagato (30%):</span>
+          <span style="color: #059669; font-weight: bold;">€${(depositPaid / 100).toFixed(2)}</span>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+          <span>Saldo Rimanente (70%):</span>
+          <span style="color: #dc2626; font-weight: bold;">€${(balanceRemaining / 100).toFixed(2)}</span>
+        </div>
+      </div>
+      
+      <div class="info-box">
+        <h3 style="margin-top: 0;">⚠️ Importante - Saldo da Pagare</h3>
+        <p>Il saldo di <strong>€${(balanceRemaining / 100).toFixed(2)}</strong> dovrà essere pagato <strong>7 giorni prima del check-in</strong>.</p>
+        <p style="margin-bottom: 0;">Riceverai un promemoria automatico via email con il link per completare il pagamento.</p>
       </div>
       
       <div style="text-align: center;">
-        <a href="${siteUrl}/user/booking/${data.bookingId}" style="display: inline-block; background: #8B4513; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0;">
+        <a href="${siteUrl}/user/booking/${data.bookingId}" style="display: inline-block; background: #1e40af; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0;">
           Visualizza Prenotazione
         </a>
       </div>

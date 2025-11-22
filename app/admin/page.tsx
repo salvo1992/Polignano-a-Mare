@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, BarChart3, Home, Settings, Users, Clock, Euro } from "lucide-react"
+import { Calendar, BarChart3, Home, Settings, Users, Clock, Euro, Sparkles } from "lucide-react"
 import { RequireAdmin } from "@/components/route-guards"
 import { useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
@@ -22,6 +22,7 @@ import { BookingBlockDates } from "@/components/booking-block-dates"
 import { BookingCalendarFiltered } from "@/components/booking-calendar-filtered"
 import { AdminSecuritySettings } from "@/components/admin-security-settings"
 import { DynamicPricingManagement } from "@/components/dynamic-pricing-management"
+import { ExtraServicesRequestsAdmin } from "@/components/extra-services-requests-admin"
 import type { Booking, Room } from "@/lib/booking-utils"
 
 interface BnBSettings {
@@ -160,7 +161,7 @@ function AdminInner() {
             Pannello Amministratore
           </h1>
           <Tabs defaultValue="dashboard" className="space-y-4 sm:space-y-6">
-            <TabsList className="grid w-full grid-cols-6 h-auto gap-1 p-1">
+            <TabsList className="grid w-full grid-cols-7 h-auto gap-1 p-1">
               <TabsTrigger value="dashboard" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Dashboard</span>
@@ -180,6 +181,10 @@ function AdminInner() {
               <TabsTrigger value="pricing" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Euro className="h-4 w-4" />
                 <span className="hidden sm:inline">Prezzi</span>
+              </TabsTrigger>
+              <TabsTrigger value="services" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+                <Sparkles className="h-4 w-4" />
+                <span className="hidden sm:inline">Servizi</span>
               </TabsTrigger>
               <TabsTrigger value="settings" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Settings className="h-4 w-4" />
@@ -569,6 +574,10 @@ function AdminInner() {
               <DynamicPricingManagement />
             </TabsContent>
 
+            <TabsContent value="services" className="space-y-4 sm:space-y-6">
+              <ExtraServicesRequestsAdmin />
+            </TabsContent>
+
             <TabsContent value="settings" className="space-y-4 sm:space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <Beds24SyncPanel />
@@ -672,4 +681,3 @@ function AdminInner() {
     </main>
   )
 }
-
