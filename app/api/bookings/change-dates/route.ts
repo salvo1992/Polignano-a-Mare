@@ -5,7 +5,18 @@ import Stripe from "stripe"
 import { sendModificationEmail } from "@/lib/email"
 import { calculateNights, calculateDaysUntilCheckIn, calculateChangeDatesPenalty } from "@/lib/pricing"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
+if (!process.env.STRIPE_SECRET_KEY) {
+  console.error("[v0 CRITICAL] ❌ STRIPE_SECRET_KEY is missing at module load!")
+  throw new Error("STRIPE_SECRET_KEY environment variable is required")
+}
+
+console.log("[v0 DEBUG] 🔧 Module loaded - Stripe key present:", process.env.STRIPE_SECRET_KEY?.slice(0, 10) + "...")
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2024-11-20.acacia",
+})
+
+console.log("[v0 DEBUG] ✅ Stripe client initialized successfully")
 
 export async function PUT(request: NextRequest) {
   try {
