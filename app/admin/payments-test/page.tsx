@@ -80,11 +80,23 @@ export default function PaymentsTestPage() {
         throw new Error(data.error || "Errore nel cambio date")
       }
 
-      setResult({
-        success: true,
-        message: "Date modificate con successo!",
-        data,
-      })
+      if (data.paymentRequired && data.paymentUrl) {
+        setResult({
+          success: true,
+          message: "Checkout Stripe creato! Completa il pagamento nella finestra che si è aperta.",
+          data: {
+            ...data,
+            instructions: "Dopo il pagamento, il webhook aggiornerà automaticamente il database",
+          },
+        })
+        window.open(data.paymentUrl, "_blank")
+      } else {
+        setResult({
+          success: true,
+          message: "Date modificate con successo!",
+          data,
+        })
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -474,6 +486,7 @@ export default function PaymentsTestPage() {
           <CheckCircle2 className="h-4 w-4 text-green-600" />
           <AlertDescription>
             <p className="font-semibold text-green-900">{result.message}</p>
+            {result.data.instructions && <p className="mt-2 text-sm">{result.data.instructions}</p>}
             <pre className="mt-2 text-xs bg-white p-3 rounded border overflow-auto max-h-96">
               {JSON.stringify(result.data, null, 2)}
             </pre>
