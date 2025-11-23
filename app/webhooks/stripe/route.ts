@@ -91,17 +91,34 @@ export async function POST(req: Request) {
 
       if (paymentType === "change_dates") {
         console.log("[Webhook] Processing change_dates payment")
+        console.log("[Webhook] Session metadata:", session.metadata)
 
         const newTotalAmount = Number.parseInt(session.metadata?.newTotalAmount || "0")
         const depositAmount = Number.parseInt(session.metadata?.depositAmount || "0")
         const balanceAmount = Number.parseInt(session.metadata?.balanceAmount || "0")
         const checkIn = session.metadata?.checkIn
         const checkOut = session.metadata?.checkOut
+        const penalty = Number.parseInt(session.metadata?.penalty || "0")
+
+        console.log("[Webhook] Parsed metadata:", {
+          newTotalAmount: newTotalAmount / 100,
+          depositAmount: depositAmount / 100,
+          balanceAmount: balanceAmount / 100,
+          penalty: penalty / 100,
+          checkIn,
+          checkOut,
+        })
 
         const currentDepositPaid = bookingData.depositPaid || 0
         const currentBalanceDue = bookingData.balanceDue || 0
 
-        await bookingRef.update({
+        console.log("[Webhook] Current booking state:", {
+          currentDepositPaid: currentDepositPaid / 100,
+          currentBalanceDue: currentBalanceDue / 100,
+          currentTotalAmount: bookingData.totalAmount / 100,
+        })
+
+        const updateData = {
           checkIn,
           checkOut,
           totalAmount: newTotalAmount,
@@ -114,15 +131,21 @@ export async function POST(req: Request) {
             paidAt: admin.firestore.FieldValue.serverTimestamp(),
           },
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }
+
+        console.log("[Webhook] Updating booking with:", {
+          newDepositPaid: updateData.depositPaid / 100,
+          newBalanceDue: updateData.balanceDue / 100,
+          newTotalAmount: updateData.totalAmount / 100,
+          newCheckIn: updateData.checkIn,
+          newCheckOut: updateData.checkOut,
         })
 
-        console.log("[Webhook] Date change payment processed:", {
-          newTotalAmount: newTotalAmount / 100,
-          depositPaid: (currentDepositPaid + depositAmount) / 100,
-          balanceDue: (currentBalanceDue + balanceAmount) / 100,
-          newCheckIn: checkIn,
-          newCheckOut: checkOut,
-        })
+        await bookingRef.update(updateData)
+
+        console.log("[Webhook] Database updated successfully")
+
+        console.log("[Webhook] Date change payment processed successfully")
 
         try {
           const nights = Math.ceil(
@@ -144,7 +167,7 @@ export async function POST(req: Request) {
             nights,
             originalAmount: bookingData.totalAmount,
             newAmount: newTotalAmount,
-            penalty: depositAmount > 0 ? Number.parseInt(session.metadata?.penalty || "0") : undefined,
+            penalty: penalty > 0 ? penalty : undefined,
             dateChangeCost: balanceAmount + depositAmount,
             modificationType: "dates",
           })
@@ -326,4 +349,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 })
   }
 }
-

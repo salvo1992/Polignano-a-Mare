@@ -11,7 +11,8 @@ export async function PUT(request: NextRequest) {
   try {
     const { bookingId, checkIn, checkOut, userId, newPrice, penalty } = await request.json()
 
-    console.log("[v0] Change dates request:", { bookingId, checkIn, checkOut, newPrice, penalty })
+    console.log("[v0 DEBUG] ====== CHANGE DATES REQUEST START ======")
+    console.log("[v0 DEBUG] Input:", { bookingId, checkIn, checkOut, newPrice, penalty })
 
     if (!bookingId || !checkIn || !checkOut) {
       return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
@@ -81,12 +82,42 @@ export async function PUT(request: NextRequest) {
     })
 
     if (priceDifference > 0) {
+      const baseUrl =
+        process.env.NODE_ENV === "development"
+          ? "http://localhost:3000"
+          : process.env.NEXT_PUBLIC_SITE_URL || "https://al22suite.com"
+
+      console.log("[v0 DEBUG] 🌐 Environment:", process.env.NODE_ENV)
+      console.log("[v0 DEBUG] 🔗 Base URL:", baseUrl)
+
       // Client needs to pay additional amount
       const depositAmount = Math.round(priceDifference * 0.3) // 30% deposit on difference
       const balanceAmount = priceDifference - depositAmount // 70% balance
 
+      console.log("[v0 DEBUG] Price increased, creating Stripe checkout...")
+      console.log("[v0 DEBUG] Checkout metadata:", {
+        bookingId,
+        type: "change_dates",
+        checkIn,
+        checkOut,
+        newTotalAmount: totalAmount,
+        penalty: penaltyAmount,
+        depositAmount,
+        balanceAmount,
+      })
+
+      const successUrl = `${baseUrl}/user/booking/${bookingId}?payment=processing`
+      const cancelUrl = `${baseUrl}/user/booking/${bookingId}?payment=cancelled`
+
+      console.log("[v0 DEBUG] ==========================================")
+      console.log("[v0 DEBUG] ✅ SUCCESS URL:", successUrl)
+      console.log("[v0 DEBUG] ❌ CANCEL URL:", cancelUrl)
+      console.log("[v0 DEBUG] 💡 Webhook will update database after payment")
+      console.log("[v0 DEBUG] ==========================================")
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
+        client_reference_id: bookingId,
         line_items: [
           {
             price_data: {
@@ -101,8 +132,8 @@ export async function PUT(request: NextRequest) {
           },
         ],
         mode: "payment",
-        success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/user/booking/${bookingId}?payment=success`,
-        cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/user/booking/${bookingId}?payment=cancelled`,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
         metadata: {
           bookingId,
           type: "change_dates",
@@ -117,11 +148,14 @@ export async function PUT(request: NextRequest) {
         },
       })
 
-      console.log("[v0] Checkout session created for price increase:", {
-        depositAmount: depositAmount / 100,
-        balanceAmount: balanceAmount / 100,
-        sessionUrl: session.url,
-      })
+      console.log("[v0 DEBUG] ==========================================")
+      console.log("[v0 DEBUG] ✅ Checkout Session Created Successfully!")
+      console.log("[v0 DEBUG] Session ID:", session.id)
+      console.log("[v0 DEBUG] Checkout URL:", session.url)
+      console.log("[v0 DEBUG] ⚠️  After payment, Stripe will redirect to:", successUrl)
+      console.log("[v0 DEBUG] 🔔 Webhook will update the database automatically")
+      console.log("[v0 DEBUG] ==========================================")
+      console.log("[v0 DEBUG] ====== RETURNING WITHOUT DB UPDATE ======")
 
       return NextResponse.json({
         success: true,
@@ -247,11 +281,7 @@ export async function PUT(request: NextRequest) {
       message: "Date modificate con successo",
     })
   } catch (error) {
-    console.error("Error changing dates:", error)
+    console.error("[v0 DEBUG] ❌ ERROR in change-dates:", error)
     return NextResponse.json({ error: "Errore nella modifica delle date" }, { status: 500 })
   }
 }
-
-
-
-

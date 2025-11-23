@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
@@ -16,15 +16,36 @@ import { ServicesRequestCard } from "@/components/services-request-card"
 import { ChangeDatesDialog } from "@/components/change-dates-dialog"
 import { CancelBookingDialog } from "@/components/cancel-booking-dialog"
 import { AddGuestDialog } from "@/components/add-guest-dialog"
+import { toast } from "sonner"
+
+console.log("[v0 MODULE] ==========================================")
+console.log("[v0 MODULE] page.tsx module loaded at:", new Date().toISOString())
+console.log("[v0 MODULE] ==========================================")
 
 export default function BookingDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { t } = useLanguage()
+
+  console.log("[v0 RENDER] Component rendering at:", new Date().toISOString())
+  console.log("[v0 RENDER] URL:", typeof window !== "undefined" ? window.location.href : "SSR")
+  console.log("[v0 RENDER] searchParams:", searchParams?.toString())
+
+  const paymentParam = searchParams?.get("payment")
+  const sessionIdParam = searchParams?.get("session_id")
+
+  console.log("[v0 RENDER] payment:", paymentParam)
+  console.log("[v0 RENDER] session_id:", sessionIdParam)
+
+  if (typeof window !== "undefined" && paymentParam) {
+    console.log("[v0 RENDER] 🎯 PAYMENT PARAMS DETECTED IN RENDER!")
+    console.log("[v0 RENDER] Will process in useEffect...")
+  }
+
   const [booking, setBooking] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [copiedField, setCopiedField] = useState<string | null>(null)
-
   const [changeDatesOpen, setChangeDatesOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [addGuestOpen, setAddGuestOpen] = useState(false)
@@ -37,6 +58,88 @@ export default function BookingDetailPage() {
   }
 
   useEffect(() => {
+    console.log("[v0 EFFECT] ==========================================")
+    console.log("[v0 EFFECT] useEffect TRIGGERED!")
+    console.log("[v0 EFFECT] Timestamp:", new Date().toISOString())
+    console.log("[v0 EFFECT] ==========================================")
+
+    const processPayment = async () => {
+      const payment = searchParams?.get("payment")
+      const sessionId = searchParams?.get("session_id")
+
+      console.log("[v0 EFFECT] Payment status:", payment)
+      console.log("[v0 EFFECT] Session ID:", sessionId)
+
+      if (payment === "processing") {
+        console.log("[v0 EFFECT] 💳 Payment completed - polling for webhook updates...")
+
+        toast.info("Pagamento completato! Aggiornamento in corso...", {
+          description: "Stiamo aggiornando la tua prenotazione. Attendi qualche secondo.",
+          duration: 15000,
+        })
+
+        let pollCount = 0
+        const maxPolls = 10
+        const originalTotal = booking?.totalAmount || 0
+
+        // Poll for booking updates every 2 seconds
+        const pollInterval = setInterval(async () => {
+          pollCount++
+          console.log(`[v0 EFFECT] Polling attempt ${pollCount}/${maxPolls} for booking updates...`)
+
+          await loadBooking()
+
+          // Check if booking was updated (totalAmount changed)
+          const updatedBooking = await getBookingById(params.id as string)
+          if (updatedBooking && updatedBooking.totalAmount !== originalTotal) {
+            console.log("[v0 EFFECT] ✅ Booking updated by webhook!")
+            clearInterval(pollInterval)
+            toast.success("Prenotazione aggiornata!", {
+              description: "Le modifiche sono state applicate con successo.",
+            })
+            router.replace(`/user/booking/${params.id}`)
+            return
+          }
+
+          if (pollCount >= maxPolls) {
+            console.log("[v0 EFFECT] Max polling attempts reached")
+            clearInterval(pollInterval)
+            toast.success("Pagamento ricevuto", {
+              description: "La prenotazione sarà aggiornata a breve.",
+            })
+            router.replace(`/user/booking/${params.id}`)
+          }
+        }, 2000)
+
+        // Cleanup after 20 seconds
+        setTimeout(() => {
+          clearInterval(pollInterval)
+          router.replace(`/user/booking/${params.id}`)
+        }, 20000)
+
+        return
+      }
+
+      if (payment === "success" && sessionId) {
+        console.log("[v0 EFFECT] ✅ Legacy success handler - redirecting to processing...")
+        router.replace(`/user/booking/${params.id}?payment=processing`)
+        return
+      }
+
+      if (payment === "cancelled") {
+        console.log("[v0 EFFECT] ❌ Payment cancelled by user")
+        toast.error("Pagamento annullato", {
+          description: "Il pagamento è stato annullato. Puoi riprovare quando vuoi.",
+        })
+        router.replace(`/user/booking/${params.id}`)
+      }
+    }
+
+    processPayment()
+  }, [searchParams, params.id, router, booking?.totalAmount])
+
+  useEffect(() => {
+    console.log("[v0 EFFECT] Loading booking data for ID:", params.id)
     loadBooking()
   }, [params.id])
 
@@ -95,13 +198,11 @@ export default function BookingDetailPage() {
       <Header />
       <div className="pt-24 pb-16">
         <div className="container mx-auto px-4">
-          {/* Back Button */}
           <Button variant="ghost" onClick={() => router.push("/user")} className="mb-6">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Torna al profilo
           </Button>
 
-          {/* Status Badge */}
           <div className="mb-6">
             <Badge variant={booking.status === "confirmed" ? "default" : "secondary"} className="text-lg px-4 py-2">
               {booking.status === "confirmed" ? "✓ Confermata" : booking.status === "paid" ? "✓ Pagata" : "In attesa"}
@@ -361,7 +462,7 @@ export default function BookingDetailPage() {
         onOpenChange={setAddGuestOpen}
         bookingId={booking.id}
         currentGuests={booking.guests || 1}
-        maxGuests={4}
+        maxGuests={booking.maxGuests || 4}
         onSuccess={loadBooking}
       />
 
@@ -370,5 +471,4 @@ export default function BookingDetailPage() {
   )
 }
 
-
-
+//https://al22suite.com/user/booking/HnMLnqvWGDB8O8Wn8RT6?payment=success&session_id=cs_test_a1sPvWm4EI3RtURKcr2OuqaOuo2aZdkQ0lYeYnJp9wX2yi5DjYuUq1gYHa

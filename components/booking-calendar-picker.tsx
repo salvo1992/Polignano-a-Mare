@@ -48,11 +48,18 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
   const [seasons, setSeasons] = useState<Season[]>([])
   const [specialPeriods, setSpecialPeriods] = useState<SpecialPeriod[]>([])
   const [loading, setLoading] = useState(true)
+  const [dailyPrices, setDailyPrices] = useState<Record<string, number>>({})
 
   useEffect(() => {
     console.log("[v0] BookingCalendarPicker - Loading data...")
     loadPricingData()
   }, [])
+
+  useEffect(() => {
+    if (roomId && !loading) {
+      loadDailyPrices()
+    }
+  }, [currentMonth, roomId, loading])
 
   async function loadPricingData() {
     try {
@@ -75,10 +82,52 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
     }
   }
 
+  async function loadDailyPrices() {
+    try {
+      const monthStart = startOfMonth(currentMonth)
+      const monthEnd = endOfMonth(currentMonth)
+      const checkIn = format(monthStart, "yyyy-MM-dd")
+      const checkOut = format(monthEnd, "yyyy-MM-dd")
+
+      console.log("[v0] Loading daily prices for room", roomId, "from", checkIn, "to", checkOut)
+
+      const response = await fetch("/api/bookings/calculate-price", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          checkIn,
+          checkOut,
+          roomId,
+        }),
+      })
+
+      if (!response.ok) {
+        console.error("[v0] Failed to load daily prices:", response.statusText)
+        return
+      }
+
+      const data = await response.json()
+      console.log("[v0] Daily prices loaded:", data)
+
+      const pricePerNight = data.nights > 0 ? Math.round(data.newPrice / data.nights) : 0
+
+      const priceMap: Record<string, number> = {}
+      const days = eachDayOfInterval({ start: monthStart, end: monthEnd })
+
+      days.forEach((day) => {
+        const dayStr = format(day, "yyyy-MM-dd")
+        priceMap[dayStr] = pricePerNight
+      })
+
+      setDailyPrices(priceMap)
+    } catch (error) {
+      console.error("[v0] Error loading daily prices:", error)
+    }
+  }
+
   function getSeasonCategory(date: Date): SeasonType {
     const dateStr = format(date, "yyyy-MM-dd")
 
-    // Priority 1: Check special periods (exact date match)
     const specialPeriod = specialPeriods.find((p) => {
       const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
       const startParts = p.startDate.split("-")
@@ -104,14 +153,12 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
       return getPriceCategory(specialPeriod.priceMultiplier)
     }
 
-    // Priority 2: Check recurring seasons (MM-DD format)
     const monthDay = format(date, "MM-dd")
 
     const season = seasons.find((s) => {
       const seasonStart = s.startDate
       const seasonEnd = s.endDate
 
-      // Handle year-end wrap (e.g., 12-25 to 01-05)
       if (seasonStart <= seasonEnd) {
         const isInRange = monthDay >= seasonStart && monthDay <= seasonEnd
         if (isInRange) {
@@ -131,7 +178,6 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
       return getPriceCategory(season.priceMultiplier)
     }
 
-    // Priority 3: Base price (default to media)
     console.log(`[v0] ${dateStr}: Base price → media`)
     return "media"
   }
@@ -234,6 +280,8 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
             const isPast = day < today
             const isSelected = isInRange(day)
             const isEdge = isStartOrEnd(day)
+            const dayStr = format(day, "yyyy-MM-dd")
+            const price = dailyPrices[dayStr]
 
             return (
               <button
@@ -241,16 +289,19 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
                 onClick={() => !isPast && handleDayClick(day)}
                 disabled={isPast}
                 className={cn(
-                  "rounded-lg text-white text-center transition-all relative",
-                  compact ? "p-2 min-h-[36px]" : "p-4 min-h-[52px]",
-                  "bg-primary hover:opacity-80", // Single color for all days
+                  "rounded-lg text-white text-center transition-all relative flex flex-col items-center justify-center",
+                  compact ? "p-1 min-h-[36px]" : "p-2 min-h-[60px]",
+                  "bg-primary hover:opacity-80",
                   isPast && "opacity-30 cursor-not-allowed",
                   isSelected && !isEdge && "ring-2 ring-white brightness-110",
                   isEdge && "ring-4 ring-yellow-300 scale-105 brightness-125 shadow-lg shadow-yellow-400/50",
                   !isPast && "cursor-pointer active:scale-95",
                 )}
               >
-                <div className={cn(compact ? "text-base" : "text-xl", "font-bold")}>{format(day, "d")}</div>
+                <div className={cn(compact ? "text-sm" : "text-lg", "font-bold")}>{format(day, "d")}</div>
+                {price && (
+                  <div className={cn(compact ? "text-[9px]" : "text-xs", "font-medium opacity-90")}>€{price}</div>
+                )}
               </button>
             )
           })}
