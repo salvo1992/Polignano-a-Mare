@@ -13,7 +13,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 console.log("[v0 DEBUG] 🔧 Module loaded - Stripe key present:", process.env.STRIPE_SECRET_KEY?.slice(0, 10) + "...")
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-11-20.acacia",
+  apiVersion: "2025-09-30.clover",
 })
 
 console.log("[v0 DEBUG] ✅ Stripe client initialized successfully")
