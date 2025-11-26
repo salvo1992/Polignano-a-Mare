@@ -3,8 +3,10 @@ import Stripe from "stripe"
 import { admin, getFirestore } from "@/lib/firebase-admin"
 import { sendBookingConfirmationEmail, sendModificationEmail } from "@/lib/email"
 
+export const dynamic = "force-dynamic"
+
 // Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" as any })
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" })
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
 async function alreadyProcessed(eventId: string) {
@@ -20,9 +22,17 @@ async function markProcessed(eventId: string, payload: any) {
 }
 
 export async function POST(req: NextRequest) {
+  console.log("[v0 WEBHOOK] 🚀 Webhook POST called at:", new Date().toISOString())
+  console.log("[v0 WEBHOOK] Request URL:", req.url)
+  console.log("[v0 WEBHOOK] Request method:", req.method)
+
   try {
     const rawBody = await req.text()
+    console.log("[v0 WEBHOOK] Body length:", rawBody.length)
+
     const signature = req.headers.get("stripe-signature")
+    console.log("[v0 WEBHOOK] Signature present:", !!signature)
+
     if (!signature) {
       console.error("[Webhook] No signature provided")
       return NextResponse.json({ error: "No signature" }, { status: 400 })
@@ -32,6 +42,7 @@ export async function POST(req: NextRequest) {
     let event: Stripe.Event
     try {
       event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
+      console.log("[v0 WEBHOOK] ✅ Signature verified successfully")
     } catch (err: any) {
       console.error("[Webhook] Signature verification failed:", err.message)
       return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 })
