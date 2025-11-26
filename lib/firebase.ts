@@ -215,7 +215,8 @@ export async function secureDeleteAccount(email: string, currentPassword: string
 export type BookingPayload = {
   checkIn: string
   checkOut: string
-  guests: number
+  guests: number // Now represents adults only
+  numberOfChildren?: number // Added children field
   firstName: string
   lastName: string
   email: string
@@ -389,7 +390,7 @@ export async function createStripeCheckout(args: CreateCheckoutArgs): Promise<{ 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       ...args,
-      paymentType: "deposit", // Always pay 30% deposit for new bookings
+      paymentType: "full", // Changed from "deposit" to "full" - now paying 100% upfront instead of 30%
     }),
   })
 

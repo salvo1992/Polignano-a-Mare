@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { CalendarIcon, Users, MapPin, Clock, AlertCircle, Sparkles } from "lucide-react"
+import { CalendarIcon, Users, MapPin, Clock, AlertCircle } from "lucide-react"
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
 import { createBooking, type BookingPayload, getAllRooms } from "@/lib/firebase"
 import { checkRoomAvailability } from "@/lib/booking-utils"
@@ -27,7 +27,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { BookingCalendarPicker, type DateRange } from "@/components/booking-calendar-picker"
 import { useLanguage } from "@/components/language-provider"
 import { useDynamicPrice } from "@/hooks/use-dynamic-price"
-import { ExtraServicesModal } from "@/components/extra-services-modal"
 
 const ROOM_IDS: Record<string, string> = { deluxe: "1", suite: "2" }
 const ROOM_NAMES: Record<string, string> = {
@@ -46,7 +45,7 @@ const AVAILABLE_SERVICES = [
   { name: "Yoga al Tramonto", price: 45 },
 ]
 
-export default function BookingPage() {
+export default function PrenotaPage() {
   const router = useRouter()
   const search = useSearchParams()
   const { language, t } = useLanguage()
@@ -61,7 +60,8 @@ export default function BookingPage() {
     phone: "",
     checkIn: "",
     checkOut: "",
-    guests: "2",
+    guests: "2", // Now represents adults only
+    children: "0", // Added children field
     roomType: "",
     specialRequests: "",
   })
@@ -74,7 +74,6 @@ export default function BookingPage() {
   const [errorMessage, setErrorMessage] = useState("")
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false)
   const [availabilityStatus, setAvailabilityStatus] = useState<{ available: boolean; message: string } | null>(null)
-  const [showExtraServicesModal, setShowExtraServicesModal] = useState(false)
 
   const hasError = search.get("error") === "payment_failed"
 
@@ -185,8 +184,15 @@ export default function BookingPage() {
   }, [formData.checkIn, formData.checkOut])
 
   const basePrice = dynamicPrice || roomPrices[formData.roomType] || 0
-  const extraGuests = Math.max(0, Number(formData.guests || "1") - 2)
-  const extraFeePerNight = extraGuests * 20
+  const adults = Number(formData.guests || "1")
+  const children = Number(formData.children || "0")
+  const totalGuests = adults + children
+
+  // Base price covers up to 2 guests (adults or 1 adult + 1 child)
+  // From 3rd guest: +60€ adult, +48€ child per night
+  const extraAdults = Math.max(0, adults - 2)
+  const extraChildren = totalGuests <= 2 ? 0 : Math.max(0, children - Math.max(0, 2 - adults))
+  const extraFeePerNight = extraAdults * 60 + extraChildren * 48
   const total = nights * (basePrice + extraFeePerNight)
 
   // ---- Submit ----
@@ -215,11 +221,6 @@ export default function BookingPage() {
   }
 
   const handleProceedToCheckout = async () => {
-    setShowExtraServicesModal(true)
-  }
-
-  const handleExtraServicesComplete = () => {
-    // Continue with normal payment flow after services modal
     proceedToPayment()
   }
 
@@ -228,6 +229,7 @@ export default function BookingPage() {
       checkIn: formData.checkIn,
       checkOut: formData.checkOut,
       guests: Number(formData.guests || "1"),
+      children: Number(formData.children || "0"),
       firstName: formData.firstName,
       lastName: formData.lastName,
       email: formData.email,
@@ -377,37 +379,66 @@ export default function BookingPage() {
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="guests">{t("bookingFormGuests") || "Numero Ospiti"}</Label>
+                      <Label htmlFor="guests">Adulti *</Label>
                       <select
                         id="guests"
                         name="guests"
                         value={formData.guests}
                         onChange={handleInputChange}
                         className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                        required
                       >
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
+                        <option value="1">1 Adulto</option>
+                        <option value="2">2 Adulti</option>
+                        <option value="3">3 Adulti</option>
+                        <option value="4">4 Adulti</option>
                       </select>
                     </div>
                     <div>
-                      <Label htmlFor="roomType">{t("bookingFormRoomType") || "Tipo Camera"}</Label>
+                      <Label htmlFor="children">Bambini (11+ anni)</Label>
                       <select
-                        id="roomType"
-                        name="roomType"
-                        value={formData.roomType}
+                        id="children"
+                        name="children"
+                        value={formData.children}
                         onChange={handleInputChange}
                         className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                        required
+                        disabled={totalGuests >= 4}
                       >
-                        <option value="">{t("bookingFormSelectRoom") || "Seleziona una camera"}</option>
-                        <option value="deluxe">
-                          {t("bookingFormPanoramicSuite") || "Camera familiare con balcone"}
+                        <option value="0">0 Bambini</option>
+                        <option value="1" disabled={totalGuests >= 4}>
+                          1 Bambino
                         </option>
-                        <option value="suite">{t("bookingFormjacuziRoom") || "Camera jacuzi"}</option>
+                        <option value="2" disabled={totalGuests >= 4}>
+                          2 Bambini
+                        </option>
+                        <option value="3" disabled={totalGuests >= 4}>
+                          3 Bambini
+                        </option>
                       </select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Bambini accettati da 11 anni in su (80% tariffa adulto)
+                      </p>
                     </div>
+                  </div>
+
+                  {totalGuests > 4 && (
+                    <div className="text-sm text-destructive">Massimo 4 ospiti totali (adulti + bambini)</div>
+                  )}
+
+                  <div>
+                    <Label htmlFor="roomType">{t("bookingFormRoomType") || "Tipo Camera"}</Label>
+                    <select
+                      id="roomType"
+                      name="roomType"
+                      value={formData.roomType}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                      required
+                    >
+                      <option value="">{t("bookingFormSelectRoom") || "Seleziona una camera"}</option>
+                      <option value="deluxe">{t("bookingFormPanoramicSuite") || "Camera familiare con balcone"}</option>
+                      <option value="suite">{t("bookingFormjacuziRoom") || "Camera jacuzi"}</option>
+                    </select>
                   </div>
 
                   <div>
@@ -443,7 +474,7 @@ export default function BookingPage() {
                       {nights > 0
                         ? `${nights} ${
                             nights > 1 ? t("bookingNightsPlural") || "notti" : t("bookingNights") || "notte"
-                          } • ${formData.guests} ${t("bookingGuests") || "ospite/i"}`
+                          } • ${adults} ${adults > 1 ? "adulti" : "adulto"}${children > 0 ? ` + ${children} ${children > 1 ? "bambini" : "bambino"}` : ""}`
                         : t("bookingSummaryCompleteDates") || "Completa date e camera"}
                     </div>
                     <div className="text-xl font-semibold">
@@ -511,43 +542,6 @@ export default function BookingPage() {
                     </div>
                   </CardContent>
                 </Card>
-
-                <Card className="h-full border-0 bg-gradient-to-br from-secondary/10 via-primary/5 to-accent/5">
-                  <CardContent className="p-5">
-                    <div className="flex items-start gap-3">
-                      <Sparkles className="h-5 w-5 text-primary mt-1" />
-                      <div className="w-full">
-                        <h3 className="font-cinzel font-semibold text-primary mb-2">Servizi Extra Disponibili</h3>
-                        <p className="text-xs text-muted-foreground mb-3">
-                          Dopo la prenotazione potrai richiedere questi servizi aggiuntivi
-                        </p>
-                        <div className="space-y-2 max-h-48 overflow-y-auto mb-4">
-                          {AVAILABLE_SERVICES.map((service, index) => (
-                            <div key={index} className="flex justify-between items-center text-sm">
-                              <span className="text-muted-foreground">{service.name}</span>
-                              <span className="font-medium text-primary">€{service.price}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full border-primary/20 hover:bg-primary/5 bg-transparent"
-                          onClick={() => {
-                            if (typeof window !== "undefined") {
-                              window.alert(
-                                "Completa prima la prenotazione per richiedere servizi extra. Potrai farlo dalla tua area personale dopo aver effettuato il check-in.",
-                              )
-                            }
-                          }}
-                        >
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Richiedi Servizi
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
             </div>
           </div>
@@ -570,20 +564,6 @@ export default function BookingPage() {
           </AlertDialogContent>
         </AlertDialog>
       </main>
-
-      <ExtraServicesModal
-        open={showExtraServicesModal}
-        onOpenChange={setShowExtraServicesModal}
-        onComplete={handleExtraServicesComplete}
-        bookingData={{
-          roomId: ROOM_IDS[formData.roomType]!,
-          checkIn: formData.checkIn,
-          checkOut: formData.checkOut,
-          guests: Number(formData.guests),
-          userEmail: formData.email,
-          userName: `${formData.firstName} ${formData.lastName}`,
-        }}
-      />
     </>
   )
 }

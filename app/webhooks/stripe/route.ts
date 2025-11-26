@@ -60,9 +60,7 @@ export async function POST(req: NextRequest) {
       const db = getFirestore()
       const session = event.data.object as Stripe.Checkout.Session
 
-      // ✅ fallback robusto
       const bookingId = session.metadata?.bookingId || session.client_reference_id || null
-
       const customerEmail = session.customer_email || session.customer_details?.email || session.metadata?.email || ""
 
       console.log("[Webhook] checkout.session.completed", {
@@ -108,9 +106,9 @@ export async function POST(req: NextRequest) {
         const penalty = Number.parseInt(session.metadata?.penalty || "0")
 
         console.log("[Webhook] Parsed metadata:", {
-          newTotalAmount: newTotalAmount / 100,
-          paidAmount: paidAmount / 100,
-          penalty: penalty / 100,
+          newTotalAmount: (newTotalAmount / 100).toFixed(2),
+          paidAmount: (paidAmount / 100).toFixed(2),
+          penalty: (penalty / 100).toFixed(2),
           checkIn,
           checkOut,
         })
@@ -118,19 +116,19 @@ export async function POST(req: NextRequest) {
         const currentTotalPaid = bookingData.totalPaid || bookingData.depositPaid || 0
 
         console.log("[Webhook] Current booking state:", {
-          currentTotalPaid: currentTotalPaid / 100,
-          currentTotalAmount: bookingData.totalAmount / 100,
+          currentTotalPaid: (currentTotalPaid / 100).toFixed(2),
+          currentTotalAmount: (bookingData.totalAmount / 100).toFixed(2),
         })
 
         const updateData = {
           checkIn,
           checkOut,
-          totalAmount: newTotalAmount,
-          totalPaid: currentTotalPaid + paidAmount,
-          status: "paid", // Set to "paid" since we now pay 100%
+          totalAmount: Number.parseFloat((newTotalAmount / 100).toFixed(2)),
+          totalPaid: Number.parseFloat(((currentTotalPaid + paidAmount) / 100).toFixed(2)),
+          status: "paid",
           lastPayment: {
             type: "change_dates_full_payment",
-            amount: paidAmount,
+            amount: Number.parseFloat((paidAmount / 100).toFixed(2)),
             paymentId: String(session.payment_intent || session.id),
             paidAt: admin.firestore.FieldValue.serverTimestamp(),
           },
@@ -138,8 +136,8 @@ export async function POST(req: NextRequest) {
         }
 
         console.log("[Webhook] Updating booking with:", {
-          newTotalPaid: updateData.totalPaid / 100,
-          newTotalAmount: updateData.totalAmount / 100,
+          newTotalPaid: updateData.totalPaid.toFixed(2),
+          newTotalAmount: updateData.totalAmount.toFixed(2),
           newCheckIn: updateData.checkIn,
           newCheckOut: updateData.checkOut,
         })
@@ -166,10 +164,10 @@ export async function POST(req: NextRequest) {
             roomName: bookingData.roomName,
             guests: bookingData.guests,
             nights,
-            originalAmount: bookingData.totalAmount,
-            newAmount: newTotalAmount,
-            penalty: penalty > 0 ? penalty : undefined,
-            dateChangeCost: paidAmount,
+            originalAmount: Number.parseFloat((bookingData.totalAmount / 100).toFixed(2)),
+            newAmount: Number.parseFloat((newTotalAmount / 100).toFixed(2)),
+            penalty: penalty > 0 ? Number.parseFloat((penalty / 100).toFixed(2)) : undefined,
+            dateChangeCost: Number.parseFloat((paidAmount / 100).toFixed(2)),
             modificationType: "dates",
           })
           console.log("[Webhook] Date change confirmation email sent successfully")
@@ -192,17 +190,17 @@ export async function POST(req: NextRequest) {
         paymentId: String(session.payment_intent || session.id),
         paymentProvider: "stripe",
         paymentType: "full",
-        totalPaid: paidAmount,
-        totalAmount: fullAmount,
+        totalPaid: Number.parseFloat((paidAmount / 100).toFixed(2)),
+        totalAmount: Number.parseFloat((fullAmount / 100).toFixed(2)),
         paidAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       })
       console.log("[Webhook] Full payment processed:", {
-        totalPaid: paidAmount / 100,
-        totalAmount: fullAmount / 100,
+        totalPaid: (paidAmount / 100).toFixed(2),
+        totalAmount: (fullAmount / 100).toFixed(2),
       })
 
-      // ✅ crea/collega utente
+      // crea/collega utente
       let uid = ""
       let newPassword: string | undefined
       try {
@@ -291,6 +289,7 @@ export async function POST(req: NextRequest) {
           checkOut: updatedBookingData.checkOut,
           roomName: updatedBookingData.roomName,
           guests: updatedBookingData.guests,
+          numberOfChildren: updatedBookingData.numberOfChildren || 0,
           totalAmount: updatedBookingData.totalAmount,
           nights: updatedBookingData.nights,
           newUserPassword: newPassword,
@@ -304,7 +303,6 @@ export async function POST(req: NextRequest) {
       } catch (emailError: any) {
         console.error("[Webhook] ❌ Email send error:", emailError.message)
         console.error("[Webhook] Email error details:", emailError)
-        // Don't fail the webhook if email fails
       }
 
       await markProcessed(event.id, { ok: true, bookingId, userCreated: !!newPassword })
@@ -312,7 +310,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true, bookingId, userCreated: !!newPassword })
     }
 
-    // Altri event types non gestiti
     console.log("[Webhook] Event type not handled:", event.type)
     await markProcessed(event.id, { ignored: event.type })
     return NextResponse.json({ received: true })
