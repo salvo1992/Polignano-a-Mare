@@ -5,7 +5,7 @@ import Stripe from "stripe"
 import { sendCancellationEmail } from "@/lib/email"
 import { calculateCancellationPolicy } from "@/lib/payment-logic"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-09-30.clover" })
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -45,24 +45,8 @@ export async function DELETE(request: NextRequest) {
     const penalty = cancellationPolicy.penaltyAmount
     const isFullRefund = cancellationPolicy.refundPercentage === 100
 
-    let stripeRefundId = null
-    if (refundAmount > 0 && booking?.stripePaymentIntentId) {
-      try {
-        console.log("[API] Creating Stripe refund for payment intent:", booking.stripePaymentIntentId)
-        console.log("[API] Refund amount:", refundAmount / 100, "EUR", `(${cancellationPolicy.refundPercentage}%)`)
-        const refund = await stripe.refunds.create({
-          payment_intent: booking.stripePaymentIntentId,
-          amount: refundAmount,
-          reason: "requested_by_customer",
-        })
-        stripeRefundId = refund.id
-        console.log("[API] ✅ Stripe refund created successfully:", stripeRefundId)
-        console.log("[API] Refund status:", refund.status)
-      } catch (error: any) {
-        console.error("[API] ❌ Error creating Stripe refund:", error.message)
-        // Continue with cancellation even if refund fails
-      }
-    }
+    console.log("[API] Booking cancelled - refund will be processed manually from Stripe dashboard")
+    console.log("[API] Refund amount:", refundAmount / 100, "EUR", `(${cancellationPolicy.refundPercentage}%)`)
 
     await bookingRef.update({
       status: "cancelled",
@@ -71,8 +55,13 @@ export async function DELETE(request: NextRequest) {
       penalty,
       refundPercentage: cancellationPolicy.refundPercentage,
       penaltyPercentage: cancellationPolicy.penaltyPercentage,
-      stripeRefundId,
       cancellationReason: isFullRefund ? "full_refund" : "late_cancellation",
+      pendingRefund: {
+        amount: refundAmount,
+        reason: "booking_cancelled",
+        requestedAt: FieldValue.serverTimestamp(),
+        status: "pending_manual_processing",
+      },
       updatedAt: FieldValue.serverTimestamp(),
     })
 
@@ -117,6 +106,7 @@ export async function DELETE(request: NextRequest) {
         refundAmount,
         penalty,
         isFullRefund,
+        manualRefund: true, // Flag to indicate manual refund processing
       })
       console.log("[API] ✅ Cancellation email sent successfully")
     } catch (error) {
@@ -132,7 +122,10 @@ export async function DELETE(request: NextRequest) {
       refundPercentage: cancellationPolicy.refundPercentage,
       penaltyPercentage: cancellationPolicy.penaltyPercentage,
       isFullRefund,
-      stripeRefundId,
+      message:
+        refundAmount > 0
+          ? `Prenotazione cancellata. Il rimborso di €${(refundAmount / 100).toFixed(2)} verrà elaborato manualmente da Stripe entro 5-10 giorni lavorativi.`
+          : "Prenotazione cancellata.",
     })
   } catch (error) {
     console.error("Error cancelling booking:", error)

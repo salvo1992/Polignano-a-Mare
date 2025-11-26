@@ -160,9 +160,8 @@ export async function PUT(request: NextRequest) {
       console.log("[v0 DEBUG] 🌐 Environment:", process.env.NODE_ENV)
       console.log("[v0 DEBUG] 🔗 Base URL:", baseUrl)
 
-      // Client needs to pay additional amount
-      const depositAmount = Math.round(priceDifference * 0.3) // 30% deposit on difference
-      const balanceAmount = priceDifference - depositAmount // 70% balance
+      const depositAmount = priceDifference // Full amount, not 30%
+      const balanceAmount = 0 // No balance since paying full difference
 
       console.log("[v0 DEBUG] Price increased, creating Stripe checkout...")
       console.log("[v0 DEBUG] Checkout metadata:", {
@@ -194,8 +193,8 @@ export async function PUT(request: NextRequest) {
               price_data: {
                 currency: "eur",
                 product_data: {
-                  name: `Acconto Modifica Date - ${bookingData?.roomName || "Camera"}`,
-                  description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${(penaltyAmount / 100).toFixed(2)})` : ""}\nAcconto 30% della differenza, saldo 70% da pagare 7 giorni prima del check-in`,
+                  name: `Pagamento Modifica Date - ${bookingData?.roomName || "Camera"}`,
+                  description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${(penaltyAmount / 100).toFixed(2)})` : ""}\nImporto totale della differenza`,
                 },
                 unit_amount: depositAmount,
               },
@@ -234,7 +233,7 @@ export async function PUT(request: NextRequest) {
           paymentUrl: session.url,
           depositAmount: depositAmount / 100,
           balanceAmount: balanceAmount / 100,
-          message: `Richiesto acconto aggiuntivo di €${(depositAmount / 100).toFixed(2)}`,
+          message: `Richiesto pagamento totale di €${(depositAmount / 100).toFixed(2)}`,
         })
       } catch (stripeError: any) {
         console.error("[v0 DEBUG] ❌ Stripe Checkout Error:", stripeError)
@@ -257,82 +256,59 @@ export async function PUT(request: NextRequest) {
     if (priceDifference < 0) {
       const refundAmount = Math.abs(priceDifference)
 
-      console.log("[v0] Issuing automatic refund:", {
+      console.log("[v0] Price decreased - notifying customer about manual refund:", {
         refundAmount: refundAmount / 100,
-        paymentId: bookingData?.paymentId,
       })
 
-      if (bookingData?.paymentId) {
-        try {
-          const refund = await stripe.refunds.create({
-            payment_intent: bookingData.paymentId,
-            amount: refundAmount,
-            reason: "requested_by_customer",
-            metadata: {
-              bookingId,
-              reason: "date_change_price_decrease",
-              originalAmount: (originalAmount / 100).toFixed(2),
-              newAmount: (totalAmount / 100).toFixed(2),
-            },
-          })
+      // Update booking with new dates
+      await bookingRef.update({
+        checkIn,
+        checkOut,
+        nights,
+        totalAmount,
+        depositPaid: Math.round(totalAmount * 0.3),
+        balanceDue: Math.round(totalAmount * 0.7),
+        pendingRefund: {
+          amount: refundAmount,
+          reason: "date_change_price_decrease",
+          requestedAt: FieldValue.serverTimestamp(),
+          status: "pending_manual_processing",
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      })
 
-          console.log("[v0] Refund issued successfully:", refund.id)
+      // Send email notification about manual refund
+      await sendModificationEmail({
+        to: bookingData?.email,
+        bookingId,
+        firstName: bookingData?.firstName,
+        lastName: bookingData?.lastName,
+        checkIn,
+        checkOut,
+        roomName: bookingData?.roomName,
+        guests: bookingData?.guests || 2,
+        nights,
+        originalAmount,
+        newAmount: totalAmount,
+        penalty: penaltyAmount,
+        dateChangeCost: priceDifference,
+        modificationType: "dates",
+        refundAmount, // This will trigger the refund notification in the email
+        manualRefund: true, // New flag to indicate manual processing
+      })
 
-          await bookingRef.update({
-            checkIn,
-            checkOut,
-            nights,
-            totalAmount,
-            depositPaid: Math.round(totalAmount * 0.3),
-            balanceDue: Math.round(totalAmount * 0.7),
-            lastRefund: {
-              id: refund.id,
-              amount: refundAmount,
-              reason: "date_change_price_decrease",
-              createdAt: FieldValue.serverTimestamp(),
-            },
-            updatedAt: FieldValue.serverTimestamp(),
-          })
+      console.log("[API] Booking dates changed - refund will be processed manually:", bookingId)
 
-          await sendModificationEmail({
-            to: bookingData?.email,
-            bookingId,
-            firstName: bookingData?.firstName,
-            lastName: bookingData?.lastName,
-            checkIn,
-            checkOut,
-            roomName: bookingData?.roomName,
-            guests: bookingData?.guests || 2,
-            nights,
-            originalAmount,
-            newAmount: totalAmount,
-            penalty: penaltyAmount,
-            dateChangeCost: priceDifference,
-            modificationType: "dates",
-            refundAmount,
-          })
-
-          console.log("[API] Booking dates changed with refund:", bookingId)
-
-          return NextResponse.json({
-            success: true,
-            nights,
-            totalAmount: totalAmount / 100,
-            priceDifference: priceDifference / 100,
-            refundIssued: true,
-            refundAmount: refundAmount / 100,
-            message: `Date modificate. Rimborso di €${(refundAmount / 100).toFixed(2)} in corso.`,
-          })
-        } catch (refundError: any) {
-          console.error("[v0] Error issuing refund:", refundError)
-          console.error("[v0] Refund error details:", {
-            message: refundError.message,
-            type: refundError.type,
-            code: refundError.code,
-          })
-          // Continue with booking update even if refund fails
-        }
-      }
+      return NextResponse.json({
+        success: true,
+        nights,
+        totalAmount: totalAmount / 100,
+        priceDifference: priceDifference / 100,
+        refundIssued: false,
+        refundPending: true,
+        refundAmount: refundAmount / 100,
+        message: `Date modificate. Rimborso di €${(refundAmount / 100).toFixed(2)} verrà elaborato manualmente entro 5-10 giorni lavorativi.`,
+      })
     }
 
     await bookingRef.update({

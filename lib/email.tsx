@@ -22,14 +22,15 @@ interface CancellationEmailData {
   bookingId: string
   firstName: string
   lastName: string
+  roomName: string
   checkIn: string
   checkOut: string
-  roomName: string
   guests: number
   originalAmount: number
   refundAmount: number
   penalty: number
   isFullRefund: boolean
+  manualRefund?: boolean // Added to indicate manual processing
 }
 
 interface ModificationEmailData {
@@ -48,6 +49,8 @@ interface ModificationEmailData {
   guestAdditionCost?: number
   dateChangeCost?: number
   modificationType: "dates" | "guests" | "both"
+  refundAmount?: number // Added for refund notification
+  manualRefund?: boolean // Added to indicate manual processing
 }
 
 export async function sendBookingConfirmationEmail(data: BookingEmailData) {
@@ -155,7 +158,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
         </div>
         
         <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border-radius: 8px; font-size: 14px;">
-          ⚠️ <strong>Importante:</strong> Il saldo di €${(remainingBalance / 100).toFixed(2)} sarà pagato <strong>7 giorni prima del check-in</strong>. Riceverai un promemoria via email.
+          ⚠️ <strong>Importante:</strong> Il saldo di €${(remainingBalance / 100).toFixed(2)} dovrà essere pagato <strong>7 giorni prima del check-in</strong>. Riceverai un promemoria via email.
         </div>
       </div>
       
@@ -308,7 +311,7 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
             ? `
           <p><strong>Importo da Rimborsare:</strong> €${(data.refundAmount / 100).toFixed(2)}</p>
           <p style="font-size: 14px; margin-top: 15px;">
-            Il rimborso verrà elaborato entro 5-10 giorni lavorativi sulla carta utilizzata per il pagamento.
+            ${data.manualRefund ? "Il rimborso verrà elaborato manualmente dal nostro team entro <strong>5-10 giorni lavorativi</strong> sulla carta utilizzata per il pagamento." : "Il rimborso verrà elaborato entro 5-10 giorni lavorativi sulla carta utilizzata per il pagamento."}
           </p>
         `
             : `
@@ -316,6 +319,9 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
           <p><strong>Importo da Rimborsare:</strong> €${(data.refundAmount / 100).toFixed(2)}</p>
           <p style="font-size: 14px; margin-top: 15px; color: #856404;">
             ⚠️ La cancellazione è avvenuta a meno di 7 giorni dal check-in. È stata applicata una penale del 50%.
+          </p>
+          <p style="font-size: 14px; margin-top: 10px;">
+            ${data.manualRefund ? "Il rimborso verrà elaborato manualmente dal nostro team entro <strong>5-10 giorni lavorativi</strong> sulla carta utilizzata per il pagamento." : "Il rimborso verrà elaborato entro 5-10 giorni lavorativi sulla carta utilizzata per il pagamento."}
           </p>
         `
         }
@@ -385,6 +391,7 @@ export async function sendModificationEmail(data: ModificationEmailData) {
     .detail-label { font-weight: bold; color: #1e40af; }
     .cost-breakdown { background: #dbeafe; border: 2px solid #3b82f6; padding: 20px; border-radius: 8px; margin: 20px 0; }
     .info-box { background: #fef3c7; border: 2px solid #f59e0b; padding: 20px; border-radius: 8px; margin: 20px 0; color: #856404; }
+    .refund-box { background: #d1f4e0; border: 2px solid #10b981; padding: 20px; border-radius: 8px; margin: 20px 0; color: #065f46; }
     .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
   </style>
 </head>
@@ -434,6 +441,23 @@ export async function sendModificationEmail(data: ModificationEmailData) {
         </div>
       </div>
       
+      ${
+        data.refundAmount && data.manualRefund
+          ? `
+      <div class="refund-box">
+        <h3 style="margin-top: 0; color: #059669;">✅ Rimborso in Elaborazione</h3>
+        <p><strong>Importo da Rimborsare:</strong> €${(data.refundAmount / 100).toFixed(2)}</p>
+        <p style="font-size: 14px; margin-top: 15px;">
+          Il rimborso verrà elaborato manualmente dal nostro team entro <strong>5-10 giorni lavorativi</strong> sulla carta utilizzata per il pagamento originale.
+        </p>
+        <p style="font-size: 14px; margin: 10px 0 0 0;">
+          Riceverai una notifica da Stripe quando il rimborso sarà stato completato.
+        </p>
+      </div>
+      `
+          : ""
+      }
+      
       <div class="cost-breakdown">
         <h3 style="margin-top: 0; color: #1e40af;">💰 Riepilogo Pagamenti</h3>
         
@@ -454,11 +478,22 @@ export async function sendModificationEmail(data: ModificationEmailData) {
         }
         
         ${
-          data.dateChangeCost
+          data.dateChangeCost && data.dateChangeCost > 0
             ? `
         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd;">
           <span>Differenza Prezzo:</span>
           <span>+€${(data.dateChangeCost / 100).toFixed(2)}</span>
+        </div>
+        `
+            : ""
+        }
+        
+        ${
+          data.refundAmount && data.manualRefund
+            ? `
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd; color: #059669;">
+          <span>Rimborso da Ricevere:</span>
+          <span>-€${(data.refundAmount / 100).toFixed(2)}</span>
         </div>
         `
             : ""
@@ -480,11 +515,17 @@ export async function sendModificationEmail(data: ModificationEmailData) {
         </div>
       </div>
       
+      ${
+        !data.refundAmount || !data.manualRefund
+          ? `
       <div class="info-box">
         <h3 style="margin-top: 0;">⚠️ Importante - Saldo da Pagare</h3>
         <p>Il saldo di <strong>€${(balanceRemaining / 100).toFixed(2)}</strong> dovrà essere pagato <strong>7 giorni prima del check-in</strong>.</p>
         <p style="margin-bottom: 0;">Riceverai un promemoria automatico via email con il link per completare il pagamento.</p>
       </div>
+      `
+          : ""
+      }
       
       <div style="text-align: center;">
         <a href="${siteUrl}/user/booking/${data.bookingId}" style="display: inline-block; background: #1e40af; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0;">

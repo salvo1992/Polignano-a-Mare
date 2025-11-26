@@ -1,13 +1,12 @@
-import { headers } from "next/headers"
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { admin, getFirestore } from "@/lib/firebase-admin"
 import { sendBookingConfirmationEmail, sendModificationEmail } from "@/lib/email"
 
-export const runtime = "nodejs"
+export const runtime = "edge"
 
 // Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" })
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-09-30.clover" })
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
 async function alreadyProcessed(eventId: string) {
@@ -22,10 +21,10 @@ async function markProcessed(eventId: string, payload: any) {
   await ref.set({ receivedAt: admin.firestore.FieldValue.serverTimestamp(), payload }, { merge: true })
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text()
-    const signature = (await headers()).get("stripe-signature")
+    const signature = req.headers.get("stripe-signature")
     if (!signature) {
       console.error("[Webhook] No signature provided")
       return NextResponse.json({ error: "No signature" }, { status: 400 })
@@ -349,3 +348,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 })
   }
 }
+
