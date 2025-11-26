@@ -5,15 +5,15 @@ import Stripe from "stripe"
 import { sendModificationEmail } from "@/lib/email"
 import { calculateNights } from "@/lib/pricing"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-09-30.clover" })
 
 export async function PUT(request: NextRequest) {
   try {
-    const { bookingId, newGuestsCount, priceDifference } = await request.json()
+    const { bookingId, newAdults, newChildren, priceDifference } = await request.json()
 
-    console.log("[v0] Add guest request:", { bookingId, newGuestsCount, priceDifference })
+    console.log("[v0] Add guest request:", { bookingId, newAdults, newChildren, priceDifference })
 
-    if (!bookingId || !newGuestsCount || priceDifference === undefined) {
+    if (!bookingId || (newAdults === undefined && newChildren === undefined) || priceDifference === undefined) {
       return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
     }
 
@@ -27,18 +27,27 @@ export async function PUT(request: NextRequest) {
 
     const booking = bookingSnap.data()
     const currentGuests = booking?.guests || 1
+    const currentChildren = booking?.numberOfChildren || 0
     const maxGuests = 4
 
-    console.log("[v0] Current guests:", currentGuests, "New guests:", newGuestsCount, "Max guests:", maxGuests)
+    const newGuestsCount = (newAdults || currentGuests) + (newChildren || currentChildren)
+
+    console.log("[v0] Current:", { guests: currentGuests, children: currentChildren })
+    console.log("[v0] New:", { adults: newAdults, children: newChildren, total: newGuestsCount })
 
     if (newGuestsCount > maxGuests) {
-      return NextResponse.json({ error: "Numero massimo di ospiti raggiunto" }, { status: 400 })
+      return NextResponse.json({ error: "Numero massimo di ospiti (4) raggiunto" }, { status: 400 })
     }
 
-    const originalAmount = booking?.totalAmount || 0
-    const newTotalAmount = originalAmount + priceDifference
+    if ((newAdults || currentGuests) < 1) {
+      return NextResponse.json({ error: "È richiesto almeno un adulto" }, { status: 400 })
+    }
 
-    if (priceDifference > 0) {
+    const originalAmount = Number.parseFloat(booking?.totalAmount?.toFixed(2) || "0")
+    const priceDiff = Number.parseFloat(priceDifference.toFixed(2))
+    const newTotalAmount = Number.parseFloat((originalAmount + priceDiff).toFixed(2))
+
+    if (priceDiff > 0) {
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
@@ -49,7 +58,7 @@ export async function PUT(request: NextRequest) {
                 name: `Aggiunta Ospiti - ${booking?.roomName || "Camera"}`,
                 description: `Da ${currentGuests} a ${newGuestsCount} ospiti`,
               },
-              unit_amount: priceDifference,
+              unit_amount: Math.round(priceDiff * 100), // Convert EUR to cents
             },
             quantity: 1,
           },
@@ -60,10 +69,11 @@ export async function PUT(request: NextRequest) {
         metadata: {
           bookingId,
           type: "add_guest",
-          newGuestsCount: newGuestsCount.toString(),
+          newAdults: (newAdults || currentGuests).toString(),
+          newChildren: (newChildren || currentChildren).toString(),
           newTotalAmount: newTotalAmount.toString(),
           originalAmount: originalAmount.toString(),
-          guestAdditionCost: priceDifference.toString(),
+          guestAdditionCost: priceDiff.toString(),
         },
       })
 
@@ -74,8 +84,10 @@ export async function PUT(request: NextRequest) {
     }
 
     await bookingRef.update({
-      guests: newGuestsCount,
+      guests: newAdults || currentGuests,
+      numberOfChildren: newChildren || currentChildren,
       totalAmount: newTotalAmount,
+      totalPaid: newTotalAmount, // Full payment already made
       updatedAt: FieldValue.serverTimestamp(),
     })
 
@@ -88,11 +100,12 @@ export async function PUT(request: NextRequest) {
       checkIn: booking?.checkIn,
       checkOut: booking?.checkOut,
       roomName: booking?.roomName,
-      guests: newGuestsCount,
+      guests: newAdults || currentGuests,
+      children: newChildren || currentChildren,
       nights,
       originalAmount,
       newAmount: newTotalAmount,
-      guestAdditionCost: priceDifference,
+      guestAdditionCost: priceDiff,
       modificationType: "guests",
     })
 

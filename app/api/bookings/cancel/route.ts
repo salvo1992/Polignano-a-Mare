@@ -5,7 +5,7 @@ import Stripe from "stripe"
 import { sendCancellationEmail } from "@/lib/email"
 import { calculateCancellationPolicy } from "@/lib/payment-logic"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-09-30.clover" })
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -39,14 +39,18 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Non puoi cancellare prenotazioni passate" }, { status: 400 })
     }
 
-    const cancellationPolicy = calculateCancellationPolicy(checkInDate, booking?.totalAmount || 0, today)
+    const cancellationPolicy = calculateCancellationPolicy(
+      checkInDate,
+      Number.parseFloat(booking?.totalAmount?.toFixed(2) || "0"),
+      today,
+    )
 
-    const refundAmount = cancellationPolicy.refundAmount
-    const penalty = cancellationPolicy.penaltyAmount
+    const refundAmount = Number.parseFloat(cancellationPolicy.refundAmount.toFixed(2))
+    const penalty = Number.parseFloat(cancellationPolicy.penaltyAmount.toFixed(2))
     const isFullRefund = cancellationPolicy.refundPercentage === 100
 
     console.log("[API] Booking cancelled - refund will be processed manually from Stripe dashboard")
-    console.log("[API] Refund amount:", refundAmount / 100, "EUR", `(${cancellationPolicy.refundPercentage}%)`)
+    console.log("[API] Refund amount:", refundAmount, "EUR", `(${cancellationPolicy.refundPercentage}%)`)
 
     await bookingRef.update({
       status: "cancelled",
@@ -124,7 +128,7 @@ export async function DELETE(request: NextRequest) {
       isFullRefund,
       message:
         refundAmount > 0
-          ? `Prenotazione cancellata. Il rimborso di €${(refundAmount / 100).toFixed(2)} verrà elaborato manualmente da Stripe entro 5-10 giorni lavorativi.`
+          ? `Prenotazione cancellata. Il rimborso di €${refundAmount.toFixed(2)} verrà elaborato manualmente da Stripe entro 3 giorni lavorativi.`
           : "Prenotazione cancellata.",
     })
   } catch (error) {
@@ -132,5 +136,3 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Errore nella cancellazione" }, { status: 500 })
   }
 }
-
-

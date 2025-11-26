@@ -80,9 +80,6 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
     const siteUrl = "https://al22suite.com"
     console.log("[Email] Using site URL:", siteUrl)
 
-    const depositAmount = Math.round(data.totalAmount * 0.3)
-    const remainingBalance = data.totalAmount - depositAmount
-
     const emailHtml = `
 <!DOCTYPE html>
 <html>
@@ -147,18 +144,9 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
           <span>${data.guests}</span>
         </div>
         
-        <div class="detail-row">
-          <span class="detail-label">Acconto Pagato (30%):</span>
-          <span style="color: #059669; font-weight: bold;">€${(depositAmount / 100).toFixed(2)}</span>
-        </div>
-        
         <div class="detail-row" style="border-bottom: none;">
-          <span class="detail-label">Saldo Rimanente (70%):</span>
-          <span style="color: #dc2626; font-weight: bold;">€${(remainingBalance / 100).toFixed(2)}</span>
-        </div>
-        
-        <div style="margin-top: 15px; padding: 15px; background: #fef3c7; border-radius: 8px; font-size: 14px;">
-          ⚠️ <strong>Importante:</strong> Il saldo di €${(remainingBalance / 100).toFixed(2)} dovrà essere pagato <strong>7 giorni prima del check-in</strong>. Riceverai un promemoria via email.
+          <span class="detail-label">Importo Totale Pagato:</span>
+          <span style="color: #059669; font-weight: bold; font-size: 18px;">€${(data.totalAmount / 100).toFixed(2)}</span>
         </div>
       </div>
       
@@ -372,8 +360,6 @@ export async function sendModificationEmail(data: ModificationEmailData) {
     }
 
     const siteUrl = "https://al22suite.com"
-    const depositPaid = Math.round(data.newAmount * 0.3)
-    const balanceRemaining = data.newAmount - depositPaid
     const difference = data.newAmount - data.originalAmount
 
     const emailHtml = `
@@ -435,9 +421,14 @@ export async function sendModificationEmail(data: ModificationEmailData) {
           <span>${data.nights}</span>
         </div>
         
-        <div class="detail-row" style="border-bottom: none;">
+        <div class="detail-row">
           <span class="detail-label">Ospiti:</span>
           <span>${data.guests}</span>
+        </div>
+        
+        <div class="detail-row" style="border-bottom: none;">
+          <span class="detail-label">Importo Totale Pagato:</span>
+          <span style="color: #059669; font-weight: bold; font-size: 18px;">€${(data.newAmount / 100).toFixed(2)}</span>
         </div>
       </div>
       
@@ -448,10 +439,10 @@ export async function sendModificationEmail(data: ModificationEmailData) {
         <h3 style="margin-top: 0; color: #059669;">✅ Rimborso in Elaborazione</h3>
         <p><strong>Importo da Rimborsare:</strong> €${(data.refundAmount / 100).toFixed(2)}</p>
         <p style="font-size: 14px; margin-top: 15px;">
-          Il rimborso verrà elaborato manualmente dal nostro team entro <strong>5-10 giorni lavorativi</strong> sulla carta utilizzata per il pagamento originale.
+          Il rimborso verrà elaborato manualmente dal nostro team entro <strong>3 giorni lavorativi</strong> sulla carta utilizzata per il pagamento originale.
         </p>
         <p style="font-size: 14px; margin: 10px 0 0 0;">
-          Riceverai una notifica da Stripe quando il rimborso sarà stato completato.
+          Riceverai una notifica quando il rimborso sarà stato completato.
         </p>
       </div>
       `
@@ -500,32 +491,25 @@ export async function sendModificationEmail(data: ModificationEmailData) {
         }
         
         <div style="display: flex; justify-content: space-between; padding: 15px 0 0 0; margin-top: 10px; border-top: 2px solid #1e40af; font-size: 18px;">
-          <span style="font-weight: bold;">Nuovo Totale:</span>
+          <span style="font-weight: bold;">Nuovo Importo Totale:</span>
           <span style="font-weight: bold; color: #1e40af;">€${(data.newAmount / 100).toFixed(2)}</span>
         </div>
         
+        ${
+          difference > 0 && !data.refundAmount
+            ? `
         <div style="display: flex; justify-content: space-between; padding: 8px 0; margin-top: 15px; border-top: 1px solid #bae6fd;">
-          <span>Acconto Totale Pagato (30%):</span>
-          <span style="color: #059669; font-weight: bold;">€${(depositPaid / 100).toFixed(2)}</span>
+          <span style="color: #dc2626;">Importo Pagato al Cambio Date:</span>
+          <span style="color: #dc2626; font-weight: bold;">€${(difference / 100).toFixed(2)}</span>
         </div>
-        
         <div style="display: flex; justify-content: space-between; padding: 8px 0;">
-          <span>Saldo Rimanente (70%):</span>
-          <span style="color: #dc2626; font-weight: bold;">€${(balanceRemaining / 100).toFixed(2)}</span>
+          <span style="color: #059669;">Importo Totale Pagato:</span>
+          <span style="color: #059669; font-weight: bold;">€${(data.newAmount / 100).toFixed(2)}</span>
         </div>
+        `
+            : ""
+        }
       </div>
-      
-      ${
-        !data.refundAmount || !data.manualRefund
-          ? `
-      <div class="info-box">
-        <h3 style="margin-top: 0;">⚠️ Importante - Saldo da Pagare</h3>
-        <p>Il saldo di <strong>€${(balanceRemaining / 100).toFixed(2)}</strong> dovrà essere pagato <strong>7 giorni prima del check-in</strong>.</p>
-        <p style="margin-bottom: 0;">Riceverai un promemoria automatico via email con il link per completare il pagamento.</p>
-      </div>
-      `
-          : ""
-      }
       
       <div style="text-align: center;">
         <a href="${siteUrl}/user/booking/${data.bookingId}" style="display: inline-block; background: #1e40af; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0;">

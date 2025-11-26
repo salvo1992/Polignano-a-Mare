@@ -13,7 +13,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 console.log("[v0 DEBUG] 🔧 Module loaded - Stripe key present:", process.env.STRIPE_SECRET_KEY?.slice(0, 10) + "...")
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-09-30.clover",
+  apiVersion: "2024-11-20.acacia",
 })
 
 console.log("[v0 DEBUG] ✅ Stripe client initialized successfully")
@@ -133,47 +133,37 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const basePrice = priceData.newPrice * 100 // Convert to cents
+    const basePrice = Number.parseFloat(priceData.newPrice.toFixed(2))
+    const penaltyAmount = Number.parseFloat(
+      calculateChangeDatesPenalty(
+        Number.parseFloat(bookingData?.totalAmount?.toFixed(2) || "0"),
+        calculateDaysUntilCheckIn(bookingData?.checkIn),
+      ).toFixed(2),
+    )
+    const totalAmount = Number.parseFloat((basePrice + penaltyAmount).toFixed(2))
 
-    const nights = calculateNights(checkIn, checkOut)
-    const daysUntilCheckIn = calculateDaysUntilCheckIn(bookingData?.checkIn)
-    const penaltyAmount = calculateChangeDatesPenalty(bookingData?.totalAmount || 0, daysUntilCheckIn)
-    const totalAmount = basePrice + penaltyAmount
-
-    const originalAmount = bookingData?.totalAmount || 0
-    const priceDifference = totalAmount - originalAmount
+    const originalAmount = Number.parseFloat(bookingData?.totalAmount?.toFixed(2) || "0")
+    const priceDifference = Number.parseFloat((totalAmount - originalAmount).toFixed(2))
 
     console.log("[v0] Price calculation:", {
-      basePrice: basePrice / 100,
-      penaltyAmount: penaltyAmount / 100,
-      totalAmount: totalAmount / 100,
-      priceDifference: priceDifference / 100,
-      daysUntilCheckIn,
+      basePrice,
+      penaltyAmount,
+      totalAmount,
+      originalAmount,
+      priceDifference,
+      daysUntilCheckIn: calculateDaysUntilCheckIn(bookingData?.checkIn),
     })
 
     if (priceDifference > 0) {
+      const paymentAmount = priceDifference
+
+      console.log("[v0 DEBUG] Price increased, creating Stripe checkout for full difference...")
+      console.log("[v0 DEBUG] Payment amount:", paymentAmount, "EUR")
+
       const baseUrl =
         process.env.NODE_ENV === "development"
           ? "http://localhost:3000"
           : process.env.NEXT_PUBLIC_SITE_URL || "https://al22suite.com"
-
-      console.log("[v0 DEBUG] 🌐 Environment:", process.env.NODE_ENV)
-      console.log("[v0 DEBUG] 🔗 Base URL:", baseUrl)
-
-      const depositAmount = priceDifference // Full amount, not 30%
-      const balanceAmount = 0 // No balance since paying full difference
-
-      console.log("[v0 DEBUG] Price increased, creating Stripe checkout...")
-      console.log("[v0 DEBUG] Checkout metadata:", {
-        bookingId,
-        type: "change_dates",
-        checkIn,
-        checkOut,
-        newTotalAmount: totalAmount,
-        penalty: penaltyAmount,
-        depositAmount,
-        balanceAmount,
-      })
 
       const successUrl = `${baseUrl}/user/booking/${bookingId}?payment=processing`
       const cancelUrl = `${baseUrl}/user/booking/${bookingId}?payment=cancelled`
@@ -194,9 +184,9 @@ export async function PUT(request: NextRequest) {
                 currency: "eur",
                 product_data: {
                   name: `Pagamento Modifica Date - ${bookingData?.roomName || "Camera"}`,
-                  description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${(penaltyAmount / 100).toFixed(2)})` : ""}\nImporto totale della differenza`,
+                  description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${penaltyAmount.toFixed(2)})` : ""}\nImporto totale della differenza`,
                 },
-                unit_amount: depositAmount,
+                unit_amount: Math.round(paymentAmount * 100), // Convert EUR to cents for Stripe
               },
               quantity: 1,
             },
@@ -213,8 +203,7 @@ export async function PUT(request: NextRequest) {
             penalty: penaltyAmount.toString(),
             originalAmount: originalAmount.toString(),
             priceDifference: priceDifference.toString(),
-            depositAmount: depositAmount.toString(),
-            balanceAmount: balanceAmount.toString(),
+            paymentAmount: paymentAmount.toString(),
           },
         })
 
@@ -231,9 +220,9 @@ export async function PUT(request: NextRequest) {
           success: true,
           paymentRequired: true,
           paymentUrl: session.url,
-          depositAmount: depositAmount / 100,
-          balanceAmount: balanceAmount / 100,
-          message: `Richiesto pagamento totale di €${(depositAmount / 100).toFixed(2)}`,
+          paymentAmount,
+          message: `Richiesto pagamento di €${paymentAmount.toFixed(2)}`,
+          instructions: "Dopo il pagamento, il webhook aggiornerà automaticamente il database",
         })
       } catch (stripeError: any) {
         console.error("[v0 DEBUG] ❌ Stripe Checkout Error:", stripeError)
@@ -256,18 +245,14 @@ export async function PUT(request: NextRequest) {
     if (priceDifference < 0) {
       const refundAmount = Math.abs(priceDifference)
 
-      console.log("[v0] Price decreased - notifying customer about manual refund:", {
-        refundAmount: refundAmount / 100,
-      })
+      console.log("[v0] Price decreased - notifying customer about manual refund:", refundAmount)
 
-      // Update booking with new dates
       await bookingRef.update({
         checkIn,
         checkOut,
-        nights,
+        nights: calculateNights(checkIn, checkOut),
         totalAmount,
-        depositPaid: Math.round(totalAmount * 0.3),
-        balanceDue: Math.round(totalAmount * 0.7),
+        totalPaid: originalAmount, // Keep original payment
         pendingRefund: {
           amount: refundAmount,
           reason: "date_change_price_decrease",
@@ -277,7 +262,6 @@ export async function PUT(request: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       })
 
-      // Send email notification about manual refund
       await sendModificationEmail({
         to: bookingData?.email,
         bookingId,
@@ -287,13 +271,13 @@ export async function PUT(request: NextRequest) {
         checkOut,
         roomName: bookingData?.roomName,
         guests: bookingData?.guests || 2,
-        nights,
+        nights: calculateNights(checkIn, checkOut),
         originalAmount,
         newAmount: totalAmount,
         penalty: penaltyAmount,
         dateChangeCost: priceDifference,
         modificationType: "dates",
-        refundAmount, // This will trigger the refund notification in the email
+        refundAmount,
         manualRefund: true, // New flag to indicate manual processing
       })
 
@@ -301,23 +285,21 @@ export async function PUT(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        nights,
-        totalAmount: totalAmount / 100,
-        priceDifference: priceDifference / 100,
-        refundIssued: false,
+        nights: calculateNights(checkIn, checkOut),
+        totalAmount,
+        priceDifference,
         refundPending: true,
-        refundAmount: refundAmount / 100,
-        message: `Date modificate. Rimborso di €${(refundAmount / 100).toFixed(2)} verrà elaborato manualmente entro 5-10 giorni lavorativi.`,
+        refundAmount,
+        message: `Date modificate. Rimborso di €${refundAmount.toFixed(2)} verrà elaborato manualmente entro 3 giorni lavorativi.`,
       })
     }
 
     await bookingRef.update({
       checkIn,
       checkOut,
-      nights,
+      nights: calculateNights(checkIn, checkOut),
       totalAmount,
-      depositPaid: Math.round(totalAmount * 0.3),
-      balanceDue: Math.round(totalAmount * 0.7),
+      totalPaid: totalAmount, // Full payment
       updatedAt: FieldValue.serverTimestamp(),
     })
 
@@ -330,7 +312,7 @@ export async function PUT(request: NextRequest) {
       checkOut,
       roomName: bookingData?.roomName,
       guests: bookingData?.guests || 2,
-      nights,
+      nights: calculateNights(checkIn, checkOut),
       originalAmount,
       newAmount: totalAmount,
       penalty: penaltyAmount,
@@ -342,10 +324,9 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      nights,
-      totalAmount: totalAmount / 100,
-      priceDifference: priceDifference / 100,
-      refundIssued: false,
+      nights: calculateNights(checkIn, checkOut),
+      totalAmount,
+      priceDifference,
       message: "Date modificate con successo",
     })
   } catch (error: any) {

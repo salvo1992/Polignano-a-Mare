@@ -149,8 +149,8 @@ export default function BookingDetailPage() {
     setTimeout(() => setCopiedField(null), 2000)
   }
 
-  const formatPrice = (cents: number) => {
-    return (cents / 100).toFixed(2)
+  const formatPrice = (price: number) => {
+    return typeof price === "number" ? price.toFixed(2) : "0.00"
   }
 
   const getRoomImage = (roomName: string) => {
@@ -355,18 +355,24 @@ export default function BookingDetailPage() {
                     <span className="font-bold text-xl">€{formatPrice(booking.totalAmount)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Totale prossimi pagamenti</span>
-                    <span className="font-semibold">€{formatPrice(booking.totalAmount)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Totale pagato</span>
-                    <span className="font-semibold">€ 0</span>
+                    <span className="font-semibold text-green-600">
+                      €{formatPrice(booking.totalPaid || booking.totalAmount)}
+                    </span>
                   </div>
+                  {booking.totalPaid && booking.totalPaid < booking.totalAmount && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Rimanente</span>
+                      <span className="font-semibold text-orange-600">
+                        €{formatPrice(booking.totalAmount - booking.totalPaid)}
+                      </span>
+                    </div>
+                  )}
                   <Separator />
                   <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4 text-sm">
                     <p className="font-semibold mb-1">💳 Pagamento online</p>
                     <p className="text-muted-foreground">
-                      Il pagamento è effettuato online al momento della prenotazione.
+                      Il pagamento completo è stato effettuato al momento della prenotazione.
                     </p>
                   </div>
                 </CardContent>
@@ -471,4 +477,4 @@ export default function BookingDetailPage() {
   )
 }
 
-//https://al22suite.com/user/booking/HnMLnqvWGDB8O8Wn8RT6?payment=success&session_id=cs_test_a1sPvWm4EI3RtURKcr2OuqaOuo2aZdkQ0lYeYnJp9wX2yi5DjYuUq1gYHa
+

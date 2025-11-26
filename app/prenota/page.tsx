@@ -188,8 +188,6 @@ export default function PrenotaPage() {
   const children = Number(formData.children || "0")
   const totalGuests = adults + children
 
-  // Base price covers up to 2 guests (adults or 1 adult + 1 child)
-  // From 3rd guest: +60€ adult, +48€ child per night
   const extraAdults = Math.max(0, adults - 2)
   const extraChildren = totalGuests <= 2 ? 0 : Math.max(0, children - Math.max(0, 2 - adults))
   const extraFeePerNight = extraAdults * 60 + extraChildren * 48
@@ -255,8 +253,22 @@ export default function PrenotaPage() {
     }
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+
+    // If changing adults or children, validate total doesn't exceed 4
+    if (name === "guests" || name === "children") {
+      const newAdults = name === "guests" ? Number(value) : adults
+      const newChildren = name === "children" ? Number(value) : children
+      const newTotal = newAdults + newChildren
+
+      if (newTotal > 4) {
+        // Don't allow change if it would exceed 4 total guests
+        return
+      }
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
   return (
@@ -379,7 +391,7 @@ export default function PrenotaPage() {
 
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="guests">Adulti *</Label>
+                      <Label htmlFor="guests">Adulti</Label>
                       <select
                         id="guests"
                         name="guests"
@@ -389,9 +401,15 @@ export default function PrenotaPage() {
                         required
                       >
                         <option value="1">1 Adulto</option>
-                        <option value="2">2 Adulti</option>
-                        <option value="3">3 Adulti</option>
-                        <option value="4">4 Adulti</option>
+                        <option value="2" disabled={children >= 4}>
+                          2 Adulti
+                        </option>
+                        <option value="3" disabled={children >= 2}>
+                          3 Adulti
+                        </option>
+                        <option value="4" disabled={children >= 1}>
+                          4 Adulti
+                        </option>
                       </select>
                     </div>
                     <div>
@@ -402,21 +420,20 @@ export default function PrenotaPage() {
                         value={formData.children}
                         onChange={handleInputChange}
                         className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                        disabled={totalGuests >= 4}
                       >
                         <option value="0">0 Bambini</option>
-                        <option value="1" disabled={totalGuests >= 4}>
+                        <option value="1" disabled={adults >= 4}>
                           1 Bambino
                         </option>
-                        <option value="2" disabled={totalGuests >= 4}>
+                        <option value="2" disabled={adults >= 3}>
                           2 Bambini
                         </option>
-                        <option value="3" disabled={totalGuests >= 4}>
+                        <option value="3" disabled={adults >= 2}>
                           3 Bambini
                         </option>
                       </select>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Bambini accettati da 11 anni in su (80% tariffa adulto)
+                        Accettiamo bambini da 11 anni in su. Max 4 ospiti totali per camera.
                       </p>
                     </div>
                   </div>
