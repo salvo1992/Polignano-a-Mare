@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, BarChart3, Home, Settings, Users, Clock, Euro, Sparkles } from "lucide-react"
+import { Calendar, BarChart3, Home, Settings, Users, Clock, Euro, Sparkles, TestTube } from "lucide-react"
 import { RequireAdmin } from "@/components/route-guards"
 import { useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
@@ -121,7 +121,8 @@ function AdminInner() {
 
   const today = new Date().toISOString().split("T")[0]
   const selectedRoom = rooms.find((r) => r.id === selectedRoomId)
-  const currentAndUpcoming = bookings.filter((b) => b.checkOut >= today)
+  const currentAndUpcoming = bookings.filter((b) => b.checkOut >= today && b.status !== "cancelled")
+  const cancelledBookings = bookings.filter((b) => b.status === "cancelled")
   const recent = currentAndUpcoming.slice(0, 5)
   const bookingComBookings = currentAndUpcoming.filter((b) => b.origin === "booking")
   const airbnbBookings = currentAndUpcoming.filter((b) => b.origin === "airbnb")
@@ -153,15 +154,24 @@ function AdminInner() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-screen flex flex-col bg-background">
       <Header />
       <div className="flex-1 pt-20 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-cinzel font-bold text-roman-gradient mb-4 sm:mb-6">
-            Pannello Amministratore
-          </h1>
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-4xl font-bold tracking-tight mb-2">Dashboard Amministratore</h1>
+              <p className="text-muted-foreground">Gestisci prenotazioni, stanze e servizi</p>
+            </div>
+            <Button asChild variant="outline">
+              <a href="/admin/payments-test" className="flex items-center gap-2">
+                <TestTube className="w-4 h-4" />
+                Test Pagamenti
+              </a>
+            </Button>
+          </div>
           <Tabs defaultValue="dashboard" className="space-y-4 sm:space-y-6">
-            <TabsList className="grid w-full grid-cols-7 h-auto gap-1 p-1">
+            <TabsList className="grid w-full grid-cols-8 h-auto gap-1 p-1">
               <TabsTrigger value="dashboard" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Dashboard</span>
@@ -189,6 +199,10 @@ function AdminInner() {
               <TabsTrigger value="settings" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Settings className="h-4 w-4" />
                 <span className="hidden sm:inline">Impostazioni</span>
+              </TabsTrigger>
+              <TabsTrigger value="cancelled" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+                <Clock className="h-4 w-4" />
+                <span className="hidden sm:inline">Cancellate</span>
               </TabsTrigger>
             </TabsList>
 
@@ -350,6 +364,9 @@ function AdminInner() {
                       <TabsTrigger value="site" className="whitespace-nowrap">
                         Sito Web ({siteBookings.length})
                       </TabsTrigger>
+                      <TabsTrigger value="cancelled" className="whitespace-nowrap">
+                        Cancellate ({cancelledBookings.length})
+                      </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="all" className="space-y-3">
@@ -508,6 +525,68 @@ function AdminInner() {
                               {b.origin === "site" && (!b.services || b.services.length === 0) && (
                                 <span className="text-xs text-muted-foreground">Senza servizi aggiuntivi</span>
                               )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="cancelled" className="space-y-3">
+                      {cancelledBookings.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nessuna prenotazione cancellata</p>
+                      ) : (
+                        cancelledBookings.map((b) => (
+                          <div
+                            key={b.id}
+                            className="flex flex-col gap-2 p-3 sm:p-4 border border-destructive/30 rounded-lg bg-destructive/5 hover:bg-destructive/10 transition-colors"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">
+                                  {b.firstName || b.guestFirst || "Nome non disponibile"}{" "}
+                                  {b.lastName || b.guestLast || ""}
+                                </p>
+                                <p className="text-sm text-muted-foreground truncate">
+                                  {b.email} • {b.phone}
+                                </p>
+                              </div>
+                              <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                                <Badge variant="destructive" className="text-xs">
+                                  CANCELLATA
+                                </Badge>
+                                <Badge
+                                  className={
+                                    b.origin === "booking"
+                                      ? "bg-blue-600 text-xs"
+                                      : b.origin === "airbnb"
+                                        ? "bg-pink-600 text-xs"
+                                        : "bg-emerald-600 text-xs"
+                                  }
+                                >
+                                  {b.origin}
+                                </Badge>
+                                <Badge className="text-xs line-through">€{b.totalAmount || b.total || "0"}</Badge>
+                              </div>
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
+                              <span className="truncate">{b.roomName}</span>
+                              <span className="text-xs sm:text-sm">
+                                {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
+                              </span>
+                            </div>
+                            {b.refundAmount !== undefined && b.refundAmount > 0 && (
+                              <div className="text-xs text-green-600 font-semibold">
+                                Rimborso da elaborare: €{Number.parseFloat(b.refundAmount.toString()).toFixed(2)}
+                              </div>
+                            )}
+                            {b.penalty !== undefined && b.penalty > 0 && (
+                              <div className="text-xs text-destructive font-semibold">
+                                Penale applicata: €{Number.parseFloat(b.penalty.toString()).toFixed(2)}
+                              </div>
+                            )}
+                            <div className="text-xs text-muted-foreground">
+                              Cancellata il:{" "}
+                              {b.cancelledAt ? new Date(b.cancelledAt.toDate()).toLocaleDateString("it-IT") : "N/A"}
                             </div>
                           </div>
                         ))

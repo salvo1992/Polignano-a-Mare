@@ -203,8 +203,8 @@ function UserInner() {
     })()
   }, [user])
 
-  const formatPrice = (cents: number) => {
-    return (cents / 100).toFixed(2)
+  const formatPrice = (amount: number) => {
+    return Number.parseFloat(amount.toString()).toFixed(2)
   }
 
   const getRoomImage = (roomName: string) => {

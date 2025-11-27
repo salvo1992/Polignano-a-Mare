@@ -42,14 +42,26 @@ export function CancelBookingDialog({
     const confirmed = confirm(
       `Sei sicuro di voler cancellare questa prenotazione? ${
         isFullRefund
-          ? `Riceverai un rimborso completo di €${(refundAmount / 100).toFixed(2)}.`
-          : `Non riceverai alcun rimborso e dovrai pagare una penale di €${(penalty / 100).toFixed(2)}.`
+          ? `Riceverai un rimborso completo di €${refundAmount.toFixed(2)}.`
+          : `Non riceverai alcun rimborso e dovrai pagare una penale di €${penalty.toFixed(2)}.`
       }`,
     )
 
     if (!confirmed) return
 
     setLoading(true)
+
+    // Use requestIdleCallback to prevent blocking UI
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      window.requestIdleCallback(async () => {
+        await performCancellation()
+      })
+    } else {
+      await performCancellation()
+    }
+  }
+
+  const performCancellation = async () => {
     try {
       const response = await fetch("/api/bookings/cancel", {
         method: "DELETE",
@@ -87,7 +99,7 @@ export function CancelBookingDialog({
                 <p className="font-semibold mb-2">✓ Rimborso completo</p>
                 <p className="text-sm">
                   Cancellando ora (più di 7 giorni prima del check-in), riceverai un rimborso completo di{" "}
-                  <span className="font-bold">€{(refundAmount / 100).toFixed(2)}</span> entro 7 giorni lavorativi.
+                  <span className="font-bold">€{refundAmount.toFixed(2)}</span> entro 3 giorni lavorativi.
                 </p>
               </AlertDescription>
             </Alert>
@@ -98,7 +110,7 @@ export function CancelBookingDialog({
                 <p className="font-semibold mb-2">⚠ Penale di cancellazione</p>
                 <p className="text-sm">
                   Cancellando ora (meno di 7 giorni prima del check-in), non riceverai alcun rimborso e dovrai pagare
-                  una penale di <span className="font-bold">€{(penalty / 100).toFixed(2)}</span>.
+                  una penale di <span className="font-bold">€{penalty.toFixed(2)}</span>.
                 </p>
               </AlertDescription>
             </Alert>
