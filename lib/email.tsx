@@ -226,6 +226,12 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
 
     const siteUrl = "https://al22suite.com"
 
+    const isManagementEmail = data.to.includes("@al22suite.com") || data.to === process.env.NEXT_PUBLIC_PRIVACY_EMAIL
+
+    const subject = isManagementEmail
+      ? `🔔 NOTIFICA CANCELLAZIONE - ${data.roomName} - ${data.bookingId}`
+      : `❌ Prenotazione Cancellata - ${data.bookingId}`
+
     const emailHtml = `
 <!DOCTYPE html>
 <html>
@@ -241,22 +247,33 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
     .detail-label { font-weight: bold; color: #dc2626; }
     .refund-box { background: ${data.isFullRefund ? "#d1f4e0" : "#fff3cd"}; border: 2px solid ${data.isFullRefund ? "#10b981" : "#ffc107"}; padding: 20px; border-radius: 8px; margin: 20px 0; }
     .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
+    ${isManagementEmail ? `.admin-notice { background: #fee2e2; border: 2px solid #dc2626; padding: 15px; border-radius: 8px; margin: 20px 0; font-weight: bold; }` : ""}
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>❌ Prenotazione Cancellata</h1>
+      <h1>${isManagementEmail ? "🔔 NOTIFICA CANCELLAZIONE" : "❌ Prenotazione Cancellata"}</h1>
       <p>Al 22 Suite & Spa Luxury Experience</p>
     </div>
     
     <div class="content">
-      <p>Gentile ${data.firstName} ${data.lastName},</p>
+      ${
+        isManagementEmail
+          ? `
+      <div class="admin-notice">
+        ⚠️ ATTENZIONE DIREZIONE: Una prenotazione è stata cancellata e richiede elaborazione del rimborso da Stripe.
+      </div>
+      <p><strong>Cliente:</strong> ${data.firstName} ${data.lastName}</p>
+      <p><strong>Email Cliente:</strong> ${data.to}</p>
+      `
+          : `<p>Gentile ${data.firstName} ${data.lastName},</p>`
+      }
       
-      <p>La tua prenotazione è stata cancellata con successo.</p>
+      <p>${isManagementEmail ? "Dettagli della prenotazione cancellata:" : "La tua prenotazione è stata cancellata con successo."}</p>
       
       <div class="booking-details">
-        <h2 style="color: #dc2626; margin-top: 0;">📋 Dettagli Prenotazione Cancellata</h2>
+        <h2 style="color: #dc2626; margin-top: 0;">📋 Dettagli Prenotazione ${isManagementEmail ? "" : "Cancellata"}</h2>
         
         <div class="detail-row">
           <span class="detail-label">ID Prenotazione:</span>
@@ -285,7 +302,7 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
         
         <div class="detail-row" style="border-bottom: none;">
           <span class="detail-label">Importo Originale:</span>
-          <span>€${(data.originalAmount / 100).toFixed(2)}</span>
+          <span>€${data.originalAmount.toFixed(2)}</span>
         </div>
       </div>
       
@@ -297,27 +314,41 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
         ${
           data.isFullRefund
             ? `
-          <p><strong>Importo da Rimborsare:</strong> €${(data.refundAmount / 100).toFixed(2)}</p>
+          <p><strong>Importo da Rimborsare:</strong> €${data.refundAmount.toFixed(2)}</p>
           <p style="font-size: 14px; margin-top: 15px;">
-            ${data.manualRefund ? "Il rimborso verrà elaborato manualmente dal nostro team entro <strong>5-10 giorni lavorativi</strong> sulla carta utilizzata per il pagamento." : "Il rimborso verrà elaborato entro 5-10 giorni lavorativi sulla carta utilizzata per il pagamento."}
+            ${isManagementEmail ? "⚠️ AZIONE RICHIESTA: Elaborare il rimborso dalla dashboard Stripe entro 3 giorni lavorativi." : data.manualRefund ? "Il rimborso verrà elaborato manualmente dal nostro team entro <strong>3 giorni lavorativi</strong> sulla carta utilizzata per il pagamento." : "Il rimborso verrà elaborato entro 3 giorni lavorativi sulla carta utilizzata per il pagamento."}
           </p>
         `
             : `
-          <p><strong>Penale:</strong> €${(data.penalty / 100).toFixed(2)}</p>
-          <p><strong>Importo da Rimborsare:</strong> €${(data.refundAmount / 100).toFixed(2)}</p>
+          <p><strong>Penale:</strong> €${data.penalty.toFixed(2)}</p>
+          <p><strong>Importo da Rimborsare:</strong> €${data.refundAmount.toFixed(2)}</p>
           <p style="font-size: 14px; margin-top: 15px; color: #856404;">
             ⚠️ La cancellazione è avvenuta a meno di 7 giorni dal check-in. È stata applicata una penale del 50%.
           </p>
           <p style="font-size: 14px; margin-top: 10px;">
-            ${data.manualRefund ? "Il rimborso verrà elaborato manualmente dal nostro team entro <strong>5-10 giorni lavorativi</strong> sulla carta utilizzata per il pagamento." : "Il rimborso verrà elaborato entro 5-10 giorni lavorativi sulla carta utilizzata per il pagamento."}
+            ${isManagementEmail ? "⚠️ AZIONE RICHIESTA: Elaborare il rimborso parziale dalla dashboard Stripe entro 3 giorni lavorativi." : data.manualRefund ? "Il rimborso verrà elaborato manualmente dal nostro team entro <strong>3 giorni lavorativi</strong> sulla carta utilizzata per il pagamento." : "Il rimborso verrà elaborato entro 3 giorni lavorativi sulla carta utilizzata per il pagamento."}
           </p>
         `
         }
       </div>
       
-      <p style="margin-top: 30px;">Se hai domande o necessiti di assistenza, non esitare a contattarci.</p>
+      ${
+        isManagementEmail
+          ? `
+      <div class="admin-notice">
+        <p style="margin-top: 0;"><strong>ISTRUZIONI PER ELABORARE IL RIMBORSO:</strong></p>
+        <ol style="margin: 10px 0;">
+          <li>Accedi alla dashboard Stripe</li>
+          <li>Cerca il pagamento con ID prenotazione: ${data.bookingId}</li>
+          <li>Emetti rimborso di: €${data.refundAmount.toFixed(2)}</li>
+          <li>Conferma al cliente l'avvenuto rimborso</li>
+        </ol>
+      </div>
+      `
+          : `<p style="margin-top: 30px;">Se hai domande o necessiti di assistenza, non esitare a contattarci.</p>`
+      }
       
-      <p>Cordiali saluti,<br><strong>Il Team di Al 22 Suite & Spa</strong></p>
+      <p>${isManagementEmail ? "Email automatica di notifica cancellazione" : "Cordiali saluti,"}<br><strong>${isManagementEmail ? "Sistema Al 22 Suite" : "Il Team di Al 22 Suite & Spa"}</strong></p>
     </div>
     
     <div class="footer">
@@ -333,7 +364,7 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
     const { data: emailData, error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || "Al 22 Suite <noreply@al22suite.com>",
       to: data.to,
-      subject: `❌ Prenotazione Cancellata - ${data.bookingId}`,
+      subject,
       html: emailHtml,
     })
 

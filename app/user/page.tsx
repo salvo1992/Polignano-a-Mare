@@ -28,6 +28,9 @@ interface Booking {
   status: "paid" | "confirmed" | "completed" | "upcoming" | "cancelled" | "pending"
   totalAmount: number
   nights: number
+  cancelledAt?: string
+  refundAmount?: number
+  penalty?: number
 }
 
 export default function UserPage() {
@@ -49,6 +52,7 @@ function UserInner() {
   const [profile, setProfile] = useState<any>(null)
   const [bookingsCompleted, setBookingsCompleted] = useState<Booking[]>([])
   const [bookingsUpcoming, setBookingsUpcoming] = useState<Booking[]>([])
+  const [bookingsCancelled, setBookingsCancelled] = useState<Booking[]>([])
   const [notif, setNotif] = useState({ confirmEmails: true, promos: true, checkinReminders: true })
 
   const [passwordData, setPasswordData] = useState({
@@ -178,13 +182,16 @@ function UserInner() {
           return isUpcoming && isNotCancelled && isNotCompleted
         })
         const completed = all.filter((b) => b.checkOut < today || b.status === "completed")
+        const cancelled = all.filter((b) => b.status === "cancelled")
 
-        console.log("[v0] Upcoming bookings:", upcoming.length)
-        console.log("[v0] Completed bookings:", completed.length)
-        console.log("[v0] ===== BOOKINGS LOAD COMPLETE =====")
+        console.log("[v0] Total bookings:", all.length)
+        console.log("[v0] Upcoming:", upcoming.length)
+        console.log("[v0] Completed:", completed.length)
+        console.log("[v0] Cancelled:", cancelled.length)
 
         setBookingsCompleted(completed)
         setBookingsUpcoming(upcoming)
+        setBookingsCancelled(cancelled)
         setLoadingBookings(false)
       } catch (error: any) {
         console.error("[v0] ❌ ERROR loading bookings:", error)
@@ -593,6 +600,76 @@ function UserInner() {
                                       Completata
                                     </Badge>
                                     <p className="text-lg font-bold">€{formatPrice(b.totalAmount)}</p>
+                                    <Button size="sm" variant="ghost" className="mt-2">
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      Dettagli
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="font-cinzel text-destructive">Prenotazioni Cancellate</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingBookings ? (
+                        <p className="text-sm text-muted-foreground">Caricamento prenotazioni...</p>
+                      ) : bookingsCancelled.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nessuna prenotazione cancellata</p>
+                      ) : (
+                        bookingsCancelled.map((b) => (
+                          <div
+                            key={b.id}
+                            className="border border-destructive/30 rounded-lg overflow-hidden mb-4 cursor-pointer hover:shadow-lg transition-all opacity-75"
+                            onClick={() => router.push(`/user/booking/${b.id}`)}
+                          >
+                            <div className="flex flex-col md:flex-row">
+                              <div className="relative w-full md:w-48 h-32">
+                                <Image
+                                  src={getRoomImage(b.roomName) || "/placeholder.svg"}
+                                  alt={b.roomName}
+                                  fill
+                                  className="object-cover grayscale"
+                                />
+                              </div>
+                              <div className="flex-1 p-4">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-lg mb-2">{b.roomName}</p>
+                                    <div className="space-y-1 text-sm text-muted-foreground">
+                                      <p>
+                                        📅 {b.checkIn} → {b.checkOut} ({b.nights} {b.nights > 1 ? "notti" : "notte"})
+                                      </p>
+                                      <p>🆔 {b.id.slice(0, 12).toUpperCase()}</p>
+                                      {b.cancelledAt && (
+                                        <p className="text-destructive">
+                                          ❌ Cancellata il {new Date(b.cancelledAt).toLocaleDateString("it-IT")}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <Badge variant="destructive" className="mb-2">
+                                      Cancellata
+                                    </Badge>
+                                    <p className="text-lg font-bold line-through text-muted-foreground">
+                                      €{formatPrice(b.totalAmount)}
+                                    </p>
+                                    {b.refundAmount !== undefined && (
+                                      <p className="text-sm text-green-600 font-semibold">
+                                        Rimborso: €{formatPrice(b.refundAmount)}
+                                      </p>
+                                    )}
+                                    {b.penalty !== undefined && b.penalty > 0 && (
+                                      <p className="text-sm text-destructive">Penale: €{formatPrice(b.penalty)}</p>
+                                    )}
                                     <Button size="sm" variant="ghost" className="mt-2">
                                       <Eye className="h-4 w-4 mr-1" />
                                       Dettagli

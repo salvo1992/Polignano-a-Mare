@@ -99,36 +99,36 @@ export async function POST(req: NextRequest) {
         console.log("[Webhook] Processing change_dates payment")
         console.log("[Webhook] Session metadata:", session.metadata)
 
-        const newTotalAmount = Number.parseInt(session.metadata?.newTotalAmount || "0")
-        const paidAmount = Number.parseInt(session.metadata?.depositAmount || "0")
+        const newTotalAmount = Number.parseFloat(session.metadata?.newTotalAmount || "0")
+        const paymentAmount = Number.parseFloat(session.metadata?.paymentAmount || "0")
         const checkIn = session.metadata?.checkIn
         const checkOut = session.metadata?.checkOut
-        const penalty = Number.parseInt(session.metadata?.penalty || "0")
+        const penalty = Number.parseFloat(session.metadata?.penalty || "0")
 
         console.log("[Webhook] Parsed metadata:", {
-          newTotalAmount: (newTotalAmount / 100).toFixed(2),
-          paidAmount: (paidAmount / 100).toFixed(2),
-          penalty: (penalty / 100).toFixed(2),
+          newTotalAmount: newTotalAmount.toFixed(2),
+          paymentAmount: paymentAmount.toFixed(2),
+          penalty: penalty.toFixed(2),
           checkIn,
           checkOut,
         })
 
-        const currentTotalPaid = bookingData.totalPaid || bookingData.depositPaid || 0
+        const currentTotalPaid = bookingData.totalPaid || bookingData.totalAmount || 0
 
         console.log("[Webhook] Current booking state:", {
-          currentTotalPaid: (currentTotalPaid / 100).toFixed(2),
-          currentTotalAmount: (bookingData.totalAmount / 100).toFixed(2),
+          currentTotalPaid: currentTotalPaid.toFixed(2),
+          currentTotalAmount: bookingData.totalAmount.toFixed(2),
         })
 
         const updateData = {
           checkIn,
           checkOut,
-          totalAmount: Number.parseFloat((newTotalAmount / 100).toFixed(2)),
-          totalPaid: Number.parseFloat(((currentTotalPaid + paidAmount) / 100).toFixed(2)),
+          totalAmount: Number.parseFloat(newTotalAmount.toFixed(2)),
+          totalPaid: Number.parseFloat(newTotalAmount.toFixed(2)), // Full amount is paid after this payment
           status: "paid",
           lastPayment: {
-            type: "change_dates_full_payment",
-            amount: Number.parseFloat((paidAmount / 100).toFixed(2)),
+            type: "change_dates_payment",
+            amount: Number.parseFloat(paymentAmount.toFixed(2)),
             paymentId: String(session.payment_intent || session.id),
             paidAt: admin.firestore.FieldValue.serverTimestamp(),
           },
@@ -164,10 +164,10 @@ export async function POST(req: NextRequest) {
             roomName: bookingData.roomName,
             guests: bookingData.guests,
             nights,
-            originalAmount: Number.parseFloat((bookingData.totalAmount / 100).toFixed(2)),
-            newAmount: Number.parseFloat((newTotalAmount / 100).toFixed(2)),
-            penalty: penalty > 0 ? Number.parseFloat((penalty / 100).toFixed(2)) : undefined,
-            dateChangeCost: Number.parseFloat((paidAmount / 100).toFixed(2)),
+            originalAmount: bookingData.totalAmount,
+            newAmount: newTotalAmount,
+            penalty: penalty > 0 ? penalty : undefined,
+            dateChangeCost: paymentAmount,
             modificationType: "dates",
           })
           console.log("[Webhook] Date change confirmation email sent successfully")

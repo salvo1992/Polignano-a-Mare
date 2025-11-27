@@ -10,17 +10,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Calendar } from "@/components/ui/calendar"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "sonner"
 import { Loader2, AlertTriangle } from "lucide-react"
-import {
-  calculateNights,
-  calculatePriceByGuests,
-  calculateDaysUntilCheckIn,
-  calculateChangeDatesPenalty,
-} from "@/lib/pricing"
+import { calculateDaysUntilCheckIn } from "@/lib/pricing"
+import { BookingCalendarPicker, type DateRange } from "@/components/booking-calendar-picker"
 
 interface ChangeDatesDialogProps {
   open: boolean
@@ -39,113 +33,86 @@ export function ChangeDatesDialog({
   currentCheckOut,
   onSuccess,
 }: ChangeDatesDialogProps) {
-  const [checkIn, setCheckIn] = useState<Date | undefined>(new Date(currentCheckIn))
-  const [checkOut, setCheckOut] = useState<Date | undefined>(new Date(currentCheckOut))
+  const [range, setRange] = useState<DateRange | undefined>({
+    from: new Date(currentCheckIn),
+    to: new Date(currentCheckOut),
+  })
   const [loading, setLoading] = useState(false)
+  const [priceData, setPriceData] = useState<any>(null)
   const [bookingData, setBookingData] = useState<any>(null)
-  const [unavailableDates, setUnavailableDates] = useState<Date[]>([])
 
   const daysUntilCheckIn = calculateDaysUntilCheckIn(currentCheckIn)
   const isWithinSevenDays = daysUntilCheckIn < 7
 
+  // Load booking data
   useEffect(() => {
     if (open) {
-      loadUnavailableDates()
+      loadBookingData()
     }
-  }, [open])
+  }, [open, bookingId])
 
-  const loadUnavailableDates = async () => {
+  const loadBookingData = async () => {
     try {
-      const response = await fetch("/api/bookings/unavailable-dates")
+      const response = await fetch(`/api/bookings/${bookingId}`)
       const data = await response.json()
-      if (data.dates) {
-        setUnavailableDates(data.dates.map((d: string) => new Date(d)))
-      }
-    } catch (error) {
-      console.error("[v0] Error loading unavailable dates:", error)
+      if (!response.ok) throw new Error(data.error)
+      setBookingData(data)
+    } catch (error: any) {
+      console.error("[v0] Error loading booking:", error)
+      toast.error("Errore nel caricamento della prenotazione")
     }
-  }
-
-  const isDateUnavailable = (date: Date) => {
-    return unavailableDates.some(
-      (unavailableDate) =>
-        unavailableDate.getFullYear() === date.getFullYear() &&
-        unavailableDate.getMonth() === date.getMonth() &&
-        unavailableDate.getDate() === date.getDate(),
-    )
   }
 
   const handleCalculatePrice = async () => {
-    if (!checkIn || !checkOut) {
+    if (!range?.from || !range?.to) {
       toast.error("Seleziona entrambe le date")
       return
     }
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/bookings/${bookingId}`)
-      const data = await response.json()
+      const checkIn = range.from.toISOString().split("T")[0]
+      const checkOut = range.to.toISOString().split("T")[0]
 
-      if (!response.ok) throw new Error(data.error)
-
-      setBookingData(data)
-
-      const nights = calculateNights(checkIn.toISOString().split("T")[0], checkOut.toISOString().split("T")[0])
-      const newBasePrice = calculatePriceByGuests(data.guests || 2, nights)
-
-      const penalty = isWithinSevenDays ? calculateChangeDatesPenalty(data.totalAmount, daysUntilCheckIn) : 0
-      const newTotalPrice = newBasePrice + penalty
-
-      setBookingData({
-        ...data,
-        newPrice: newTotalPrice,
-        penalty,
-        nights,
+      const response = await fetch("/api/bookings/change-dates", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId,
+          checkIn,
+          checkOut,
+        }),
       })
 
-      toast.success(`Nuovo prezzo calcolato: €${(newTotalPrice / 100).toFixed(2)}`)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || data.details)
+
+      // If payment is required, the API returns payment info
+      if (data.paymentRequired) {
+        setPriceData(data)
+        toast.success("Prezzo calcolato con successo!")
+      } else {
+        // No payment needed (price decreased or same)
+        toast.success(data.message || "Date modificate con successo!")
+        onSuccess()
+        onOpenChange(false)
+      }
     } catch (error: any) {
       toast.error(error.message || "Errore nel calcolo del prezzo")
+      console.error("[v0] Error calculating price:", error)
     } finally {
       setLoading(false)
     }
   }
 
   const handleConfirm = async () => {
-    if (!checkIn || !checkOut || !bookingData) {
+    if (!priceData || !priceData.paymentUrl) {
       toast.error("Calcola prima il nuovo prezzo")
       return
     }
 
-    setLoading(true)
-    try {
-      const response = await fetch("/api/bookings/change-dates", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bookingId,
-          checkIn: checkIn.toISOString().split("T")[0],
-          checkOut: checkOut.toISOString().split("T")[0],
-          newPrice: bookingData.newPrice,
-          penalty: bookingData.penalty,
-        }),
-      })
-
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
-
-      if (data.paymentUrl) {
-        window.location.href = data.paymentUrl
-      } else {
-        toast.success("Date modificate con successo!")
-        onSuccess()
-        onOpenChange(false)
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Errore nella modifica delle date")
-    } finally {
-      setLoading(false)
-    }
+    // Redirect to Stripe checkout
+    window.location.href = priceData.paymentUrl
   }
 
   return (
@@ -154,7 +121,7 @@ export function ChangeDatesDialog({
         <DialogHeader>
           <DialogTitle>Cambia le date della prenotazione</DialogTitle>
           <DialogDescription>
-            Seleziona le nuove date. Ti verrà mostrato il nuovo prezzo prima di confermare.
+            Seleziona le nuove date. Ti verrà mostrato il prezzo da pagare prima di confermare.
           </DialogDescription>
         </DialogHeader>
 
@@ -171,45 +138,27 @@ export function ChangeDatesDialog({
           </Alert>
         )}
 
-        <div className="grid md:grid-cols-2 gap-4 py-4">
-          <div>
-            <Label>Check-in</Label>
-            <Calendar
-              mode="single"
-              selected={checkIn}
-              onSelect={setCheckIn}
-              disabled={(date) => date < new Date() || isDateUnavailable(date)}
-              className="rounded-md border"
-            />
-          </div>
-          <div>
-            <Label>Check-out</Label>
-            <Calendar
-              mode="single"
-              selected={checkOut}
-              onSelect={setCheckOut}
-              disabled={(date) => !checkIn || date <= checkIn || isDateUnavailable(date)}
-              className="rounded-md border"
-            />
-          </div>
+        <div className="py-4">
+          <BookingCalendarPicker value={range} onChange={setRange} roomId={bookingData?.roomId || "2"} />
         </div>
 
-        {bookingData && (
+        {priceData && (
           <div className="space-y-3 bg-secondary/50 rounded-lg p-4">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Nuovo prezzo base ({bookingData.nights} notti)</span>
-              <span className="font-semibold">€{((bookingData.newPrice - bookingData.penalty) / 100).toFixed(2)}</span>
+              <span className="text-muted-foreground">Prezzo originale</span>
+              <span className="font-semibold">€{bookingData?.totalAmount?.toFixed(2)}</span>
             </div>
-            {bookingData.penalty > 0 && (
-              <div className="flex justify-between text-sm text-destructive">
-                <span>Penale (50%)</span>
-                <span className="font-semibold">+€{(bookingData.penalty / 100).toFixed(2)}</span>
-              </div>
-            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Nuovo prezzo totale</span>
+              <span className="font-semibold">€{priceData.newTotalAmount?.toFixed(2)}</span>
+            </div>
             <div className="flex justify-between pt-3 border-t">
-              <span className="font-semibold">Totale</span>
-              <span className="text-2xl font-bold text-primary">€{(bookingData.newPrice / 100).toFixed(2)}</span>
+              <span className="font-semibold">Differenza da pagare</span>
+              <span className="text-2xl font-bold text-primary">€{priceData.paymentAmount?.toFixed(2)}</span>
             </div>
+            {priceData.priceDifference && priceData.priceDifference > 0 && (
+              <p className="text-xs text-muted-foreground">Include eventuali penali per modifica date</p>
+            )}
           </div>
         )}
 
@@ -217,11 +166,11 @@ export function ChangeDatesDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Annulla
           </Button>
-          <Button onClick={handleCalculatePrice} disabled={loading} variant={bookingData ? "outline" : "default"}>
+          <Button onClick={handleCalculatePrice} disabled={loading} variant={priceData ? "outline" : "default"}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {bookingData ? "Ricalcola prezzo" : "Calcola nuovo prezzo"}
+            {priceData ? "Ricalcola prezzo" : "Calcola nuovo prezzo"}
           </Button>
-          {bookingData && (
+          {priceData && (
             <Button onClick={handleConfirm} disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Conferma e paga
@@ -232,5 +181,3 @@ export function ChangeDatesDialog({
     </Dialog>
   )
 }
-
-

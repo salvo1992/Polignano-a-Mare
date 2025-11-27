@@ -5,7 +5,7 @@ import Stripe from "stripe"
 import { sendCancellationEmail } from "@/lib/email"
 import { calculateCancellationPolicy } from "@/lib/payment-logic"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-09-30.clover" })
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -110,11 +110,33 @@ export async function DELETE(request: NextRequest) {
         refundAmount,
         penalty,
         isFullRefund,
-        manualRefund: true, // Flag to indicate manual refund processing
+        manualRefund: true,
       })
-      console.log("[API] ✅ Cancellation email sent successfully")
+      console.log("[API] ✅ Cancellation email sent successfully to guest")
     } catch (error) {
-      console.error("[API] ❌ Error sending cancellation email:", error)
+      console.error("[API] ❌ Error sending cancellation email to guest:", error)
+    }
+
+    try {
+      const managementEmail = process.env.NEXT_PUBLIC_PRIVACY_EMAIL || "info@al22suite.com"
+      await sendCancellationEmail({
+        to: managementEmail,
+        bookingId,
+        firstName: booking?.firstName || "",
+        lastName: booking?.lastName || "",
+        roomName: booking?.roomName || "",
+        checkIn: booking?.checkIn || "",
+        checkOut: booking?.checkOut || "",
+        guests: booking?.guests || 1,
+        originalAmount: booking?.totalAmount || 0,
+        refundAmount,
+        penalty,
+        isFullRefund,
+        manualRefund: true,
+      })
+      console.log("[API] ✅ Cancellation notification sent to management:", managementEmail)
+    } catch (error) {
+      console.error("[API] ❌ Error sending cancellation notification to management:", error)
     }
 
     console.log("[API] Booking cancelled successfully:", bookingId)

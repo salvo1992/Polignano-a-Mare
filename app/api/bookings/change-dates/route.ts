@@ -248,10 +248,7 @@ export async function PUT(request: NextRequest) {
       console.log("[v0 DEBUG] Price increased, creating Stripe checkout for full difference...")
       console.log("[v0 DEBUG] Payment amount:", paymentAmount, "EUR")
 
-      const baseUrl =
-        process.env.NODE_ENV === "development"
-          ? "http://localhost:3000"
-          : process.env.NEXT_PUBLIC_SITE_URL || "https://al22suite.com"
+      const baseUrl = process.env.NODE_ENV === "development" ? "http://localhost:3000" : "https://al22suite.com"
 
       const successUrl = `${baseUrl}/user/booking/${bookingId}?payment=processing`
       const cancelUrl = `${baseUrl}/user/booking/${bookingId}?payment=cancelled`
@@ -269,7 +266,7 @@ export async function PUT(request: NextRequest) {
                 currency: "eur",
                 product_data: {
                   name: `Pagamento Modifica Date - ${bookingData?.roomName || "Camera"}`,
-                  description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${penaltyAmount.toFixed(2)})` : ""}\nImporto totale della differenza`,
+                  description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${penaltyAmount.toFixed(2)})` : ""}\nDifferenza prezzo da pagare`,
                 },
                 unit_amount: Math.round(paymentAmount * 100),
               },
@@ -301,8 +298,10 @@ export async function PUT(request: NextRequest) {
           paymentRequired: true,
           paymentUrl: session.url,
           paymentAmount,
-          message: `Richiesto pagamento di €${paymentAmount.toFixed(2)}`,
-          instructions: "Dopo il pagamento, il webhook aggiornerà automaticamente il database",
+          newTotalAmount: totalAmount,
+          priceDifference,
+          message: `Differenza di prezzo da pagare: €${paymentAmount.toFixed(2)}`,
+          instructions: "Dopo il pagamento, riceverai un'email di conferma con i nuovi dettagli della prenotazione",
         })
       } catch (stripeError: any) {
         console.error("[v0 DEBUG] ❌ Stripe Checkout Error:", stripeError)
@@ -419,3 +418,4 @@ export async function PUT(request: NextRequest) {
     )
   }
 }
+
