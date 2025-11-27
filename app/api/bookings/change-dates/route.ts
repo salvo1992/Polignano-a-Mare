@@ -18,6 +18,18 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 
 console.log("[v0 DEBUG] ✅ Stripe client initialized successfully")
 
+function isDateInRecurringSeason(date: Date, startMMDD: string, endMMDD: string): boolean {
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  const dateMMDD = `${month}-${day}`
+
+  if (startMMDD > endMMDD) {
+    return dateMMDD >= startMMDD || dateMMDD <= endMMDD
+  }
+
+  return dateMMDD >= startMMDD && dateMMDD <= endMMDD
+}
+
 export async function PUT(request: NextRequest) {
   try {
     console.log("[v0 DEBUG] ====== CHANGE DATES REQUEST START ======")
@@ -29,9 +41,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Server configuration error: Missing Stripe key" }, { status: 500 })
     }
 
-    const { bookingId, checkIn, checkOut, userId, newPrice, penalty } = await request.json()
+    const { bookingId, checkIn, checkOut, userId } = await request.json()
 
-    console.log("[v0 DEBUG] Input:", { bookingId, checkIn, checkOut, newPrice, penalty })
+    console.log("[v0 DEBUG] Input:", { bookingId, checkIn, checkOut })
 
     if (!bookingId || !checkIn || !checkOut) {
       return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
@@ -69,6 +81,8 @@ export async function PUT(request: NextRequest) {
         originalCheckIn: bookingData?.checkIn,
         originalCheckOut: bookingData?.checkOut,
         totalAmount: bookingData?.totalAmount,
+        adults: bookingData?.adults,
+        numberOfChildren: bookingData?.numberOfChildren,
       })
     } catch (firebaseError: any) {
       console.error("[v0 DEBUG] ❌ Firebase Error:", firebaseError)
@@ -91,33 +105,107 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
     }
 
-    console.log("[v0 DEBUG] 💰 Calculating new price...")
-    let priceData
+    console.log("[v0 DEBUG] 💰 Calculating new price directly...")
+    let newPrice
     try {
-      const baseUrl =
-        process.env.NODE_ENV === "development"
-          ? "http://localhost:3000"
-          : process.env.NEXT_PUBLIC_SITE_URL || "https://al22suite.com"
+      const roomId = bookingData?.roomId
+      const nights = calculateNights(checkIn, checkOut)
 
-      const priceResponse = await fetch(`${baseUrl}/api/bookings/calculate-price`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bookingId,
-          checkIn,
-          checkOut,
-          roomId: bookingData?.roomId,
-        }),
-      })
+      // Get room base price
+      const roomRef = db.collection("rooms").doc(roomId)
+      const roomSnap = await roomRef.get()
 
-      if (!priceResponse.ok) {
-        const errorText = await priceResponse.text()
-        console.error("[v0 DEBUG] ❌ Price calculation failed:", errorText)
-        throw new Error(`Failed to calculate new price: ${priceResponse.status} ${errorText}`)
+      if (!roomSnap.exists) {
+        throw new Error("Camera non trovata")
       }
 
-      priceData = await priceResponse.json()
-      console.log("[v0 DEBUG] ✅ Price calculated:", priceData)
+      const basePrice = roomSnap.data()?.price || 0
+
+      // Get pricing rules
+      const seasonsSnapshot = await db.collection("pricing_seasons").get()
+      const seasons = seasonsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+
+      const periodsSnapshot = await db.collection("pricing_special_periods").get()
+      const specialPeriods = periodsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+
+      const overridesSnapshot = await db.collection("pricing_overrides").where("roomId", "==", roomId).get()
+      const overrides = overridesSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+
+      // Calculate price for each night
+      let roomTotalPrice = 0
+      const currentDate = new Date(checkInDate)
+
+      while (currentDate < checkOutDate) {
+        const dateStr = currentDate.toISOString().split("T")[0]
+
+        // Check override first (highest priority)
+        const override = overrides.find((o: any) => o.date === dateStr)
+        if (override) {
+          roomTotalPrice += override.price
+          currentDate.setDate(currentDate.getDate() + 1)
+          continue
+        }
+
+        // Check special period (second priority)
+        const specialPeriod = specialPeriods.find((p: any) => {
+          const pStart = p.startDate.split("T")[0]
+          const pEnd = p.endDate.split("T")[0]
+          return dateStr >= pStart && dateStr <= pEnd
+        })
+
+        if (specialPeriod) {
+          roomTotalPrice += Math.round(basePrice * specialPeriod.priceMultiplier)
+          currentDate.setDate(currentDate.getDate() + 1)
+          continue
+        }
+
+        // Check season (third priority)
+        const season = seasons.find((s: any) => {
+          return isDateInRecurringSeason(currentDate, s.startDate, s.endDate)
+        })
+
+        if (season) {
+          roomTotalPrice += Math.round(basePrice * season.priceMultiplier)
+          currentDate.setDate(currentDate.getDate() + 1)
+          continue
+        }
+
+        // Base price (lowest priority)
+        roomTotalPrice += basePrice
+        currentDate.setDate(currentDate.getDate() + 1)
+      }
+
+      const adults = bookingData?.adults || 2
+      const children = bookingData?.numberOfChildren || 0
+      const totalGuests = adults + children
+
+      let extraGuestsCost = 0
+      if (totalGuests > 2) {
+        const extraAdults = Math.max(0, adults - 2)
+        const extraChildren = totalGuests > 2 && adults <= 2 ? children : children
+
+        extraGuestsCost = (extraAdults * 60 + extraChildren * 48) * nights
+      }
+
+      newPrice = roomTotalPrice + extraGuestsCost
+
+      console.log("[v0 DEBUG] ✅ Price calculated:", {
+        roomPrice: roomTotalPrice,
+        nights,
+        adults,
+        children,
+        extraGuestsCost,
+        totalPrice: newPrice,
+      })
     } catch (priceError: any) {
       console.error("[v0 DEBUG] ❌ Price Calculation Error:", priceError)
       console.error("[v0 DEBUG] Error details:", {
@@ -133,7 +221,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const basePrice = Number.parseFloat(priceData.newPrice.toFixed(2))
+    const basePrice = Number.parseFloat(newPrice.toFixed(2))
     const penaltyAmount = Number.parseFloat(
       calculateChangeDatesPenalty(
         Number.parseFloat(bookingData?.totalAmount?.toFixed(2) || "0"),
@@ -168,11 +256,8 @@ export async function PUT(request: NextRequest) {
       const successUrl = `${baseUrl}/user/booking/${bookingId}?payment=processing`
       const cancelUrl = `${baseUrl}/user/booking/${bookingId}?payment=cancelled`
 
-      console.log("[v0 DEBUG] ==========================================")
-      console.log("[v0 DEBUG] ✅ SUCCESS URL:", successUrl)
-      console.log("[v0 DEBUG] ❌ CANCEL URL:", cancelUrl)
-      console.log("[v0 DEBUG] 💡 Webhook will update database after payment")
-      console.log("[v0 DEBUG] ==========================================")
+      console.log("[v0 DEBUG] SUCCESS URL:", successUrl)
+      console.log("[v0 DEBUG] CANCEL URL:", cancelUrl)
 
       try {
         const session = await stripe.checkout.sessions.create({
@@ -186,7 +271,7 @@ export async function PUT(request: NextRequest) {
                   name: `Pagamento Modifica Date - ${bookingData?.roomName || "Camera"}`,
                   description: `Nuove date: ${checkIn} - ${checkOut}${penaltyAmount > 0 ? ` (include penale €${penaltyAmount.toFixed(2)})` : ""}\nImporto totale della differenza`,
                 },
-                unit_amount: Math.round(paymentAmount * 100), // Convert EUR to cents for Stripe
+                unit_amount: Math.round(paymentAmount * 100),
               },
               quantity: 1,
             },
@@ -207,14 +292,9 @@ export async function PUT(request: NextRequest) {
           },
         })
 
-        console.log("[v0 DEBUG] ==========================================")
         console.log("[v0 DEBUG] ✅ Checkout Session Created Successfully!")
         console.log("[v0 DEBUG] Session ID:", session.id)
         console.log("[v0 DEBUG] Checkout URL:", session.url)
-        console.log("[v0 DEBUG] ⚠️  After payment, Stripe will redirect to:", successUrl)
-        console.log("[v0 DEBUG] 🔔 Webhook will update the database automatically")
-        console.log("[v0 DEBUG] ==========================================")
-        console.log("[v0 DEBUG] ====== RETURNING WITHOUT DB UPDATE ======")
 
         return NextResponse.json({
           success: true,
@@ -226,12 +306,6 @@ export async function PUT(request: NextRequest) {
         })
       } catch (stripeError: any) {
         console.error("[v0 DEBUG] ❌ Stripe Checkout Error:", stripeError)
-        console.error("[v0 DEBUG] Error details:", {
-          message: stripeError.message,
-          type: stripeError.type,
-          code: stripeError.code,
-          stack: stripeError.stack,
-        })
         return NextResponse.json(
           {
             error: "Failed to create payment session",
@@ -252,7 +326,7 @@ export async function PUT(request: NextRequest) {
         checkOut,
         nights: calculateNights(checkIn, checkOut),
         totalAmount,
-        totalPaid: originalAmount, // Keep original payment
+        totalPaid: originalAmount,
         pendingRefund: {
           amount: refundAmount,
           reason: "date_change_price_decrease",
@@ -278,7 +352,7 @@ export async function PUT(request: NextRequest) {
         dateChangeCost: priceDifference,
         modificationType: "dates",
         refundAmount,
-        manualRefund: true, // New flag to indicate manual processing
+        manualRefund: true,
       })
 
       console.log("[API] Booking dates changed - refund will be processed manually:", bookingId)
@@ -299,7 +373,7 @@ export async function PUT(request: NextRequest) {
       checkOut,
       nights: calculateNights(checkIn, checkOut),
       totalAmount,
-      totalPaid: totalAmount, // Full payment
+      totalPaid: totalAmount,
       updatedAt: FieldValue.serverTimestamp(),
     })
 
@@ -334,7 +408,6 @@ export async function PUT(request: NextRequest) {
     console.error("[v0 DEBUG] Error type:", error.constructor.name)
     console.error("[v0 DEBUG] Error message:", error.message)
     console.error("[v0 DEBUG] Error stack:", error.stack)
-    console.error("[v0 DEBUG] Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error)))
 
     return NextResponse.json(
       {
