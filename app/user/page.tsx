@@ -86,7 +86,7 @@ function UserInner() {
     }
     ;(async () => {
       try {
-        console.log("[v0] ===== LOADING USER PROFILE =====")
+        console.log("[v0] =====LOADING USER PROFILE =====")
         console.log("[v0] User UID:", user.uid)
         console.log("[v0] User email:", user.email)
 
@@ -106,7 +106,7 @@ function UserInner() {
           checkinReminders: data?.notifications?.checkinReminders ?? true,
         })
 
-        console.log("[v0] ===== LOADING BOOKINGS =====")
+        console.log("[v0] =====LOADING BOOKINGS =====")
         console.log("[v0] Searching bookings for user:", user.uid)
         setLoadingBookings(true)
         setBookingsError(null)
@@ -167,7 +167,7 @@ function UserInner() {
 
         const today = new Date().toISOString().split("T")[0]
         const upcoming = all.filter((b) => {
-          const isUpcoming = b.checkOut >= today
+          const isUpcoming = b.checkOut > today // Changed >= to > so check-out day moves to completed
           const isNotCancelled = b.status !== "cancelled"
           const isNotCompleted = b.status !== "completed"
           console.log("[v0] Booking", b.id, "classification:", {
@@ -181,7 +181,7 @@ function UserInner() {
           })
           return isUpcoming && isNotCancelled && isNotCompleted
         })
-        const completed = all.filter((b) => b.checkOut < today || b.status === "completed")
+        const completed = all.filter((b) => b.checkOut <= today || b.status === "completed") // Changed < to <=
         const cancelled = all.filter((b) => b.status === "cancelled")
 
         console.log("[v0] Total bookings:", all.length)
@@ -238,21 +238,21 @@ function UserInner() {
 
       setProfile({ ...profile, ...editedProfile })
       setIsEditing(false)
-      toast.success("Profilo aggiornato con successo!")
+      toast.success(t("profileUpdatedSuccess"))
     } catch (error: any) {
       console.error("[v0] Error updating profile:", error)
-      toast.error(error.message || "Errore durante l'aggiornamento del profilo")
+      toast.error(error.message || t("errorUpdatingProfile"))
     }
   }
 
   const handleChangePassword = async () => {
     if (!user?.email) return
     if (!passwordData.currentPassword || !passwordData.newPassword) {
-      toast.error("Compila tutti i campi")
+      toast.error(t("fillAllFields"))
       return
     }
     if (passwordData.newPassword.length < 6) {
-      toast.error("La nuova password deve essere di almeno 6 caratteri")
+      toast.error(t("newPasswordMinLength"))
       return
     }
 
@@ -275,14 +275,14 @@ function UserInner() {
         throw new Error(error.error || "Failed to change password")
       }
 
-      toast.success("Password cambiata con successo!")
+      toast.success(t("passwordChangedSuccess"))
       setPasswordData({ currentPassword: "", newPassword: "" })
     } catch (error: any) {
       console.error("[v0] Error changing password:", error)
       if (error.message.includes("wrong-password") || error.message.includes("auth/wrong-password")) {
-        toast.error("Password attuale errata")
+        toast.error(t("currentPasswordWrong"))
       } else {
-        toast.error(error.message || "Errore durante il cambio password")
+        toast.error(error.message || t("errorChangingPassword"))
       }
     } finally {
       setChangingPassword(false)
@@ -292,17 +292,15 @@ function UserInner() {
   const handleDeleteAccount = async () => {
     if (!user?.email) return
     if (!deleteData.email || !deleteData.currentPassword) {
-      toast.error("Compila tutti i campi obbligatori")
+      toast.error(t("fillAllRequiredFields"))
       return
     }
     if (deleteData.email !== user.email) {
-      toast.error("L'email non corrisponde")
+      toast.error(t("emailDoesNotMatch"))
       return
     }
 
-    const confirmed = confirm(
-      "Sei sicuro di voler eliminare il tuo account? Questa azione è irreversibile e cancellerà tutti i tuoi dati e le prenotazioni passate.",
-    )
+    const confirmed = confirm(t("confirmDeleteAccount"))
     if (!confirmed) return
 
     setDeletingAccount(true)
@@ -324,14 +322,14 @@ function UserInner() {
       }
 
       await logout()
-      toast.success("Account eliminato con successo")
+      toast.success(t("accountDeletedSuccess"))
       router.push("/")
     } catch (error: any) {
       console.error("[v0] Error deleting account:", error)
       if (error.message.includes("wrong-password")) {
-        toast.error("Password errata")
+        toast.error(t("wrongPassword"))
       } else {
-        toast.error(error.message || "Errore durante l'eliminazione dell'account")
+        toast.error(error.message || t("errorDeletingAccount"))
       }
     } finally {
       setDeletingAccount(false)
@@ -344,9 +342,9 @@ function UserInner() {
       await updateDoc(doc(db, "users", user.uid), {
         notifications: notif,
       })
-      toast.success("Preferenze salvate con successo!")
+      toast.success(t("preferenceSavedSuccess"))
     } catch (error) {
-      toast.error("Errore durante il salvataggio delle preferenze")
+      toast.error(t("errorSavingPreferences"))
     }
   }
 
@@ -488,12 +486,11 @@ function UserInner() {
                     </CardHeader>
                     <CardContent>
                       {loadingBookings ? (
-                        <p className="text-sm text-muted-foreground">Caricamento prenotazioni...</p>
+                        <p className="text-sm text-muted-foreground">{t("loading")}</p>
                       ) : bookingsError ? (
                         <div className="text-sm text-destructive">
-                          <p className="font-semibold">Errore:</p>
+                          <p className="font-semibold">{t("error")}:</p>
                           <p>{bookingsError}</p>
-                          <p className="mt-2 text-xs">Controlla la console per maggiori dettagli</p>
                         </div>
                       ) : bookingsUpcoming.length === 0 ? (
                         <p className="text-sm text-muted-foreground">{t("noUpcomingBookings")}</p>
@@ -502,12 +499,12 @@ function UserInner() {
                           <div
                             key={b.id}
                             className={`border rounded-lg overflow-hidden mb-4 transition-all cursor-pointer hover:shadow-lg ${
-                              highlightBookingId === b.id ? "border-primary bg-primary/5 shadow-lg" : "border-border"
+                              highlightBookingId === b.id ? "ring-2 ring-primary" : ""
                             }`}
                             onClick={() => router.push(`/user/booking/${b.id}`)}
                           >
-                            <div className="flex flex-col md:flex-row">
-                              <div className="relative w-full md:w-48 h-32">
+                            <div className="grid md:grid-cols-[200px_1fr] gap-4">
+                              <div className="relative h-48 md:h-full">
                                 <Image
                                   src={getRoomImage(b.roomName) || "/placeholder.svg"}
                                   alt={b.roomName}
@@ -515,33 +512,24 @@ function UserInner() {
                                   className="object-cover"
                                 />
                               </div>
-                              <div className="flex-1 p-4">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <p className="font-semibold text-lg">{b.roomName}</p>
-                                      {highlightBookingId === b.id && (
-                                        <Badge className="bg-green-500 text-white">
-                                          <Sparkles className="h-3 w-3 mr-1" />
-                                          Nuova
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <div className="space-y-1 text-sm text-muted-foreground">
-                                      <p>
-                                        📅 {b.checkIn} → {b.checkOut} ({b.nights} {b.nights > 1 ? "notti" : "notte"})
-                                      </p>
-                                      <p>🆔 {b.id.slice(0, 12).toUpperCase()}</p>
-                                    </div>
+                              <div className="p-4">
+                                <div className="flex justify-between items-start mb-3">
+                                  <div>
+                                    <h3 className="font-semibold text-lg mb-1">{b.roomName}</h3>
+                                    <p className="text-sm text-muted-foreground">
+                                      {new Date(b.checkIn).toLocaleDateString("it-IT")} →{" "}
+                                      {new Date(b.checkOut).toLocaleDateString("it-IT")} · {b.nights}{" "}
+                                      {b.nights === 1 ? t("night") : t("nights")}
+                                    </p>
                                   </div>
                                   <div className="text-right">
-                                    <Badge variant={b.status === "paid" ? "default" : "secondary"} className="mb-2">
-                                      {b.status === "paid" ? "Pagata" : "Confermata"}
+                                    <Badge variant="default" className="mb-2">
+                                      {b.status === "paid" ? t("paid") : t("confirmed")}
                                     </Badge>
                                     <p className="text-lg font-bold text-primary">€{formatPrice(b.totalAmount)}</p>
                                     <Button size="sm" variant="ghost" className="mt-2">
                                       <Eye className="h-4 w-4 mr-1" />
-                                      Dettagli
+                                      {t("viewBooking")}
                                     </Button>
                                   </div>
                                 </div>
@@ -559,13 +547,7 @@ function UserInner() {
                     </CardHeader>
                     <CardContent>
                       {loadingBookings ? (
-                        <p className="text-sm text-muted-foreground">Caricamento prenotazioni...</p>
-                      ) : bookingsError ? (
-                        <div className="text-sm text-destructive">
-                          <p className="font-semibold">Errore:</p>
-                          <p>{bookingsError}</p>
-                          <p className="mt-2 text-xs">Controlla la console per maggiori dettagli</p>
-                        </div>
+                        <p className="text-sm text-muted-foreground">{t("loading")}</p>
                       ) : bookingsCompleted.length === 0 ? (
                         <p className="text-sm text-muted-foreground">{t("noCompletedBookings")}</p>
                       ) : (
@@ -575,8 +557,8 @@ function UserInner() {
                             className="border rounded-lg overflow-hidden mb-4 cursor-pointer hover:shadow-lg transition-all"
                             onClick={() => router.push(`/user/booking/${b.id}`)}
                           >
-                            <div className="flex flex-col md:flex-row">
-                              <div className="relative w-full md:w-48 h-32">
+                            <div className="grid md:grid-cols-[200px_1fr] gap-4">
+                              <div className="relative h-48 md:h-full">
                                 <Image
                                   src={getRoomImage(b.roomName) || "/placeholder.svg"}
                                   alt={b.roomName}
@@ -584,25 +566,24 @@ function UserInner() {
                                   className="object-cover grayscale"
                                 />
                               </div>
-                              <div className="flex-1 p-4">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <p className="font-semibold text-lg mb-2">{b.roomName}</p>
-                                    <div className="space-y-1 text-sm text-muted-foreground">
-                                      <p>
-                                        📅 {b.checkIn} → {b.checkOut} ({b.nights} {b.nights > 1 ? "notti" : "notte"})
-                                      </p>
-                                      <p>🆔 {b.id.slice(0, 12).toUpperCase()}</p>
-                                    </div>
+                              <div className="p-4">
+                                <div className="flex justify-between items-start mb-3">
+                                  <div>
+                                    <h3 className="font-semibold text-lg mb-1">{b.roomName}</h3>
+                                    <p className="text-sm text-muted-foreground">
+                                      {new Date(b.checkIn).toLocaleDateString("it-IT")} →{" "}
+                                      {new Date(b.checkOut).toLocaleDateString("it-IT")} · {b.nights}{" "}
+                                      {b.nights === 1 ? t("night") : t("nights")}
+                                    </p>
                                   </div>
                                   <div className="text-right">
                                     <Badge variant="secondary" className="mb-2">
-                                      Completata
+                                      {t("completed")}
                                     </Badge>
                                     <p className="text-lg font-bold">€{formatPrice(b.totalAmount)}</p>
                                     <Button size="sm" variant="ghost" className="mt-2">
                                       <Eye className="h-4 w-4 mr-1" />
-                                      Dettagli
+                                      {t("viewBooking")}
                                     </Button>
                                   </div>
                                 </div>
@@ -616,13 +597,13 @@ function UserInner() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle className="font-cinzel text-destructive">Prenotazioni Cancellate</CardTitle>
+                      <CardTitle className="font-cinzel text-primary">{t("cancelledBookings")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       {loadingBookings ? (
-                        <p className="text-sm text-muted-foreground">Caricamento prenotazioni...</p>
+                        <p className="text-sm text-muted-foreground">{t("loading")}</p>
                       ) : bookingsCancelled.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Nessuna prenotazione cancellata</p>
+                        <p className="text-sm text-muted-foreground">{t("noCancelledBookings")}</p>
                       ) : (
                         bookingsCancelled.map((b) => (
                           <div
@@ -630,8 +611,8 @@ function UserInner() {
                             className="border border-destructive/30 rounded-lg overflow-hidden mb-4 cursor-pointer hover:shadow-lg transition-all opacity-75"
                             onClick={() => router.push(`/user/booking/${b.id}`)}
                           >
-                            <div className="flex flex-col md:flex-row">
-                              <div className="relative w-full md:w-48 h-32">
+                            <div className="grid md:grid-cols-[200px_1fr] gap-4">
+                              <div className="relative h-48 md:h-full">
                                 <Image
                                   src={getRoomImage(b.roomName) || "/placeholder.svg"}
                                   alt={b.roomName}
@@ -639,40 +620,41 @@ function UserInner() {
                                   className="object-cover grayscale"
                                 />
                               </div>
-                              <div className="flex-1 p-4">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <p className="font-semibold text-lg mb-2">{b.roomName}</p>
-                                    <div className="space-y-1 text-sm text-muted-foreground">
-                                      <p>
-                                        📅 {b.checkIn} → {b.checkOut} ({b.nights} {b.nights > 1 ? "notti" : "notte"})
+                              <div className="p-4">
+                                <div className="flex justify-between items-start mb-3">
+                                  <div>
+                                    <h3 className="font-semibold text-lg mb-1">{b.roomName}</h3>
+                                    <p className="text-sm text-muted-foreground">
+                                      {new Date(b.checkIn).toLocaleDateString("it-IT")} →{" "}
+                                      {new Date(b.checkOut).toLocaleDateString("it-IT")} · {b.nights}{" "}
+                                      {b.nights === 1 ? t("night") : t("nights")}
+                                    </p>
+                                    {b.cancelledAt && (
+                                      <p className="text-destructive text-sm">
+                                        {t("cancelledOn")} {new Date(b.cancelledAt).toLocaleDateString("it-IT")}
                                       </p>
-                                      <p>🆔 {b.id.slice(0, 12).toUpperCase()}</p>
-                                      {b.cancelledAt && (
-                                        <p className="text-destructive">
-                                          ❌ Cancellata il {new Date(b.cancelledAt).toLocaleDateString("it-IT")}
-                                        </p>
-                                      )}
-                                    </div>
+                                    )}
                                   </div>
                                   <div className="text-right">
                                     <Badge variant="destructive" className="mb-2">
-                                      Cancellata
+                                      {t("cancelled")}
                                     </Badge>
                                     <p className="text-lg font-bold line-through text-muted-foreground">
                                       €{formatPrice(b.totalAmount)}
                                     </p>
                                     {b.refundAmount !== undefined && (
                                       <p className="text-sm text-green-600 font-semibold">
-                                        Rimborso: €{formatPrice(b.refundAmount)}
+                                        {t("refundAmount")}: €{formatPrice(b.refundAmount)}
                                       </p>
                                     )}
                                     {b.penalty !== undefined && b.penalty > 0 && (
-                                      <p className="text-sm text-destructive">Penale: €{formatPrice(b.penalty)}</p>
+                                      <p className="text-sm text-destructive">
+                                        {t("penalty")}: €{formatPrice(b.penalty)}
+                                      </p>
                                     )}
                                     <Button size="sm" variant="ghost" className="mt-2">
                                       <Eye className="h-4 w-4 mr-1" />
-                                      Dettagli
+                                      {t("viewBooking")}
                                     </Button>
                                   </div>
                                 </div>
@@ -692,7 +674,10 @@ function UserInner() {
                 <TabsContent value="settings" className="space-y-6">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="font-cinzel text-primary">{t("notifications")}</CardTitle>
+                      <CardTitle className="font-cinzel text-primary flex items-center gap-2">
+                        <Shield className="h-5 w-5" />
+                        {t("notifications")}
+                      </CardTitle>
                       <CardDescription>{t("enableDisableAlerts")}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -700,20 +685,16 @@ function UserInner() {
                         <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
                           <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
                           <div>
-                            <p className="font-medium">Email di conferma prenotazione</p>
-                            <p className="text-sm text-muted-foreground">
-                              Riceverai sempre un'email di conferma per ogni prenotazione effettuata
-                            </p>
+                            <p className="font-medium">{t("bookingConfirmationEmail")}</p>
+                            <p className="text-sm text-muted-foreground">{t("bookingConfirmationEmailDesc")}</p>
                           </div>
                         </div>
 
                         <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
                           <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
                           <div>
-                            <p className="font-medium">Promemoria check-in</p>
-                            <p className="text-sm text-muted-foreground">
-                              Riceverai sempre un promemoria il giorno prima del tuo check-in
-                            </p>
+                            <p className="font-medium">{t("checkInReminder")}</p>
+                            <p className="text-sm text-muted-foreground">{t("checkInReminderDesc")}</p>
                           </div>
                         </div>
 
@@ -721,9 +702,7 @@ function UserInner() {
                           <label className="flex items-center justify-between cursor-pointer p-3 hover:bg-muted/50 rounded-lg transition-colors">
                             <div>
                               <p className="font-medium">{t("specialOffers")}</p>
-                              <p className="text-sm text-muted-foreground">
-                                Offerte promozionali soggette a condizioni e disponibilità
-                              </p>
+                              <p className="text-sm text-muted-foreground">{t("specialOffersDesc")}</p>
                             </div>
                             <input
                               type="checkbox"
@@ -734,7 +713,8 @@ function UserInner() {
                           </label>
                         </div>
                       </div>
-                      <Button onClick={handleSaveNotifications} className="mt-4">
+
+                      <Button onClick={handleSaveNotifications} className="w-full">
                         {t("savePreferences")}
                       </Button>
                     </CardContent>
@@ -749,14 +729,13 @@ function UserInner() {
                       <CardDescription>{t("changePasswordOrDelete")}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      <div className="space-y-3">
-                        <h4 className="font-semibold">Cambia Password</h4>
-                        <div className="grid md:grid-cols-2 gap-3">
+                      <div className="space-y-4">
+                        <h4 className="font-semibold">{t("changePassword")}</h4>
+                        <div className="space-y-3">
                           <div>
                             <Label>{t("currentPassword")}</Label>
                             <Input
                               type="password"
-                              placeholder="••••••••"
                               value={passwordData.currentPassword}
                               onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                             />
@@ -765,55 +744,39 @@ function UserInner() {
                             <Label>{t("newPassword")}</Label>
                             <Input
                               type="password"
-                              placeholder="••••••••"
                               value={passwordData.newPassword}
                               onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                             />
                           </div>
+                          <Button onClick={handleChangePassword} disabled={changingPassword}>
+                            {changingPassword ? t("loading") : t("changePassword")}
+                          </Button>
                         </div>
-                        <Button variant="outline" onClick={handleChangePassword} disabled={changingPassword}>
-                          {changingPassword ? "Cambio in corso..." : t("changePassword")}
-                        </Button>
                       </div>
 
-                      <div className="border-t pt-6" />
-
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-destructive">Elimina Account</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Questa azione è irreversibile. Tutti i tuoi dati verranno eliminati permanentemente.
-                        </p>
-                        <div className="grid md:grid-cols-3 gap-3">
+                      <div className="border-t pt-6">
+                        <h4 className="font-semibold text-destructive mb-4">{t("deleteAccount")}</h4>
+                        <div className="space-y-3">
                           <div>
                             <Label>{t("email")}</Label>
                             <Input
+                              type="email"
                               value={deleteData.email}
                               onChange={(e) => setDeleteData({ ...deleteData, email: e.target.value })}
-                              placeholder={user?.email || ""}
-                            />
-                          </div>
-                          <div>
-                            <Label>{t("phone")}</Label>
-                            <Input
-                              type="tel"
-                              placeholder="+39 ..."
-                              value={deleteData.phone}
-                              onChange={(e) => setDeleteData({ ...deleteData, phone: e.target.value })}
                             />
                           </div>
                           <div>
                             <Label>{t("currentPassword")}</Label>
                             <Input
                               type="password"
-                              placeholder="••••••••"
                               value={deleteData.currentPassword}
                               onChange={(e) => setDeleteData({ ...deleteData, currentPassword: e.target.value })}
                             />
                           </div>
+                          <Button variant="destructive" onClick={handleDeleteAccount} disabled={deletingAccount}>
+                            {deletingAccount ? t("loading") : t("deleteAccount")}
+                          </Button>
                         </div>
-                        <Button variant="destructive" onClick={handleDeleteAccount} disabled={deletingAccount}>
-                          {deletingAccount ? "Eliminazione in corso..." : t("deleteAccount")}
-                        </Button>
                       </div>
                     </CardContent>
                   </Card>

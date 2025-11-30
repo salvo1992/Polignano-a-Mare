@@ -9,6 +9,25 @@ export async function GET(request: NextRequest) {
 
     const db = getAdminDb()
 
+    const convertTimestamp = (timestamp: any): string => {
+      if (!timestamp) return new Date().toISOString()
+
+      // If it's already a string, return it
+      if (typeof timestamp === "string") return timestamp
+
+      // If it has toDate method (Firestore Timestamp)
+      if (timestamp.toDate && typeof timestamp.toDate === "function") {
+        return timestamp.toDate().toISOString()
+      }
+
+      // If it has _seconds property (serialized Timestamp)
+      if (timestamp._seconds) {
+        return new Date(timestamp._seconds * 1000).toISOString()
+      }
+
+      return new Date().toISOString()
+    }
+
     try {
       let query: any = db.collection("extra_services_requests")
 
@@ -21,10 +40,14 @@ export async function GET(request: NextRequest) {
       query = query.orderBy("createdAt", "desc")
 
       const snapshot = await query.limit(50).get()
-      const requests = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
+      const requests = snapshot.docs.map((doc) => {
+        const data = doc.data()
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: convertTimestamp(data.createdAt),
+        }
+      })
 
       return NextResponse.json({ requests })
     } catch (indexError: any) {
@@ -41,13 +64,17 @@ export async function GET(request: NextRequest) {
 
         const snapshot = await query.limit(50).get()
         const requests = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
+          .map((doc) => {
+            const data = doc.data()
+            return {
+              id: doc.id,
+              ...data,
+              createdAt: convertTimestamp(data.createdAt),
+            }
+          })
           .sort((a: any, b: any) => {
-            const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt)
-            const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt)
+            const dateA = new Date(a.createdAt)
+            const dateB = new Date(b.createdAt)
             return dateB.getTime() - dateA.getTime()
           })
 

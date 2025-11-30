@@ -299,7 +299,9 @@ export async function PUT(request: NextRequest) {
           paymentUrl: session.url,
           paymentAmount,
           newTotalAmount: totalAmount,
-          priceDifference,
+          basePrice,
+          penaltyAmount,
+          originalAmount,
           message: `Differenza di prezzo da pagare: €${paymentAmount.toFixed(2)}`,
           instructions: "Dopo il pagamento, riceverai un'email di conferma con i nuovi dettagli della prenotazione",
         })
@@ -361,9 +363,14 @@ export async function PUT(request: NextRequest) {
         nights: calculateNights(checkIn, checkOut),
         totalAmount,
         priceDifference,
+        basePrice,
+        penaltyAmount,
+        originalAmount,
+        paymentAmount: 0,
+        newTotalAmount: totalAmount,
         refundPending: true,
         refundAmount,
-        message: `Date modificate. Rimborso di €${refundAmount.toFixed(2)} verrà elaborato manualmente entro 3 giorni lavorativi.`,
+        message: `Date modificate. Rimborso di €${refundAmount.toFixed(2)} verrà elaborato manualmente entro 5-10 giorni lavorativi.`,
       })
     }
 
@@ -400,6 +407,11 @@ export async function PUT(request: NextRequest) {
       nights: calculateNights(checkIn, checkOut),
       totalAmount,
       priceDifference,
+      basePrice,
+      penaltyAmount,
+      originalAmount,
+      paymentAmount: 0,
+      newTotalAmount: totalAmount,
       message: "Date modificate con successo",
     })
   } catch (error: any) {
@@ -418,4 +430,3 @@ export async function PUT(request: NextRequest) {
     )
   }
 }
-
