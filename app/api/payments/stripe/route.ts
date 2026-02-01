@@ -41,12 +41,12 @@ export async function POST(request: NextRequest) {
     }
 
     const isDeposit = paymentType === "deposit"
-    const finalAmount = isDeposit ? Math.round(amount * 0.3) : amount
+    const finalAmount = amount // Always use full amount - no longer calculating 30% deposit
 
     console.log("[v0] Creating Stripe session:", {
       amount,
       finalAmount,
-      isDeposit,
+      paymentType, // Removed isDeposit logging as we always charge full amount now
       currency,
       bookingId,
       hasCustomerEmail: !!customerEmail,
@@ -55,14 +55,20 @@ export async function POST(request: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: [
         "card",
-        "klarna",
         "paypal",
         "link",
+        "alipay",
+        "amazon_pay",
         "bancontact",
+        "blik",
         "eps",
         "giropay",
         "ideal",
+        "klarna",
+        "multibanco",
         "p24",
+        "revolut_pay",
+        "sepa_debit",
         "sofort",
       ],
       mode: "payment",
@@ -72,7 +78,7 @@ export async function POST(request: NextRequest) {
       client_reference_id: String(bookingId),
       metadata: {
         bookingId: String(bookingId),
-        paymentType: isDeposit ? "deposit" : "full",
+        paymentType: "full", // Updated to reflect full payment instead of deposit/balance distinction
         fullAmount: String(amount),
       },
 
@@ -90,10 +96,8 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: String(currency).toLowerCase(),
             product_data: {
-              name: isDeposit ? "Acconto Prenotazione Camera (30%)" : "Saldo Prenotazione Camera (70%)",
-              description: isDeposit
-                ? `Acconto per Prenotazione #${bookingId} - Saldo dovuto 7 giorni prima del check-in`
-                : `Saldo finale per Prenotazione #${bookingId}`,
+              name: "Pagamento Totale Prenotazione Camera", // Updated description to reflect full payment
+              description: `Pagamento completo per Prenotazione #${bookingId}`,
             },
             unit_amount: finalAmount,
           },

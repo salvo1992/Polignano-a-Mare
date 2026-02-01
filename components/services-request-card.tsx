@@ -5,9 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
-import { useLanguage } from "@/components/language-provider"
+import { Sparkles, Send } from "lucide-react"
 import { toast } from "sonner"
-import { Sparkles, Clock, CheckCircle2, XCircle, Send } from "lucide-react"
 
 const AVAILABLE_SERVICES = [
   { id: "massage", name: "Massaggio Rilassante Romano", price: 80 },
@@ -28,8 +27,6 @@ export function ServicesRequestCard({ bookingId }: ServicesRequestCardProps) {
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [notes, setNotes] = useState("")
   const [sending, setSending] = useState(false)
-
-  const { t } = useLanguage()
 
   const toggleService = (serviceId: string) => {
     setSelectedServices((prev) =>
@@ -83,12 +80,12 @@ export function ServicesRequestCard({ bookingId }: ServicesRequestCardProps) {
       <CardHeader>
         <CardTitle className="font-cinzel text-primary flex items-center gap-2">
           <Sparkles className="h-5 w-5" />
-          {t("extraServicesRequests")}
+          Richiedi Servizi Extra
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          {t("extraServicesDescription")}
+          Seleziona i servizi che desideri aggiungere al tuo soggiorno. Ti contatteremo per confermare la disponibilità.
         </p>
 
         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -114,13 +111,13 @@ export function ServicesRequestCard({ bookingId }: ServicesRequestCardProps) {
           <>
             <div className="bg-secondary/50 rounded-lg p-3">
               <div className="flex justify-between items-center">
-                <span className="font-semibold">{t("estimatedTotal")}</span>
+                <span className="font-semibold">Totale stimato:</span>
                 <span className="text-xl font-bold text-primary">€{totalPrice}</span>
               </div>
             </div>
 
             <Textarea
-              placeholder={t("additionalNotesPlaceholder")}
+              placeholder="Note aggiuntive o preferenze orarie..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
@@ -130,12 +127,12 @@ export function ServicesRequestCard({ bookingId }: ServicesRequestCardProps) {
               {sending ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  {t("sending")}...
+                  Invio in corso...
                 </>
               ) : (
                 <>
                   <Send className="h-4 w-4 mr-2" />
-                  {t("requestAvailability")}
+                  Richiedi Disponibilità
                 </>
               )}
             </Button>

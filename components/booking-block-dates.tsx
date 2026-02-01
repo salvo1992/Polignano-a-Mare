@@ -39,7 +39,7 @@ export function BookingBlockDates() {
   const loadBlockedDates = async () => {
     try {
       setLoadingBlocked(true)
-      const response = await fetch("/api/beds24/blocked-dates")
+      const response = await fetch("/api/smoobu/blocked-dates")
       const data = await response.json()
       
       if (response.ok) {
@@ -63,7 +63,7 @@ export function BookingBlockDates() {
     setSuccess(false)
 
     try {
-      const response = await fetch("/api/beds24/block-dates", {
+      const response = await fetch("/api/smoobu/block-dates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomId, from, to, reason }),
@@ -96,7 +96,7 @@ export function BookingBlockDates() {
     setError(null)
 
     try {
-      const response = await fetch("/api/beds24/unblock-dates", {
+      const response = await fetch("/api/smoobu/unblock-dates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ blockId }),
@@ -230,7 +230,7 @@ export function BookingBlockDates() {
 
         <div className="pt-4 border-t">
           <p className="text-xs text-muted-foreground">
-            Le date bloccate non saranno disponibili per le prenotazioni e verranno sincronizzate con Beds24.
+            Le date bloccate non saranno disponibili per le prenotazioni e verranno sincronizzate con Smoobu.
           </p>
         </div>
       </CardContent>

@@ -210,5 +210,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Errore durante l'invio" }, { status: 500 })
   }
 }
-
-

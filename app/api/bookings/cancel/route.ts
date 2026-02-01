@@ -5,7 +5,7 @@ import Stripe from "stripe"
 import { sendCancellationEmail } from "@/lib/email"
 import { calculateCancellationPolicy } from "@/lib/payment-logic"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2025-09-30.clover" })
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -71,9 +71,9 @@ export async function DELETE(request: NextRequest) {
 
     if (booking?.origin === "site" && booking?.roomId && booking?.checkIn && booking?.checkOut) {
       try {
-        console.log("[API] Unblocking dates on Beds24 for cancelled booking")
+        console.log("[API] Unblocking dates on Smoobu for cancelled booking")
         const unblockResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_SITE_URL || "https://al22suite.com"}/api/beds24/unblock-booking-dates`,
+          `${process.env.NEXT_PUBLIC_SITE_URL || "https://al22suite.com"}/api/smoobu/unblock-booking-dates`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -86,12 +86,12 @@ export async function DELETE(request: NextRequest) {
         )
 
         if (unblockResponse.ok) {
-          console.log("[API] ✅ Dates unblocked on Beds24 successfully")
+          console.log("[API] Dates unblocked on Smoobu successfully")
         } else {
-          console.error("[API] ❌ Failed to unblock dates on Beds24:", await unblockResponse.text())
+          console.error("[API] Failed to unblock dates on Smoobu:", await unblockResponse.text())
         }
       } catch (error) {
-        console.error("[API] ❌ Error unblocking dates on Beds24:", error)
+        console.error("[API] Error unblocking dates on Smoobu:", error)
         // Continue with cancellation even if unblock fails
       }
     }
@@ -150,7 +150,7 @@ export async function DELETE(request: NextRequest) {
       isFullRefund,
       message:
         refundAmount > 0
-          ? `Prenotazione cancellata. Il rimborso di €${refundAmount.toFixed(2)} verrà elaborato manualmente da Stripe entro 3 giorni lavorativi.`
+          ? `Prenotazione cancellata. Il rimborso di €${refundAmount.toFixed(2)} verrà elaborato manualmente da Stripe entro 5-10 giorni lavorativi.`
           : "Prenotazione cancellata.",
     })
   } catch (error) {

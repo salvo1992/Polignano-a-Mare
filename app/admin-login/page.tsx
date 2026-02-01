@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -19,7 +20,7 @@ export default function AdminLoginPage() {
   const params = useSearchParams()
   const next = params.get("next") || "/admin"
 
-  const { login, isLoading } = useAuth()
+  const { login, isLoading, user } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [err, setErr] = useState("")
   const [form, setForm] = useState({ email: "", password: "" })
@@ -27,15 +28,14 @@ export default function AdminLoginPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErr("")
-
     const ok = await login(form.email, form.password)
     if (!ok) {
       setErr(t("invalidOrInsufficient"))
       return
     }
-
-    // I cookie httpOnly sono già stati impostati dal login → vai subito
-    router.replace(next)
+    setTimeout(() => {
+      router.push(next)
+    }, 100)
   }
 
   return (
@@ -66,7 +66,7 @@ export default function AdminLoginPage() {
                     <Input
                       id="email"
                       type="email"
-                      placeholder="email@gmail.com"
+                      placeholder="ekobit.cloud@gmail.com"
                       value={form.email}
                       onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))}
                       required
@@ -140,4 +140,3 @@ export default function AdminLoginPage() {
     </main>
   )
 }
-

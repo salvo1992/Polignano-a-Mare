@@ -307,11 +307,11 @@ export async function cancelBooking(id: string) {
     updatedAt: serverTimestamp(),
   })
 
-  // Auto-unblock dates on Beds24 if booking was from the site
+  // Auto-unblock dates on Smoobu if booking was from the site
   if (booking && booking.origin === "site") {
     try {
-      // Call unblock API to remove the blocked dates from Beds24
-      await fetch("/api/beds24/unblock-booking-dates", {
+      // Call unblock API to remove the blocked dates from Smoobu
+      await fetch("/api/smoobu/unblock-booking-dates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -320,9 +320,9 @@ export async function cancelBooking(id: string) {
           checkOut: booking.checkOut,
         }),
       })
-      console.log("[v0] Dates unblocked on Beds24 after cancellation")
+      console.log("[Smoobu] Dates unblocked after cancellation")
     } catch (error) {
-      console.error("[v0] Failed to unblock dates on Beds24:", error)
+      console.error("[Smoobu] Failed to unblock dates:", error)
     }
   }
 }
@@ -491,7 +491,3 @@ export async function linkBookingToUser(bookingId: string, email: string): Promi
     return false
   }
 }
-
-
-
-

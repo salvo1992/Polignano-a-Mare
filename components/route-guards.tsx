@@ -39,4 +39,3 @@ export function RequireAdmin({ children, redirectTo = "/admin-login" }: { childr
 }
 
 export { RequireAdmin as AdminGuard }
-

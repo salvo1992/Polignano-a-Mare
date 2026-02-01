@@ -20,7 +20,7 @@ export function WhatsAppButton() {
       onClick={handleClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="fixed bottom-24 right-6 z-40 flex items-center gap-3 rounded-full bg-[#25D366] text-white shadow-lg transition-all hover:shadow-xl md:bottom-8 md:right-8 group"
+      className="fixed bottom-24 right-6 z-40 flex items-center gap-3 rounded-full bg-[#25D366] text-white shadow-lg transition-all hover:shadow-xl md:bottom-28 md:right-8 group"
       aria-label="Contattaci su WhatsApp"
     >
       <div className="flex items-center gap-3 px-4 py-3">

@@ -316,7 +316,7 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
             ? `
           <p><strong>Importo da Rimborsare:</strong> €${data.refundAmount.toFixed(2)}</p>
           <p style="font-size: 14px; margin-top: 15px;">
-            ${isManagementEmail ? "⚠️ AZIONE RICHIESTA: Elaborare il rimborso dalla dashboard Stripe entro 3 giorni lavorativi." : data.manualRefund ? "Il rimborso verrà elaborato manualmente dal nostro team entro <strong>3 giorni lavorativi</strong> sulla carta utilizzata per il pagamento." : "Il rimborso verrà elaborato entro 3 giorni lavorativi sulla carta utilizzata per il pagamento."}
+            ${isManagementEmail ? "⚠️ AZIONE RICHIESTA: Elaborare il rimborso dalla dashboard Stripe entro 5-10 giorni lavorativi." : data.manualRefund ? "Il rimborso verrà elaborato manualmente dal nostro team entro <strong>5-10 giorni lavorativi</strong> sulla carta utilizzata per il pagamento." : "Il rimborso verrà elaborato entro 5-10 giorni lavorativi sulla carta utilizzata per il pagamento."}
           </p>
         `
             : `
@@ -326,7 +326,7 @@ export async function sendCancellationEmail(data: CancellationEmailData) {
             ⚠️ La cancellazione è avvenuta a meno di 7 giorni dal check-in. È stata applicata una penale del 50%.
           </p>
           <p style="font-size: 14px; margin-top: 10px;">
-            ${isManagementEmail ? "⚠️ AZIONE RICHIESTA: Elaborare il rimborso parziale dalla dashboard Stripe entro 3 giorni lavorativi." : data.manualRefund ? "Il rimborso verrà elaborato manualmente dal nostro team entro <strong>3 giorni lavorativi</strong> sulla carta utilizzata per il pagamento." : "Il rimborso verrà elaborato entro 3 giorni lavorativi sulla carta utilizzata per il pagamento."}
+            ${isManagementEmail ? "⚠️ AZIONE RICHIESTA: Elaborare il rimborso parziale dalla dashboard Stripe entro 5-10 giorni lavorativi." : data.manualRefund ? "Il rimborso verrà elaborato manualmente dal nostro team entro <strong>5-10 giorni lavorativi</strong> sulla carta utilizzata per il pagamento." : "Il rimborso verrà elaborato entro 5-10 giorni lavorativi sulla carta utilizzata per il pagamento."}
           </p>
         `
         }
@@ -470,7 +470,7 @@ export async function sendModificationEmail(data: ModificationEmailData) {
         <h3 style="margin-top: 0; color: #059669;">✅ Rimborso in Elaborazione</h3>
         <p><strong>Importo da Rimborsare:</strong> €${(data.refundAmount / 100).toFixed(2)}</p>
         <p style="font-size: 14px; margin-top: 15px;">
-          Il rimborso verrà elaborato manualmente dal nostro team entro <strong>Sono necessari da 5 a 10 giorni affinché i rimborsi vengano visualizzati nell'estratto conto del cliente. Le commissioni Stripe sul pagamento originale non verranno restituite, ma il rimborso non prevede alcun costo aggiuntivo.</strong> sulla carta utilizzata per il pagamento originale.
+          Il rimborso verrà elaborato manualmente dal nostro team entro <strong>5-10 giorni lavorativi</strong> sulla carta utilizzata per il pagamento originale.
         </p>
         <p style="font-size: 14px; margin: 10px 0 0 0;">
           Riceverai una notifica quando il rimborso sarà stato completato.

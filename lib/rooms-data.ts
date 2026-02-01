@@ -77,4 +77,3 @@ export const ROOMS = [
 ] as const
 
 export type Room = (typeof ROOMS)[number]
-

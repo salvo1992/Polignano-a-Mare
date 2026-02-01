@@ -1,7 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "react-day-picker/dist/style.css";
-
 
 @custom-variant dark (&:is(.dark *));
 
@@ -65,8 +63,8 @@
   --sidebar: rgb(42, 100, 115);
   --sidebar-foreground: oklch(95.093% 0.01077 204.654);
   --sidebar-primary: oklch(62.219% 0.1404 268.265);
-  --sidebar-primary-foreground:rgb(42, 100, 115);
-  --sidebar-accent:rgb(238, 238, 238);
+  --sidebar-primary-foreground: rgb(42, 100, 115);
+  --sidebar-accent: rgb(238, 238, 238);
   --sidebar-accent-foreground: oklch(15.434% 0.00002 271.152);
   --sidebar-border: rgb(42, 100, 115);
   --sidebar-ring: oklch(62.632% 0.13797 267.312);
@@ -120,7 +118,7 @@
   }
   body {
     @apply bg-background text-foreground relative overflow-x-hidden;
-        background-color: #daf5fb;
+    background-color: #daf5fb;
   }
 
   /* Updated to sand background with subtle texture animation */
@@ -485,8 +483,8 @@
 
 .sidebar-menu-enhanced {
   background: var(--color-sidebar) !important;
-  box-shadow: -10px 0 30px rgba(0,0,0,0.2);
-  border-left: 1px solid rgba(255,255,255,0.2);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.2);
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
 }
 .bg-black\/80 {
   background-color: rgba(42, 100, 115, 0.8);
@@ -500,7 +498,7 @@
 }
 .from-yellow-400 {
   --tw-gradient-from: transparent;
-} 
+}
 /* Enhanced white text shadow utility for maximum contrast on golden text */
 .text-shadow-white {
   /* Maximum text shadow for perfect visibility on transparent background */

@@ -13,17 +13,17 @@ export function VideoCarousel() {
 
   const videos = [
     {
-      src: "/videoTitle1.mp4",
+      src: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/git-blob/prj_uwJxwIgSNXE7LxMtzbcA92dJLQe9/UbPiKtLwe4tUdE56zyVnXb/public/videoTitle1.mp4",
       title: "B&B",
       description: "ALL 22 Suite & SPA LUXURY EXPERIENCE",
     },
     {
-      src: "/videoTitle2.mp4",
+      src: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/git-blob/prj_uwJxwIgSNXE7LxMtzbcA92dJLQe9/f3upmbuc_dbNB_E06ERvb-/public/videoTitle2.mp4",
       title: "Puglia",
       description: "Polignano a Mare",
     },
     {
-      src: "/videoTitle3.mp4",
+      src: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/git-blob/prj_uwJxwIgSNXE7LxMtzbcA92dJLQe9/RFxysHbEdAWlRxie2v1_RI/public/videoTitle3.mp4",
       title: "SPA",
       description: "ALL 22 Suite & SPA LUXURY EXPERIENCE",
     },

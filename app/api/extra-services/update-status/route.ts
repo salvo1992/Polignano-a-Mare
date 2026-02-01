@@ -34,5 +34,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Errore durante l'aggiornamento" }, { status: 500 })
   }
 }
-
-

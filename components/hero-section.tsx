@@ -143,16 +143,11 @@ export function HeroSection() {
         {heroImages.map((_, index) => (
           <button
             key={index}
-            type="button"
-            title={`Go to slide ${index + 1}`}
-            aria-label={`Go to slide ${index + 1}`}
             className={`w-4 h-4 rounded-full transition-all duration-300 ${
               index === currentSlide ? "bg-white scale-125 shadow-lg" : "bg-white/50 hover:bg-white/75 hover:scale-110"
             }`}
             onClick={() => setCurrentSlide(index)}
-          >
-            <span className="sr-only">Go to slide {index + 1}</span>
-          </button>
+          />
         ))}
       </div>
 
@@ -164,4 +159,3 @@ export function HeroSection() {
     </section>
   )
 }
-

@@ -224,4 +224,3 @@ export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps
     </Dialog>
   )
 }
-

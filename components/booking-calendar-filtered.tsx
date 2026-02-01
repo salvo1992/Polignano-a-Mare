@@ -59,17 +59,6 @@ export function BookingCalendarFiltered({ bookings, roomId, roomName }: BookingC
 
   const roomIdsToMatch = normalizeRoomIds(roomId, roomName)
 
-console.log("[v0] BookingCalendarFiltered - roomId:", roomId)
-console.log("[v0] BookingCalendarFiltered - roomName:", roomName)
-console.log("[v0] BookingCalendarFiltered - roomIdsToMatch:", roomIdsToMatch)
-console.log("[v0] BookingCalendarFiltered - all bookings:", bookings.map(b => ({
-  id: b.id,
-  roomId: b.roomId,
-  roomName: b.roomName,
-  origin: b.origin,
-  guest: `${b.guestFirst || b.firstName} ${b.guestLast || b.lastName}`
-})))
-
 const filteredBookings = bookings.filter((booking) => {
   const bookingRoomId = String(booking.roomId ?? "").trim()
   const bookingRoomName = (booking.roomName ?? "").toLowerCase()
@@ -85,15 +74,6 @@ const filteredBookings = bookings.filter((booking) => {
   return idMatches || nameMatches
 })
 
-console.log("[v0] BookingCalendarFiltered - filtered bookings:", filteredBookings.map(b => ({
-  id: b.id,
-  roomId: b.roomId,
-  roomName: b.roomName,
-  origin: b.origin
-})))
-
-
-  console.log("[v0] BookingCalendarFiltered - filtered bookings:", filteredBookings.map(b => ({ id: b.id, roomId: b.roomId, roomName: b.roomName, origin: b.origin })))
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
 
@@ -109,6 +89,8 @@ console.log("[v0] BookingCalendarFiltered - filtered bookings:", filteredBooking
            .filter((blocked: any) =>
         roomIdsToMatch.includes(String(blocked.roomId))
       ) as BlockedDate[]
+        
+        setBlockedDates(blockedData)
       }
     )
 

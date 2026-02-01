@@ -17,8 +17,12 @@ export async function GET(request: NextRequest) {
     tomorrow.setDate(tomorrow.getDate() + 1)
     const tomorrowStr = tomorrow.toISOString().split("T")[0]
 
-    // Get all paid/confirmed bookings and filter by check-in date in code
-    const bookingsSnapshot = await db.collection("bookings").where("status", "in", ["paid", "confirmed"]).get()
+    // Get all bookings with check-in tomorrow
+    const bookingsSnapshot = await db
+      .collection("bookings")
+      .where("status", "in", ["paid", "confirmed"])
+      .where("checkIn", "==", tomorrowStr)
+      .get()
 
     let emailsSent = 0
 
@@ -33,10 +37,6 @@ export async function GET(request: NextRequest) {
         if (userData?.notifications?.checkinReminders === false) {
           continue // Skip if user disabled reminders
         }
-      }
-
-      if (booking.checkIn !== tomorrowStr) {
-        continue
       }
 
       // Send check-in reminder email
@@ -108,4 +108,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
-

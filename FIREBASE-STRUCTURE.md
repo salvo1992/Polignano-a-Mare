@@ -65,6 +65,25 @@ Stores room status and information
 - `description` (string): Room description
 - `amenities` (array): List of amenities
 
+### settings
+Stores dynamic B&B settings that can be changed from admin panel
+
+\`\`\`json
+{
+  "id": "bnb",
+  "checkInTime": "15:00",
+  "checkOutTime": "11:00",
+  "cancellationPolicy": "free24h"
+}
+\`\`\`
+
+**Fields:**
+- `checkInTime` (string): Check-in time in HH:MM format
+- `checkOutTime` (string): Check-out time in HH:MM format
+- `cancellationPolicy` (string): "free24h" | "free48h" | "free7days" | "nonRefundable"
+
+These settings are editable from the admin panel and propagate throughout the site.
+
 ## Booking Priority System
 
 When checking availability, the system respects this priority order:

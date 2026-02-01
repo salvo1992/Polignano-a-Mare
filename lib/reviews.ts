@@ -66,4 +66,3 @@ export async function getAllReviewsPage(opts?: {
 
   return { items, lastDoc: last }
 }
-

@@ -48,18 +48,11 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
   const [seasons, setSeasons] = useState<Season[]>([])
   const [specialPeriods, setSpecialPeriods] = useState<SpecialPeriod[]>([])
   const [loading, setLoading] = useState(true)
-  const [dailyPrices, setDailyPrices] = useState<Record<string, number>>({})
 
   useEffect(() => {
     console.log("[v0] BookingCalendarPicker - Loading data...")
     loadPricingData()
   }, [])
-
-  useEffect(() => {
-    if (roomId && !loading) {
-      loadDailyPrices()
-    }
-  }, [currentMonth, roomId, loading])
 
   async function loadPricingData() {
     try {
@@ -79,49 +72,6 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
       console.error("[v0] Error loading pricing data:", error)
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function loadDailyPrices() {
-    try {
-      const monthStart = startOfMonth(currentMonth)
-      const monthEnd = endOfMonth(currentMonth)
-      const checkIn = format(monthStart, "yyyy-MM-dd")
-      const checkOut = format(monthEnd, "yyyy-MM-dd")
-
-      console.log("[v0] Loading daily prices for room", roomId, "from", checkIn, "to", checkOut)
-
-      const response = await fetch("/api/bookings/calculate-price", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          checkIn,
-          checkOut,
-          roomId,
-        }),
-      })
-
-      if (!response.ok) {
-        console.error("[v0] Failed to load daily prices:", response.statusText)
-        return
-      }
-
-      const data = await response.json()
-      console.log("[v0] Daily prices loaded:", data)
-
-      const pricePerNight = data.nights > 0 ? Math.round(data.newPrice / data.nights) : 0
-
-      const priceMap: Record<string, number> = {}
-      const days = eachDayOfInterval({ start: monthStart, end: monthEnd })
-
-      days.forEach((day) => {
-        const dayStr = format(day, "yyyy-MM-dd")
-        priceMap[dayStr] = pricePerNight
-      })
-
-      setDailyPrices(priceMap)
-    } catch (error) {
-      console.error("[v0] Error loading daily prices:", error)
     }
   }
 
@@ -267,6 +217,7 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
           </Button>
         </div>
 
+        {/* Calendar Grid - USER CALENDAR: NO PRICES DISPLAYED */}
         <div className={cn("grid grid-cols-7", compact ? "gap-0.5" : "gap-1")}>
           {["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"].map((day) => (
             <div key={day} className={cn("text-center font-semibold p-1", compact ? "text-[10px]" : "text-xs")}>
@@ -280,8 +231,6 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
             const isPast = day < today
             const isSelected = isInRange(day)
             const isEdge = isStartOrEnd(day)
-            const dayStr = format(day, "yyyy-MM-dd")
-            const price = dailyPrices[dayStr]
 
             return (
               <button
@@ -290,7 +239,7 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
                 disabled={isPast}
                 className={cn(
                   "rounded-lg text-white text-center transition-all relative flex flex-col items-center justify-center",
-                  compact ? "p-1 min-h-[36px]" : "p-2 min-h-[60px]",
+                  compact ? "p-2 min-h-[36px]" : "p-4 min-h-[52px]",
                   "bg-primary hover:opacity-80",
                   isPast && "opacity-30 cursor-not-allowed",
                   isSelected && !isEdge && "ring-2 ring-white brightness-110",
@@ -298,10 +247,7 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
                   !isPast && "cursor-pointer active:scale-95",
                 )}
               >
-                <div className={cn(compact ? "text-sm" : "text-lg", "font-bold")}>{format(day, "d")}</div>
-                {price && (
-                  <div className={cn(compact ? "text-[9px]" : "text-xs", "font-medium opacity-90")}>€{price}</div>
-                )}
+                <div className={cn(compact ? "text-base" : "text-xl", "font-bold")}>{format(day, "d")}</div>
               </button>
             )
           })}

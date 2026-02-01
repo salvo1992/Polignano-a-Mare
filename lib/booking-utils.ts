@@ -132,4 +132,3 @@ export function getRoomStatus(
 
   return hasActiveBooking ? "booked" : "available"
 }
-

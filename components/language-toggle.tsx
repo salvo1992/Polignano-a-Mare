@@ -49,4 +49,3 @@ export function LanguageToggle() {
     </DropdownMenu>
   )
 }
-

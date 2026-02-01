@@ -141,6 +141,15 @@ export async function POST() {
         description: "Inizio Agosto",
       },
       {
+        id: "super-alta-ferragosto",
+        name: "Stagione Super-Alta Ferragosto",
+        type: "super-alta" as const,
+        startDate: "08-10",
+        endDate: "08-20",
+        priceMultiplier: 2.5, // +150% - Picco massimo
+        description: "Ferragosto - Picco massimo ogni anno",
+      },
+      {
         id: "super-alta-ago-fine",
         name: "Stagione Super-Alta Agosto Fine",
         type: "super-alta" as const,
@@ -298,4 +307,3 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to check initialization" }, { status: 500 })
   }
 }
-

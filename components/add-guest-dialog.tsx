@@ -14,29 +14,70 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
-import { useLanguage } from "@/components/language-provider"
+import { calculatePriceByGuests, calculateNights } from "@/lib/pricing"
 
 interface AddGuestDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   bookingId: string
   currentGuests: number
+  maxGuests: number
   onSuccess: () => void
 }
 
-export function AddGuestDialog({ open, onOpenChange, bookingId, currentGuests, onSuccess }: AddGuestDialogProps) {
-  const { t } = useLanguage()
-  const [newGuests, setNewGuests] = useState(currentGuests)
+export function AddGuestDialog({
+  open,
+  onOpenChange,
+  bookingId,
+  currentGuests,
+  maxGuests,
+  onSuccess,
+}: AddGuestDialogProps) {
+  const [newGuestsCount, setNewGuestsCount] = useState(currentGuests + 1)
   const [loading, setLoading] = useState(false)
+  const [priceDifference, setPriceDifference] = useState<number | null>(null)
+  const [bookingData, setBookingData] = useState<any>(null)
 
-  const handleAddGuest = async () => {
-    if (newGuests === currentGuests) {
-      toast.error(t("selectDifferentNumber"))
+  const canAddGuest = currentGuests < maxGuests
+
+  const handleCalculatePrice = async () => {
+    if (newGuestsCount <= currentGuests) {
+      toast.error("Il numero di ospiti deve essere maggiore di quello attuale")
       return
     }
 
-    if (newGuests > 4) {
-      toast.error(t("maxGuestsReached"))
+    if (newGuestsCount > maxGuests) {
+      toast.error(`Numero massimo di ospiti: ${maxGuests}`)
+      return
+    }
+
+    setLoading(true)
+    try {
+      // Get booking data
+      const response = await fetch(`/api/bookings/${bookingId}`)
+      const data = await response.json()
+
+      if (!response.ok) throw new Error(data.error)
+
+      setBookingData(data)
+
+      const nights = calculateNights(data.checkIn, data.checkOut)
+      const currentPrice = calculatePriceByGuests(currentGuests, nights)
+      const newPrice = calculatePriceByGuests(newGuestsCount, nights)
+      const difference = newPrice - currentPrice
+
+      setPriceDifference(difference)
+      toast.success(`Differenza prezzo: €${(difference / 100).toFixed(2)}`)
+    } catch (error: any) {
+      toast.error(error.message || "Errore nel calcolo del prezzo")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConfirm = async () => {
+    if (priceDifference === null || !bookingData) {
+      toast.error("Calcola prima la differenza di prezzo")
       return
     }
 
@@ -47,22 +88,24 @@ export function AddGuestDialog({ open, onOpenChange, bookingId, currentGuests, o
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId,
-          newGuests,
+          newGuestsCount,
+          priceDifference,
         }),
       })
 
       const data = await response.json()
       if (!response.ok) throw new Error(data.error)
 
-      if (data.paymentRequired && data.paymentUrl) {
+      // If there's a price difference, redirect to Stripe payment
+      if (data.paymentUrl) {
         window.location.href = data.paymentUrl
       } else {
-        toast.success(t("guestsUpdated"))
+        toast.success("Ospiti aggiunti con successo!")
         onSuccess()
         onOpenChange(false)
       }
     } catch (error: any) {
-      toast.error(error.message || t("errorUpdatingGuests"))
+      toast.error(error.message || "Errore nell'aggiunta degli ospiti")
     } finally {
       setLoading(false)
     }
@@ -72,36 +115,63 @@ export function AddGuestDialog({ open, onOpenChange, bookingId, currentGuests, o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("addGuests")}</DialogTitle>
-          <DialogDescription>{t("addGuestsDesc")}</DialogDescription>
+          <DialogTitle>Aggiungi ospiti</DialogTitle>
+          <DialogDescription>
+            {canAddGuest
+              ? `Puoi aggiungere fino a ${maxGuests - currentGuests} ospite/i aggiuntivo/i.`
+              : "Hai raggiunto il numero massimo di ospiti per questa camera."}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div>
-            <Label htmlFor="guests">{t("newGuestsNumber")}</Label>
-            <Input
-              id="guests"
-              type="number"
-              min={1}
-              max={4}
-              value={newGuests}
-              onChange={(e) => setNewGuests(Number.parseInt(e.target.value))}
-            />
-            <p className="text-sm text-muted-foreground mt-2">
-              {t("currently")}: {currentGuests} {t("guestsCount")}
-            </p>
-          </div>
-        </div>
+        {canAddGuest ? (
+          <>
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="guestsCount">Nuovo numero di ospiti</Label>
+                <Input
+                  id="guestsCount"
+                  type="number"
+                  min={currentGuests + 1}
+                  max={maxGuests}
+                  value={newGuestsCount}
+                  onChange={(e) => setNewGuestsCount(Number.parseInt(e.target.value) || currentGuests + 1)}
+                />
+                <p className="text-sm text-muted-foreground mt-1">Attualmente: {currentGuests} ospite/i</p>
+              </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            {t("cancel")}
-          </Button>
-          <Button onClick={handleAddGuest} disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t("calculateDifference")}
-          </Button>
-        </DialogFooter>
+              {priceDifference !== null && (
+                <div className="bg-secondary/50 rounded-lg p-4">
+                  <p className="text-sm text-muted-foreground mb-1">Differenza prezzo</p>
+                  <p className="text-2xl font-bold text-primary">+€{(priceDifference / 100).toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Calcolato secondo lo schema prezzi per {newGuestsCount} ospiti
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+                Annulla
+              </Button>
+              {priceDifference === null ? (
+                <Button onClick={handleCalculatePrice} disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Calcola differenza
+                </Button>
+              ) : (
+                <Button onClick={handleConfirm} disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Conferma e paga
+                </Button>
+              )}
+            </DialogFooter>
+          </>
+        ) : (
+          <DialogFooter>
+            <Button onClick={() => onOpenChange(false)}>Chiudi</Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

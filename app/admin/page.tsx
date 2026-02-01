@@ -16,8 +16,7 @@ import { collection, onSnapshot, orderBy, query, doc, setDoc, getDoc } from "fir
 import { BookingCalendar } from "@/components/booking-calendar"
 import { RoomStatusToggle } from "@/components/room-status-toggle"
 import { GuestsTracking } from "@/components/guests-tracking"
-import { Beds24SyncPanel } from "@/components/beds24-sync-panel"
-import { Beds24ReviewsSync } from "@/components/beds24-reviews-sync"
+import { SmoobuSyncPanel } from "@/components/smoobu-sync-panel"
 import { BookingBlockDates } from "@/components/booking-block-dates"
 import { BookingCalendarFiltered } from "@/components/booking-calendar-filtered"
 import { AdminSecuritySettings } from "@/components/admin-security-settings"
@@ -659,8 +658,7 @@ function AdminInner() {
 
             <TabsContent value="settings" className="space-y-4 sm:space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                <Beds24SyncPanel />
-                <Beds24ReviewsSync />
+                <SmoobuSyncPanel />
               </div>
 
               <BookingBlockDates />
