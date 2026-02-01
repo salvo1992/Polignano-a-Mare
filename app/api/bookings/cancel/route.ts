@@ -71,7 +71,7 @@ export async function DELETE(request: NextRequest) {
 
     if (booking?.origin === "site" && booking?.roomId && booking?.checkIn && booking?.checkOut) {
       try {
-        console.log("[API] Unblocking dates on Smoobu for cancelled booking")
+        console.log("[Smoobu] Unblocking dates for cancelled booking")
         const unblockResponse = await fetch(
           `${process.env.NEXT_PUBLIC_SITE_URL || "https://al22suite.com"}/api/smoobu/unblock-booking-dates`,
           {
@@ -86,12 +86,12 @@ export async function DELETE(request: NextRequest) {
         )
 
         if (unblockResponse.ok) {
-          console.log("[API] Dates unblocked on Smoobu successfully")
+          console.log("[Smoobu] Dates unblocked successfully")
         } else {
-          console.error("[API] Failed to unblock dates on Smoobu:", await unblockResponse.text())
+          console.error("[Smoobu] Failed to unblock dates:", await unblockResponse.text())
         }
       } catch (error) {
-        console.error("[API] Error unblocking dates on Smoobu:", error)
+        console.error("[Smoobu] Error unblocking dates:", error)
         // Continue with cancellation even if unblock fails
       }
     }

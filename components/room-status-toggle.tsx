@@ -49,9 +49,9 @@ export function RoomStatusToggle({ room }: RoomStatusToggleProps) {
         // Prenotazioni dal sito: id 1
         if (origin === "site" && bookingRoomId === "1") return true
 
-        // Prenotazioni da Booking/Smoobu: id 2 o smoobuRoomId
+        // Prenotazioni da Booking/Beds24: id 2 o beds24RoomId 621530
         if (origin === "booking" && bookingRoomId === "2") return true
-        if (booking.smoobuRoomId) return true
+        if (beds24RoomId === "621530") return true
 
         // Fallback: se la stanza in Firestore ha id 1, matcha anche quello
         if (bookingRoomId === siteId && siteId === "1") return true
@@ -64,9 +64,9 @@ export function RoomStatusToggle({ room }: RoomStatusToggleProps) {
         // Prenotazioni dal sito: id 2
         if (origin === "site" && bookingRoomId === "2") return true
 
-        // Prenotazioni da Booking/Smoobu: id 3 o smoobuRoomId
+        // Prenotazioni da Booking/Beds24: id 3 o beds24RoomId 621531
         if (origin === "booking" && bookingRoomId === "3") return true
-        if (booking.smoobuRoomId) return true
+        if (beds24RoomId === "621531") return true
 
         // Fallback: se la stanza in Firestore ha id 2, matcha anche quello
         if (bookingRoomId === siteId && siteId === "2") return true

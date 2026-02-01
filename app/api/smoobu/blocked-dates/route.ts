@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     const blockedDatesRef = collection(db, "blocked_dates")
-    const q = query(blockedDatesRef, orderBy("from", "desc"))
+    const q = query(blockedDatesRef, orderBy("from", "asc"))
     const snapshot = await getDocs(q)
 
     const blockedDates = snapshot.docs.map(doc => ({

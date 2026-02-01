@@ -22,17 +22,19 @@ export async function POST(request: Request) {
 
     let smoobuSuccess = false
     let smoobuError = null
-    let smoobuBookingId = null
+    let smoobuReservationId = null
 
     try {
-      await smoobuClient.blockDates(roomId, from, to, reason || "maintenance")
+      const result = await smoobuClient.blockDates(roomId, from, to, reason || "maintenance")
       smoobuSuccess = true
-      console.log(`[Smoobu] Successfully blocked dates`)
+      smoobuReservationId = result.id
+      console.log(`[Smoobu] Successfully blocked dates with reservation ID: ${result.id}`)
     } catch (error) {
       smoobuError = error
       console.error("[Smoobu] Failed to block dates (saving to Firestore only):", error)
     }
 
+    // Save to Firestore as backup
     const blockedDatesRef = collection(db, "blocked_dates")
     await addDoc(blockedDatesRef, {
       roomId,
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
       reason: reason || "maintenance",
       createdAt: serverTimestamp(),
       syncedToSmoobu: smoobuSuccess,
-      smoobuBookingId: smoobuBookingId,
+      smoobuReservationId: smoobuReservationId,
       smoobuError: smoobuError ? String(smoobuError) : null,
     })
 

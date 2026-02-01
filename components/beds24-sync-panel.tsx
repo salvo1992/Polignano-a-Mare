@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { RefreshCw, Download, Calendar, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
-export function SmoobuSyncPanel() {
+export function Beds24SyncPanel() {
   const [syncing, setSyncing] = useState(false)
   const [lastSync, setLastSync] = useState<Date | null>(null)
   const [syncResult, setSyncResult] = useState<{
@@ -17,8 +17,9 @@ export function SmoobuSyncPanel() {
     total: number
     breakdown?: {
       booking: number
-      airbnb: number
-      direct: number
+      airbnbIcal: number
+      airbnbXml: number
+      airbnbTotal: number
       other: number
     }
   } | null>(null)
@@ -36,7 +37,7 @@ export function SmoobuSyncPanel() {
 
   const syncBookings = async () => {
     if (syncLockRef.current) {
-      console.log("[Smoobu] Sync already in progress, skipping")
+      console.log("[v0] Sync already in progress, skipping")
       return
     }
 
@@ -51,7 +52,7 @@ export function SmoobuSyncPanel() {
       const to = new Date()
       to.setFullYear(to.getFullYear() + 1)
 
-      const response = await fetch("/api/smoobu/sync-bookings", {
+      const response = await fetch("/api/beds24/sync-bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -81,7 +82,7 @@ export function SmoobuSyncPanel() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <RefreshCw className="w-5 h-5" />
-          Sincronizzazione Smoobu
+          Sincronizzazione Beds24
         </CardTitle>
         <CardDescription>Sincronizza prenotazioni da Airbnb e Booking.com</CardDescription>
       </CardHeader>
@@ -129,19 +130,20 @@ export function SmoobuSyncPanel() {
                   {syncResult.breakdown && (
                     <div className="mt-3 pt-3 border-t border-green-300">
                       <p className="text-xs font-medium text-green-900 mb-2">Prenotazioni per fonte:</p>
-                      <div className="grid grid-cols-3 gap-2 text-xs text-green-800">
+                      <div className="grid grid-cols-2 gap-2 text-xs text-green-800">
                         <div className="flex items-center gap-2">
                           <Badge className="bg-blue-600 text-white">Booking.com</Badge>
                           <span className="font-semibold">{syncResult.breakdown.booking}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge className="bg-pink-600 text-white">Airbnb</Badge>
-                          <span className="font-semibold">{syncResult.breakdown.airbnb}</span>
+                          <span className="font-semibold">{syncResult.breakdown.airbnbTotal}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-green-600 text-white">Dirette</Badge>
-                          <span className="font-semibold">{syncResult.breakdown.direct}</span>
-                        </div>
+                        {syncResult.breakdown.airbnbIcal > 0 && (
+                          <div className="text-xs text-green-700 col-span-2">
+                            (iCal: {syncResult.breakdown.airbnbIcal}, XML: {syncResult.breakdown.airbnbXml})
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -149,13 +151,13 @@ export function SmoobuSyncPanel() {
               </AlertDescription>
             </Alert>
 
-            {syncResult.breakdown && syncResult.breakdown.airbnb === 0 && (
+            {syncResult.breakdown && syncResult.breakdown.airbnbTotal === 0 && (
               <Alert className="bg-amber-50 border-amber-200">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-amber-900">
                   <p className="font-medium mb-1">Nessuna prenotazione Airbnb trovata</p>
                   <p className="text-xs">
-                    Verifica che Airbnb sia correttamente connesso al tuo account Smoobu. Se hai appena collegato
+                    Verifica che Airbnb sia correttamente connesso al tuo account Beds24. Se hai appena collegato
                     Airbnb, potrebbero volerci alcuni minuti prima che le prenotazioni vengano sincronizzate.
                   </p>
                 </AlertDescription>
@@ -191,7 +193,6 @@ export function SmoobuSyncPanel() {
           <div className="flex gap-2 pt-2">
             <Badge className="bg-blue-600">Booking.com</Badge>
             <Badge className="bg-pink-600">Airbnb</Badge>
-            <Badge className="bg-green-600">Dirette</Badge>
           </div>
         </div>
       </CardContent>

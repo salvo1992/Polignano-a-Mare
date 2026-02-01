@@ -1,7 +1,7 @@
 /**
  * Smoobu API Client
  * Centralized client for all Smoobu API interactions
- * Uses single API Key authentication (no refresh needed)
+ * Smoobu uses a single API Key for authentication (simpler than Beds24)
  * 
  * API Documentation: https://docs.smoobu.com
  */
@@ -9,25 +9,24 @@
 const SMOOBU_API_URL = "https://login.smoobu.com/api"
 const SMOOBU_API_KEY = process.env.SMOOBU_API_KEY
 
-// Channel IDs for Smoobu
+// Channel IDs in Smoobu
 export const SMOOBU_CHANNELS = {
-  DIRECT: 70,           // Direct bookings (manual/website)
-  AIRBNB: 1,            // Airbnb
-  BOOKING_COM: 2,       // Booking.com
-  VRBO: 3,              // Vrbo/HomeAway
-  EXPEDIA: 4,           // Expedia
-  TRIPADVISOR: 5,       // TripAdvisor
-  BLOCKED: 70,          // Use direct channel for blocking
+  DIRECT: 70,        // Direct bookings (your website)
+  AIRBNB: 1,         // Airbnb
+  BOOKING: 2,        // Booking.com
+  EXPEDIA: 3,        // Expedia
+  VRBO: 4,           // VRBO
+  TRIPADVISOR: 5,    // TripAdvisor
 }
 
 export interface SmoobuReservation {
   id: number
-  reference_id?: string
+  "reference-id": string
   type: string
-  arrival: string       // YYYY-MM-DD
-  departure: string     // YYYY-MM-DD
-  created_at: string
-  modifiedAt?: string
+  arrival: string      // YYYY-MM-DD
+  departure: string    // YYYY-MM-DD
+  "created-at": string
+  "modified-at": string
   apartment: {
     id: number
     name: string
@@ -36,62 +35,37 @@ export interface SmoobuReservation {
     id: number
     name: string
   }
-  guest_name: string
-  firstname?: string
-  lastname?: string
-  email?: string
-  phone?: string
+  "guest-name": string
+  firstname: string
+  lastname: string
+  email: string
+  phone: string
   adults: number
   children: number
-  check_in?: string     // HH:MM
-  check_out?: string    // HH:MM
-  notice?: string
-  price?: number
-  price_paid?: number
-  prepayment?: number
-  prepayment_paid?: number
-  deposit?: number
-  deposit_paid?: number
-  language?: string
-  guest_app_url?: string
-  is_blocked_booking?: boolean
-  guestId?: number
-  assistant_notice?: string
-}
-
-export interface SmoobuApartment {
-  id: number
-  name: string
-  location: {
+  "check-in": string   // HH:MM
+  "check-out": string  // HH:MM
+  notice: string
+  price: number
+  "price-paid": number
+  prepayment: number
+  "prepayment-paid": number
+  deposit: number
+  "deposit-paid": number
+  language: string
+  "guest-app-url": string
+  "is-blocked-booking": boolean
+  "guest-id": number
+  address?: {
     street?: string
     postalCode?: string
-    city?: string
+    location?: string
     country?: {
       id: number
       name: string
     }
   }
-  timeZone?: string
-  currency?: string
-  price?: {
-    minimal?: number
-    maximal?: number
-  }
 }
 
-export interface SmoobuReview {
-  id: string
-  bookingId: string
-  roomId: string
-  rating: number
-  comment: string
-  guestName: string
-  source: "airbnb" | "booking"
-  date: string
-  response?: string
-}
-
-// Interface compatibile con Beds24 per facilitare la migrazione
 export interface SmoobuBooking {
   id: string
   roomId: string
@@ -113,7 +87,53 @@ export interface SmoobuBooking {
   notes?: string
 }
 
-export class SmoobuClient {
+export interface SmoobuReview {
+  id: string
+  bookingId: string
+  roomId: string
+  rating: number
+  comment: string
+  guestName: string
+  source: "airbnb" | "booking" | "direct"
+  date: string
+  response?: string
+}
+
+export interface SmoobuApartment {
+  id: number
+  name: string
+  type: {
+    id: number
+    name: string
+  }
+  location: {
+    street?: string
+    postalCode?: string
+    city?: string
+    country?: string
+    latitude?: number
+    longitude?: number
+  }
+  timezone: string
+  currency: string
+  arrivalTime: string
+  departureTime: string
+  rooms: {
+    maxOccupancy: number
+    bedrooms: number
+    bathrooms: number
+    beds: number
+  }
+}
+
+export interface SmoobuRate {
+  date: string
+  price: number
+  minLengthOfStay: number
+  available: number
+}
+
+class SmoobuClient {
   private baseUrl: string
   private apiKey: string
 
@@ -151,27 +171,34 @@ export class SmoobuClient {
   }
 
   /**
-   * Map Smoobu channel ID to source name
+   * Convert Smoobu reservation to our standard booking format
    */
-  private getSourceFromChannel(channelId: number): string {
-    switch (channelId) {
-      case 1: return "airbnb"
-      case 2: return "booking"
-      case 3: return "vrbo"
-      case 4: return "expedia"
-      case 70: return "direct"
-      default: return "other"
+  private convertToBooking(reservation: SmoobuReservation): SmoobuBooking {
+    // Map channel ID to source name
+    let referer = "direct"
+    let apiSource = "Direct"
+    
+    switch (reservation.channel?.id) {
+      case SMOOBU_CHANNELS.AIRBNB:
+        referer = "airbnb"
+        apiSource = "Airbnb"
+        break
+      case SMOOBU_CHANNELS.BOOKING:
+        referer = "booking"
+        apiSource = "Booking.com"
+        break
+      case SMOOBU_CHANNELS.EXPEDIA:
+        referer = "expedia"
+        apiSource = "Expedia"
+        break
+      case SMOOBU_CHANNELS.VRBO:
+        referer = "vrbo"
+        apiSource = "VRBO"
+        break
+      default:
+        referer = "direct"
+        apiSource = reservation.channel?.name || "Direct"
     }
-  }
-
-  /**
-   * Convert Smoobu reservation to Beds24-compatible format
-   * This allows existing code to work with minimal changes
-   */
-  private convertToLegacyFormat(reservation: SmoobuReservation): SmoobuBooking {
-    const nameParts = (reservation.guest_name || "").split(" ")
-    const firstName = reservation.firstname || nameParts[0] || ""
-    const lastName = reservation.lastname || nameParts.slice(1).join(" ") || ""
 
     return {
       id: reservation.id.toString(),
@@ -180,18 +207,18 @@ export class SmoobuClient {
       departure: reservation.departure,
       numAdult: reservation.adults || 1,
       numChild: reservation.children || 0,
-      firstName,
-      lastName,
+      firstName: reservation.firstname || reservation["guest-name"]?.split(" ")[0] || "",
+      lastName: reservation.lastname || reservation["guest-name"]?.split(" ").slice(1).join(" ") || "",
       email: reservation.email || "",
       phone: reservation.phone || "",
       price: reservation.price || 0,
-      status: reservation.is_blocked_booking ? "blocked" : "confirmed",
-      referer: this.getSourceFromChannel(reservation.channel?.id || 70),
+      status: reservation["is-blocked-booking"] ? "blocked" : "confirmed",
+      referer,
       apiSourceId: reservation.channel?.id,
-      apiSource: reservation.channel?.name,
-      created: reservation.created_at,
-      modified: reservation.modifiedAt || reservation.created_at,
-      notes: reservation.notice || reservation.assistant_notice || "",
+      apiSource,
+      created: reservation["created-at"],
+      modified: reservation["modified-at"],
+      notes: reservation.notice || "",
     }
   }
 
@@ -199,29 +226,29 @@ export class SmoobuClient {
    * Fetch all reservations from Smoobu
    * @param from - Start date (YYYY-MM-DD)
    * @param to - End date (YYYY-MM-DD)
-   * @param apartmentId - Optional apartment/room ID filter
+   * @param apartmentId - Optional apartment ID to filter by
    */
-  async getReservations(from?: string, to?: string, apartmentId?: number): Promise<SmoobuReservation[]> {
+  async getBookings(from?: string, to?: string, apartmentId?: string): Promise<SmoobuBooking[]> {
     const params = new URLSearchParams()
     
     if (from) params.append("from", from)
     if (to) params.append("to", to)
-    if (apartmentId) params.append("apartmentId", apartmentId.toString())
-    
+    if (apartmentId) params.append("apartmentId", apartmentId)
     params.append("pageSize", "100")
 
     const endpoint = `/reservations?${params.toString()}`
-    const response = await this.request<{ bookings: SmoobuReservation[] }>(endpoint)
     
-    return response.bookings || []
-  }
-
-  /**
-   * Fetch all bookings (legacy format compatible with Beds24)
-   */
-  async getBookings(from?: string, to?: string): Promise<SmoobuBooking[]> {
-    const reservations = await this.getReservations(from, to)
-    return reservations.map(r => this.convertToLegacyFormat(r))
+    try {
+      const response = await this.request<{ bookings: SmoobuReservation[] }>(endpoint)
+      const reservations = response.bookings || []
+      
+      console.log(`[Smoobu] Retrieved ${reservations.length} reservations`)
+      
+      return reservations.map(r => this.convertToBooking(r))
+    } catch (error) {
+      console.error("[Smoobu] Error fetching bookings:", error)
+      throw error
+    }
   }
 
   /**
@@ -229,9 +256,9 @@ export class SmoobuClient {
    */
   async getBookingComBookings(from?: string, to?: string): Promise<SmoobuBooking[]> {
     const allBookings = await this.getBookings(from, to)
-    const filtered = allBookings.filter(b => b.apiSourceId === SMOOBU_CHANNELS.BOOKING_COM)
-    console.log(`[Smoobu] Filtered ${filtered.length} Booking.com bookings from ${allBookings.length} total`)
-    return filtered
+    const bookingComBookings = allBookings.filter(b => b.apiSourceId === SMOOBU_CHANNELS.BOOKING)
+    console.log(`[Smoobu] Filtered ${bookingComBookings.length} Booking.com bookings from ${allBookings.length} total`)
+    return bookingComBookings
   }
 
   /**
@@ -239,29 +266,21 @@ export class SmoobuClient {
    */
   async getAirbnbBookings(from?: string, to?: string): Promise<SmoobuBooking[]> {
     const allBookings = await this.getBookings(from, to)
-    const filtered = allBookings.filter(b => b.apiSourceId === SMOOBU_CHANNELS.AIRBNB)
-    console.log(`[Smoobu] Filtered ${filtered.length} Airbnb bookings from ${allBookings.length} total`)
-    return filtered
+    const airbnbBookings = allBookings.filter(b => b.apiSourceId === SMOOBU_CHANNELS.AIRBNB)
+    console.log(`[Smoobu] Filtered ${airbnbBookings.length} Airbnb bookings from ${allBookings.length} total`)
+    return airbnbBookings
   }
 
   /**
    * Fetch a single reservation by ID
    */
-  async getReservation(reservationId: number): Promise<SmoobuReservation> {
-    const response = await this.request<SmoobuReservation>(`/reservations/${reservationId}`)
-    return response
-  }
-
-  /**
-   * Fetch a single booking by ID (legacy format)
-   */
   async getBooking(bookingId: string): Promise<SmoobuBooking> {
-    const reservation = await this.getReservation(parseInt(bookingId))
-    return this.convertToLegacyFormat(reservation)
+    const response = await this.request<SmoobuReservation>(`/reservations/${bookingId}`)
+    return this.convertToBooking(response)
   }
 
   /**
-   * Get all apartments/rooms from Smoobu
+   * Get all apartments (rooms) from Smoobu
    */
   async getApartments(): Promise<SmoobuApartment[]> {
     const response = await this.request<{ apartments: SmoobuApartment[] }>("/apartments")
@@ -269,51 +288,57 @@ export class SmoobuClient {
   }
 
   /**
-   * Get all rooms (alias for getApartments for Beds24 compatibility)
+   * Get rates for an apartment
+   * @param apartmentId - The apartment ID
+   * @param startDate - Start date (YYYY-MM-DD)
+   * @param endDate - End date (YYYY-MM-DD)
    */
-  async getRooms(): Promise<{ id: string; name: string; maxPeople: number; price: number }[]> {
-    const apartments = await this.getApartments()
-    return apartments.map(apt => ({
-      id: apt.id.toString(),
-      name: apt.name,
-      maxPeople: 4, // Default, Smoobu doesn't provide this directly
-      price: apt.price?.minimal || 0,
-    }))
+  async getRates(apartmentId: string, startDate: string, endDate: string): Promise<SmoobuRate[]> {
+    const params = new URLSearchParams({
+      apartments: `[${apartmentId}]`,
+      start_date: startDate,
+      end_date: endDate,
+    })
+
+    const endpoint = `/rates?${params.toString()}`
+    const response = await this.request<{ data: Record<string, SmoobuRate[]> }>(endpoint)
+    
+    return response.data?.[apartmentId] || []
   }
 
   /**
-   * Create a new reservation (for direct bookings)
+   * Create a new reservation (for direct bookings from your website)
+   * @param data - Reservation data
    */
   async createReservation(data: {
     apartmentId: number
     arrival: string
     departure: string
-    firstName?: string
-    lastName?: string
-    email?: string
+    firstName: string
+    lastName: string
+    email: string
     phone?: string
     adults?: number
     children?: number
     price?: number
     notice?: string
-    channelId?: number
-  }): Promise<SmoobuReservation> {
+  }): Promise<{ id: number }> {
+    console.log("[Smoobu] Creating reservation:", data)
+
     const payload = {
       arrivalDate: data.arrival,
       departureDate: data.departure,
       apartmentId: data.apartmentId,
-      channelId: data.channelId || SMOOBU_CHANNELS.DIRECT,
-      firstName: data.firstName || "",
-      lastName: data.lastName || "",
-      email: data.email || "",
+      channelId: SMOOBU_CHANNELS.DIRECT, // Direct booking
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
       phone: data.phone || "",
       adults: data.adults || 1,
       children: data.children || 0,
       price: data.price || 0,
-      notice: data.notice || "",
+      notice: data.notice || "Prenotazione diretta dal sito",
     }
-
-    console.log("[Smoobu] Creating reservation:", payload)
 
     const response = await this.request<{ id: number }>("/reservations", {
       method: "POST",
@@ -321,43 +346,59 @@ export class SmoobuClient {
     })
 
     console.log("[Smoobu] Reservation created with ID:", response.id)
-
-    // Fetch the created reservation to return full data
-    return await this.getReservation(response.id)
+    return response
   }
 
   /**
    * Block dates for an apartment (for maintenance or manual blocking)
+   * In Smoobu, blocking dates is done by creating a reservation with channelId = 70 (Direct)
+   * and marking it as a blocked booking
    */
-  async blockDates(apartmentId: string | number, from: string, to: string, reason = "maintenance"): Promise<void> {
+  async blockDates(apartmentId: string, from: string, to: string, reason = "maintenance"): Promise<{ id: number }> {
     console.log("[Smoobu] Blocking dates:", { apartmentId, from, to, reason })
 
-    try {
-      await this.createReservation({
-        apartmentId: typeof apartmentId === "string" ? parseInt(apartmentId) : apartmentId,
-        arrival: from,
-        departure: to,
-        firstName: "BLOCKED",
-        lastName: reason.toUpperCase(),
-        notice: reason,
-        channelId: SMOOBU_CHANNELS.BLOCKED,
-        adults: 0,
-        price: 0,
-      })
-
-      console.log("[Smoobu] Successfully blocked dates")
-    } catch (error) {
-      console.error("[Smoobu] Error blocking dates:", error)
-      throw error
+    const payload = {
+      arrivalDate: from,
+      departureDate: to,
+      apartmentId: parseInt(apartmentId),
+      channelId: SMOOBU_CHANNELS.DIRECT,
+      firstName: "BLOCKED",
+      lastName: reason.toUpperCase(),
+      email: "blocked@internal.local",
+      notice: `Bloccato: ${reason}`,
+      adults: 1,
+      children: 0,
+      price: 0,
     }
+
+    const response = await this.request<{ id: number }>("/reservations", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+
+    console.log("[Smoobu] Dates blocked with reservation ID:", response.id)
+    return response
+  }
+
+  /**
+   * Unblock dates (delete a blocking reservation)
+   */
+  async unblockDates(reservationId: string): Promise<void> {
+    console.log("[Smoobu] Unblocking reservation:", reservationId)
+    
+    await this.request(`/reservations/${reservationId}`, {
+      method: "DELETE",
+    })
+
+    console.log("[Smoobu] Reservation deleted successfully")
   }
 
   /**
    * Update a reservation
    */
-  async updateReservation(reservationId: number, data: Partial<{
-    arrivalDate: string
-    departureDate: string
+  async updateReservation(reservationId: string, data: Partial<{
+    arrival: string
+    departure: string
     firstName: string
     lastName: string
     email: string
@@ -367,83 +408,60 @@ export class SmoobuClient {
     price: number
     notice: string
   }>): Promise<void> {
+    console.log("[Smoobu] Updating reservation:", reservationId, data)
+
+    const payload: Record<string, any> = {}
+    
+    if (data.arrival) payload.arrivalDate = data.arrival
+    if (data.departure) payload.departureDate = data.departure
+    if (data.firstName) payload.firstName = data.firstName
+    if (data.lastName) payload.lastName = data.lastName
+    if (data.email) payload.email = data.email
+    if (data.phone) payload.phone = data.phone
+    if (data.adults) payload.adults = data.adults
+    if (data.children) payload.children = data.children
+    if (data.price !== undefined) payload.price = data.price
+    if (data.notice) payload.notice = data.notice
+
     await this.request(`/reservations/${reservationId}`, {
       method: "PUT",
-      body: JSON.stringify(data),
-    })
-  }
-
-  /**
-   * Delete/Cancel a reservation
-   */
-  async deleteReservation(reservationId: number): Promise<void> {
-    await this.request(`/reservations/${reservationId}`, {
-      method: "DELETE",
-    })
-  }
-
-  /**
-   * Unblock dates (delete the blocking reservation)
-   */
-  async unblockDates(blockingId: string): Promise<void> {
-    console.log("[Smoobu] Unblocking dates, reservation ID:", blockingId)
-    await this.deleteReservation(parseInt(blockingId))
-    console.log("[Smoobu] Successfully unblocked dates")
-  }
-
-  /**
-   * Get availability/rates for an apartment
-   */
-  async getRates(apartmentId: number, from: string, to: string): Promise<any> {
-    const params = new URLSearchParams({
-      apartments: apartmentId.toString(),
-      start_date: from,
-      end_date: to,
+      body: JSON.stringify(payload),
     })
 
-    const response = await this.request<any>(`/rates?${params.toString()}`)
-    return response
+    console.log("[Smoobu] Reservation updated successfully")
   }
 
   /**
-   * Get booking.com reviews (if connected)
-   * Note: Smoobu may have limited review API support
-   */
-  async getBookingComReviews(limit = 50): Promise<SmoobuReview[]> {
-    // Smoobu doesn't have a dedicated reviews endpoint like Beds24
-    // Reviews are typically synced via the OTA directly
-    console.log("[Smoobu] Reviews endpoint not available in Smoobu API")
-    return []
-  }
-
-  /**
-   * Get Airbnb reviews (if connected)
-   */
-  async getAirbnbReviews(limit = 50): Promise<SmoobuReview[]> {
-    console.log("[Smoobu] Reviews endpoint not available in Smoobu API")
-    return []
-  }
-
-  /**
-   * Get all reviews
+   * Fetch reviews (Smoobu aggregates reviews from channels)
+   * Note: Smoobu may require additional setup for review sync
    */
   async getReviews(): Promise<SmoobuReview[]> {
-    // Smoobu doesn't have a reviews API, return empty
+    // Smoobu doesn't have a direct reviews API like Beds24
+    // Reviews are typically synced from channels (Airbnb, Booking.com)
+    // and visible in the Smoobu dashboard
+    console.log("[Smoobu] Review fetching not directly supported via API")
+    console.log("[Smoobu] Reviews are synced from channels and visible in Smoobu dashboard")
     return []
   }
 
   /**
-   * No token refresh needed for Smoobu (uses permanent API key)
+   * Check availability for an apartment
    */
-  async forceRefreshToken(): Promise<void> {
-    console.log("[Smoobu] No token refresh needed - using permanent API key")
+  async checkAvailability(apartmentId: string, from: string, to: string): Promise<boolean> {
+    try {
+      const rates = await this.getRates(apartmentId, from, to)
+      return rates.every(rate => rate.available > 0)
+    } catch (error) {
+      console.error("[Smoobu] Error checking availability:", error)
+      return false
+    }
   }
 
   /**
-   * No token refresh needed for Smoobu
+   * Get webhook settings (for setting up webhooks)
    */
-  async forceRefreshWriteToken(): Promise<void> {
-    console.log("[Smoobu] No token refresh needed - using permanent API key")
+  async getWebhookSettings(): Promise<any> {
+    return await this.request("/settings/webhooks")
   }
 }
 

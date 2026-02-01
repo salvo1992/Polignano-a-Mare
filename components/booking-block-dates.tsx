@@ -46,7 +46,7 @@ export function BookingBlockDates() {
         setBlockedDates(data.blockedDates || [])
       }
     } catch (err) {
-      console.error("Error loading blocked dates:", err)
+      console.error("[Smoobu] Error loading blocked dates:", err)
     } finally {
       setLoadingBlocked(false)
     }

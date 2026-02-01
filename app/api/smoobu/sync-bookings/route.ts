@@ -5,7 +5,7 @@ import { collection, doc, setDoc, getDocs, query, where } from "firebase/firesto
 
 /**
  * Sync bookings from Smoobu to Firebase
- * This endpoint fetches all bookings from Smoobu and syncs them to Firebase
+ * This endpoint fetches all reservations from Smoobu and syncs them to Firebase
  * Prevents double bookings by checking existing bookings
  * Supports filtering by source: booking or airbnb
  */
@@ -28,6 +28,7 @@ export async function POST(request: Request) {
 
     console.log(`[Smoobu] Retrieved ${smoobuBookings.length} bookings`)
 
+    // Count bookings by source
     const breakdown = smoobuBookings.reduce(
       (acc, booking) => {
         const sourceId = booking.apiSourceId || 0
@@ -37,13 +38,17 @@ export async function POST(request: Request) {
       {} as Record<number, number>,
     )
 
-    console.log(`[Smoobu] Bookings by channel:`, breakdown)
+    console.log(`[Smoobu] Bookings by channelId:`, breakdown)
 
-    const bookingCount = breakdown[SMOOBU_CHANNELS.BOOKING_COM] || 0
+    const bookingCount = breakdown[SMOOBU_CHANNELS.BOOKING] || 0
     const airbnbCount = breakdown[SMOOBU_CHANNELS.AIRBNB] || 0
     const directCount = breakdown[SMOOBU_CHANNELS.DIRECT] || 0
     const otherCount = Object.entries(breakdown)
-      .filter(([id]) => ![String(SMOOBU_CHANNELS.BOOKING_COM), String(SMOOBU_CHANNELS.AIRBNB), String(SMOOBU_CHANNELS.DIRECT)].includes(id))
+      .filter(([id]) => ![
+        String(SMOOBU_CHANNELS.BOOKING), 
+        String(SMOOBU_CHANNELS.AIRBNB), 
+        String(SMOOBU_CHANNELS.DIRECT)
+      ].includes(id))
       .reduce((sum, [, count]) => sum + count, 0)
 
     console.log(
@@ -55,7 +60,18 @@ export async function POST(request: Request) {
 
     for (const booking of smoobuBookings) {
       try {
-        let bookingSource: string = booking.referer || "direct"
+        // Determine source
+        let bookingSource: string
+        
+        if (booking.apiSourceId === SMOOBU_CHANNELS.BOOKING) {
+          bookingSource = "booking"
+        } else if (booking.apiSourceId === SMOOBU_CHANNELS.AIRBNB) {
+          bookingSource = "airbnb"
+        } else if (booking.apiSourceId === SMOOBU_CHANNELS.DIRECT) {
+          bookingSource = "direct"
+        } else {
+          bookingSource = booking.referer || "other"
+        }
 
         const checkInDate = parseDate(booking.arrival)
         const checkOutDate = parseDate(booking.departure)
@@ -81,7 +97,7 @@ export async function POST(request: Request) {
           bookingsRef,
           where("checkIn", "==", checkInDate),
           where("checkOut", "==", checkOutDate),
-          where("roomId", "==", booking.roomId.toString()),
+          where("roomId", "==", booking.roomId),
           where("guestLast", "==", booking.lastName),
         )
         const existingBookings2 = await getDocs(q2)
@@ -91,8 +107,9 @@ export async function POST(request: Request) {
           continue
         }
 
-        const localRoomId = convertSmoobuRoomIdToLocal(booking.roomId.toString())
-        console.log(`[Smoobu] Processing booking ${booking.id} - Smoobu roomId: ${booking.roomId}, Local roomId: ${localRoomId}`)
+        // Convert Smoobu apartment ID to local room ID
+        const localRoomId = convertSmoobuApartmentIdToLocal(booking.roomId)
+        console.log(`[Smoobu] Processing booking ${booking.id} - Smoobu apartmentId: ${booking.roomId}, Local roomId: ${localRoomId}`)
 
         const firebaseBooking = {
           checkIn: checkInDate,
@@ -105,14 +122,14 @@ export async function POST(request: Request) {
           notes: booking.notes || "",
           total: booking.price,
           currency: "EUR",
-          status: booking.status === "confirmed" ? "confirmed" : "pending",
+          status: booking.status === "blocked" ? "blocked" : "confirmed",
           origin: bookingSource,
           roomId: localRoomId,
           roomName: getRoomName(localRoomId),
           smoobuId: booking.id,
-          smoobuRoomId: booking.roomId.toString(),
-          apiSourceId: booking.apiSourceId,
-          apiSource: booking.apiSource,
+          smoobuApartmentId: booking.roomId,
+          channelId: booking.apiSourceId,
+          channelName: booking.apiSource,
           createdAt: parseDate(booking.created) || new Date().toISOString(),
           syncedAt: new Date().toISOString(),
         }
@@ -120,7 +137,7 @@ export async function POST(request: Request) {
         const bookingRef = doc(collection(db, "bookings"))
         await setDoc(bookingRef, firebaseBooking)
 
-        console.log(`[Smoobu] Synced booking ${booking.id} from ${bookingSource}`)
+        console.log(`[Smoobu] Synced booking ${booking.id} from ${bookingSource} (channelId: ${booking.apiSourceId})`)
         syncedCount++
       } catch (bookingError) {
         console.error(`[Smoobu] Error processing booking ${booking.id}:`, bookingError)
@@ -215,12 +232,12 @@ function parseDate(dateString: string | undefined): string | null {
   }
 }
 
-function convertSmoobuRoomIdToLocal(smoobuRoomId: string): string {
-  // Mappa i Smoobu apartment IDs ai room IDs locali
-  // Dovrai aggiornare questa mappa con i tuoi ID reali da Smoobu
-  const roomIdMap: Record<string, string> = {
-    // Esempio: "123456": "2", // Camera Familiare
-    // Esempio: "123457": "3", // Camera Matrimoniale
+// TODO: Update this mapping with your Smoobu apartment IDs
+function convertSmoobuApartmentIdToLocal(smoobuApartmentId: string): string {
+  const apartmentIdMap: Record<string, string> = {
+    // Add your Smoobu apartment ID mappings here
+    // Example: "123456": "2", // Camera Familiare con Balcone
+    // Example: "123457": "3", // Camera Matrimoniale con Vasca Idromassaggio
   }
-  return roomIdMap[smoobuRoomId] || smoobuRoomId
+  return apartmentIdMap[smoobuApartmentId] || smoobuApartmentId
 }

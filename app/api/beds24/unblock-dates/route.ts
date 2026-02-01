@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
-import { smoobuClient } from "@/lib/smoobu-client"
+import { beds24Client } from "@/lib/beds24-client"
 import { db } from "@/lib/firebase"
 import { doc, deleteDoc, getDoc } from "firebase/firestore"
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Unblock dates on Smoobu and remove from Firestore
+ * Unblock dates on Beds24 and remove from Firestore
  */
 export async function POST(request: Request) {
   try {
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log(`[Smoobu] Unblocking dates with ID: ${blockId}`)
+    console.log(`[v0] Unblocking dates with ID: ${blockId}`)
 
     // Get the blocked date document from Firestore
     const blockRef = doc(db, "blocked_dates", blockId)
@@ -34,33 +34,33 @@ export async function POST(request: Request) {
 
     const blockData = blockDoc.data()
     
-    // Try to unblock on Smoobu if it was synced
-    let smoobuSuccess = false
-    if (blockData.syncedToSmoobu && blockData.smoobuReservationId) {
+    // Try to unblock on Beds24 if it was synced
+    let beds24Success = false
+    if (blockData.syncedToBeds24 && blockData.beds24BookingId) {
       try {
-        await smoobuClient.unblockDates(blockData.smoobuReservationId.toString())
-        smoobuSuccess = true
-        console.log(`[Smoobu] Successfully unblocked reservation`)
+        await beds24Client.unblockDates(blockData.beds24BookingId)
+        beds24Success = true
+        console.log(`[v0] Successfully unblocked on Beds24`)
       } catch (error) {
-        console.error("[Smoobu] Failed to unblock on Smoobu:", error)
+        console.error("[v0] Failed to unblock on Beds24:", error)
       }
     }
 
     // Remove from Firestore
     await deleteDoc(blockRef)
-    console.log(`[Smoobu] Removed from Firestore`)
+    console.log(`[v0] Removed from Firestore`)
 
-    const message = smoobuSuccess 
+    const message = beds24Success 
       ? "Date sbloccate con successo su tutte le piattaforme"
-      : "Date sbloccate dal sito. Verifica manualmente su Smoobu/Airbnb/Booking.com"
+      : "Date sbloccate dal sito. Verifica manualmente su Beds24/Airbnb/Booking.com"
 
     return NextResponse.json({
       success: true,
-      smoobuSuccess,
+      beds24Success,
       message
     })
   } catch (error) {
-    console.error("[Smoobu] Error unblocking dates:", error)
+    console.error("[v0] Error unblocking dates:", error)
     return NextResponse.json(
       { error: "Failed to unblock dates" },
       { status: 500 }
