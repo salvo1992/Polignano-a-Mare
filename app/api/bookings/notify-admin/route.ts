@@ -7,15 +7,15 @@ export async function POST(request: NextRequest) {
   try {
     const { bookingId, roomName, checkIn, checkOut, guestName } = await request.json()
 
-    const beds24BlockUrl = `https://beds24.com/control2.php?pagetype=calendar`
+    const smoobuCalendarUrl = `https://login.smoobu.com/en/cockpit/calendar`
 
     await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL!,
       to: process.env.RESEND_FROM_EMAIL!,
-      subject: `⚠️ Nuova Prenotazione Sito - Bloccare su Beds24`,
+      subject: `Nuova Prenotazione Sito - Verifica su Smoobu`,
       html: `
         <h2>Nuova Prenotazione dal Sito Web</h2>
-        <p><strong>AZIONE RICHIESTA:</strong> Bloccare le date su Beds24 per evitare doppie prenotazioni.</p>
+        <p><strong>INFO:</strong> Le date vengono bloccate automaticamente su Smoobu. Verifica che tutto sia sincronizzato correttamente.</p>
         
         <h3>Dettagli Prenotazione:</h3>
         <ul>
@@ -26,17 +26,14 @@ export async function POST(request: NextRequest) {
           <li><strong>Check-out:</strong> ${checkOut}</li>
         </ul>
 
-        <p><a href="${beds24BlockUrl}" style="background-color: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 16px;">
-          Vai al Calendario Beds24
+        <p><a href="${smoobuCalendarUrl}" style="background-color: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 16px;">
+          Vai al Calendario Smoobu
         </a></p>
 
         <hr style="margin: 24px 0;">
         <p style="color: #666; font-size: 14px;">
-          <strong>Come bloccare le date:</strong><br>
-          1. Clicca sul link sopra per aprire il calendario Beds24<br>
-          2. Seleziona la camera: <strong>${roomName}</strong><br>
-          3. Blocca dal <strong>${checkIn}</strong> al <strong>${checkOut}</strong><br>
-          4. Questo impedirà prenotazioni doppie da Booking.com e Airbnb
+          <strong>Nota:</strong> Le date sono state bloccate automaticamente tramite l'API Smoobu.<br>
+          La sincronizzazione con Booking.com e Airbnb avviene automaticamente tramite Smoobu.
         </p>
       `
     })
