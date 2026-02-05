@@ -11,13 +11,25 @@ const SMOOBU_API_KEY = process.env.SMOOBU_API_KEY
 
 // Channel IDs in Smoobu
 export const SMOOBU_CHANNELS = {
-  DIRECT: 70,        // Direct bookings (your website)
+  DIRECT: parseInt(process.env.SMOOBU_CHANNEL_ID || "70"),  // Direct bookings (your website)
+  LOCKED: parseInt(process.env.SMOOBU_CHANNEL_ID_Locked || "70"), // Locked/blocked dates
   AIRBNB: 1,         // Airbnb
   BOOKING: 2,        // Booking.com
   EXPEDIA: 3,        // Expedia
   VRBO: 4,           // VRBO
   TRIPADVISOR: 5,    // TripAdvisor
 }
+
+// Room name to Smoobu apartment ID mapping
+// These IDs come from Smoobu > Configurazione > Proprieta
+// You can find them by calling GET /api/apartments
+export const SMOOBU_ROOM_MAP: Record<string, string> = {
+  // Map your Firebase room names to Smoobu apartment names
+  // Will be populated dynamically via getApartments()
+}
+
+// Cache for apartment IDs (loaded once)
+let apartmentCache: SmoobuApartment[] | null = null
 
 export interface SmoobuReservation {
   id: number
@@ -361,7 +373,7 @@ class SmoobuClient {
       arrivalDate: from,
       departureDate: to,
       apartmentId: parseInt(apartmentId),
-      channelId: SMOOBU_CHANNELS.DIRECT,
+      channelId: SMOOBU_CHANNELS.LOCKED,
       firstName: "BLOCKED",
       lastName: reason.toUpperCase(),
       email: "blocked@internal.local",
@@ -432,16 +444,103 @@ class SmoobuClient {
   }
 
   /**
-   * Fetch reviews (Smoobu aggregates reviews from channels)
-   * Note: Smoobu may require additional setup for review sync
+   * Get cached apartments list (loads once, then cached)
+   */
+  async getApartmentsCached(): Promise<SmoobuApartment[]> {
+    if (apartmentCache) return apartmentCache
+    apartmentCache = await this.getApartments()
+    console.log("[Smoobu] Loaded apartments:", apartmentCache.map(a => `${a.id}: ${a.name}`))
+    return apartmentCache
+  }
+
+  /**
+   * Find Smoobu apartment ID by name (fuzzy match)
+   */
+  async findApartmentByName(name: string): Promise<SmoobuApartment | null> {
+    const apartments = await this.getApartmentsCached()
+    const lower = name.toLowerCase()
+    return apartments.find(a => 
+      a.name.toLowerCase().includes(lower) || lower.includes(a.name.toLowerCase())
+    ) || null
+  }
+
+  /**
+   * Fetch reviews from guest messages and booking data
+   * Smoobu aggregates reviews from channels (Airbnb, Booking.com)
+   * We extract review-like data from completed bookings with messages
    */
   async getReviews(): Promise<SmoobuReview[]> {
-    // Smoobu doesn't have a direct reviews API like Beds24
-    // Reviews are typically synced from channels (Airbnb, Booking.com)
-    // and visible in the Smoobu dashboard
-    console.log("[Smoobu] Review fetching not directly supported via API")
-    console.log("[Smoobu] Reviews are synced from channels and visible in Smoobu dashboard")
-    return []
+    console.log("[Smoobu] Fetching reviews from bookings and messages...")
+    const reviews: SmoobuReview[] = []
+
+    try {
+      // Get recent completed bookings (last 12 months)
+      const now = new Date()
+      const yearAgo = new Date(now)
+      yearAgo.setFullYear(yearAgo.getFullYear() - 1)
+
+      const from = yearAgo.toISOString().split("T")[0]
+      const to = now.toISOString().split("T")[0]
+
+      const bookings = await this.getBookings(from, to)
+      const completedBookings = bookings.filter(b => 
+        b.status === "confirmed" && 
+        new Date(b.departure) < now &&
+        (b.referer === "airbnb" || b.referer === "booking")
+      )
+
+      console.log(`[Smoobu] Found ${completedBookings.length} completed channel bookings`)
+
+      // For each booking, try to get messages that might contain reviews
+      for (const booking of completedBookings) {
+        try {
+          const messages = await this.getMessages(booking.id)
+          
+          // Look for messages that look like reviews (from guest, after checkout)
+          const reviewMessages = messages.filter((m: any) => 
+            m.type === "guest" && 
+            m.message && 
+            m.message.length > 20
+          )
+
+          if (reviewMessages.length > 0) {
+            const lastMsg = reviewMessages[reviewMessages.length - 1]
+            reviews.push({
+              id: `smoobu_${booking.id}`,
+              bookingId: booking.id,
+              roomId: booking.roomId,
+              rating: 5, // Default rating, adjust based on channel
+              comment: lastMsg.message,
+              guestName: `${booking.firstName} ${booking.lastName}`.trim(),
+              source: booking.referer as "airbnb" | "booking" | "direct",
+              date: booking.departure,
+              response: undefined,
+            })
+          }
+        } catch {
+          // Messages might not be available for all bookings
+          continue
+        }
+      }
+
+      console.log(`[Smoobu] Extracted ${reviews.length} reviews from messages`)
+    } catch (error) {
+      console.error("[Smoobu] Error fetching reviews:", error)
+    }
+
+    return reviews
+  }
+
+  /**
+   * Get messages for a booking
+   */
+  async getMessages(bookingId: string): Promise<any[]> {
+    try {
+      const response = await this.request<{ messages: any[] }>(`/reservations/${bookingId}/messages`)
+      return response.messages || []
+    } catch {
+      return []
+    }
   }
 
   /**
