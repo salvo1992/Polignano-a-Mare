@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { smoobuClient, SMOOBU_CHANNELS } from "@/lib/smoobu-client"
+import { smoobuClient } from "@/lib/smoobu-client"
 import { db } from "@/lib/firebase"
 import { collection, doc, setDoc, getDocs, query, where } from "firebase/firestore"
 
@@ -7,7 +7,7 @@ import { collection, doc, setDoc, getDocs, query, where } from "firebase/firesto
  * Sync bookings from Smoobu to Firebase
  * This endpoint fetches all reservations from Smoobu and syncs them to Firebase
  * Prevents double bookings by checking existing bookings
- * Supports filtering by source: booking or airbnb
+ * Supports filtering by source: booking, airbnb, expedia, direct
  */
 export async function POST(request: Request) {
   try {
@@ -24,39 +24,37 @@ export async function POST(request: Request) {
       smoobuBookings = await smoobuClient.getAirbnbBookings(from, to)
     } else if (source === "expedia") {
       smoobuBookings = await smoobuClient.getExpediaBookings(from, to)
+    } else if (source === "direct") {
+      smoobuBookings = await smoobuClient.getDirectBookings(from, to)
     } else {
       smoobuBookings = await smoobuClient.getBookings(from, to)
     }
 
     console.log(`[Smoobu] Retrieved ${smoobuBookings.length} bookings`)
 
-    // Count bookings by source
-    const breakdown = smoobuBookings.reduce(
+    // Count bookings by referer (already correctly mapped by smoobu-client)
+    const refererBreakdown = smoobuBookings.reduce(
       (acc, booking) => {
-        const sourceId = booking.apiSourceId || 0
-        acc[sourceId] = (acc[sourceId] || 0) + 1
+        const ref = booking.referer || "other"
+        acc[ref] = (acc[ref] || 0) + 1
         return acc
       },
-      {} as Record<number, number>,
+      {} as Record<string, number>,
     )
 
-    console.log(`[Smoobu] Bookings by channelId:`, breakdown)
+    console.log(`[Smoobu] Bookings by referer:`, refererBreakdown)
 
-    const bookingCount = breakdown[SMOOBU_CHANNELS.BOOKING] || 0
-    const airbnbCount = breakdown[SMOOBU_CHANNELS.AIRBNB] || 0
-    const expediaCount = breakdown[SMOOBU_CHANNELS.EXPEDIA] || 0
-    const directCount = breakdown[SMOOBU_CHANNELS.DIRECT] || 0
-    const otherCount = Object.entries(breakdown)
-      .filter(([id]) => ![
-        String(SMOOBU_CHANNELS.BOOKING), 
-        String(SMOOBU_CHANNELS.AIRBNB), 
-        String(SMOOBU_CHANNELS.EXPEDIA),
-        String(SMOOBU_CHANNELS.DIRECT)
-      ].includes(id))
+    const bookingCount = refererBreakdown["booking"] || 0
+    const airbnbCount = refererBreakdown["airbnb"] || 0
+    const expediaCount = refererBreakdown["expedia"] || 0
+    const directCount = refererBreakdown["direct"] || 0
+    const blockedCount = refererBreakdown["blocked"] || 0
+    const otherCount = Object.entries(refererBreakdown)
+      .filter(([ref]) => !["booking", "airbnb", "expedia", "direct", "blocked"].includes(ref))
       .reduce((sum, [, count]) => sum + count, 0)
 
     console.log(
-      `[Smoobu] Breakdown - Booking.com: ${bookingCount}, Airbnb: ${airbnbCount}, Expedia: ${expediaCount}, Direct: ${directCount}, Other: ${otherCount}`,
+      `[Smoobu] Breakdown - Booking.com: ${bookingCount}, Airbnb: ${airbnbCount}, Expedia: ${expediaCount}, Direct: ${directCount}, Blocked: ${blockedCount}, Other: ${otherCount}`,
     )
 
     let syncedCount = 0
@@ -64,19 +62,14 @@ export async function POST(request: Request) {
 
     for (const booking of smoobuBookings) {
       try {
-        // Determine source
-        let bookingSource: string
+        // Use the referer already mapped by smoobu-client convertToBooking
+        const bookingSource = booking.referer || "other"
         
-        if (booking.apiSourceId === SMOOBU_CHANNELS.BOOKING) {
-          bookingSource = "booking"
-        } else if (booking.apiSourceId === SMOOBU_CHANNELS.AIRBNB) {
-          bookingSource = "airbnb"
-        } else if (booking.apiSourceId === SMOOBU_CHANNELS.EXPEDIA) {
-          bookingSource = "expedia"
-        } else if (booking.apiSourceId === SMOOBU_CHANNELS.DIRECT) {
-          bookingSource = "direct"
-        } else {
-          bookingSource = booking.referer || "other"
+        // Skip blocked bookings (maintenance blocks, etc.)
+        if (bookingSource === "blocked" || booking.status === "blocked") {
+          console.log(`[Smoobu] Skipping blocked booking ${booking.id}`)
+          skippedCount++
+          continue
         }
 
         const checkInDate = parseDate(booking.arrival)
@@ -162,6 +155,7 @@ export async function POST(request: Request) {
         airbnb: airbnbCount,
         expedia: expediaCount,
         direct: directCount,
+        blocked: blockedCount,
         other: otherCount,
       },
     })
@@ -195,6 +189,8 @@ export async function GET(request: Request) {
       bookings = await smoobuClient.getAirbnbBookings(from, to)
     } else if (source === "expedia") {
       bookings = await smoobuClient.getExpediaBookings(from, to)
+    } else if (source === "direct") {
+      bookings = await smoobuClient.getDirectBookings(from, to)
     } else {
       bookings = await smoobuClient.getBookings(from, to)
     }

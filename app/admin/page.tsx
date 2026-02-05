@@ -126,7 +126,8 @@ function AdminInner() {
   const recent = currentAndUpcoming.slice(0, 5)
   const bookingComBookings = currentAndUpcoming.filter((b) => b.origin === "booking")
   const airbnbBookings = currentAndUpcoming.filter((b) => b.origin === "airbnb")
-  const siteBookings = currentAndUpcoming.filter((b) => b.origin === "site")
+  const expediaBookings = currentAndUpcoming.filter((b) => b.origin === "expedia")
+  const siteBookings = currentAndUpcoming.filter((b) => b.origin === "site" || b.origin === "direct")
 
   const formatDate = (dateString: string) => {
     try {
@@ -207,7 +208,7 @@ function AdminInner() {
             </TabsList>
 
             <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm">Prenotazioni Totali</CardTitle>
@@ -245,12 +246,24 @@ function AdminInner() {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Badge className="bg-emerald-600 text-xs">Sito Web</Badge>
+                      <Badge className="bg-yellow-600 text-xs">Expedia</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{expediaBookings.length}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Da Expedia</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Badge className="bg-emerald-600 text-xs">Dirette</Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold">{siteBookings.length}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Dal sito web</p>
+                    <p className="text-xs text-muted-foreground mt-1">Dirette / Sito web</p>
                   </CardContent>
                 </Card>
               </div>
@@ -286,7 +299,9 @@ function AdminInner() {
                                     ? "bg-blue-600 text-xs"
                                     : b.origin === "airbnb"
                                       ? "bg-pink-600 text-xs"
-                                      : "bg-emerald-600 text-xs"
+                                      : b.origin === "expedia"
+                                        ? "bg-yellow-600 text-xs"
+                                        : "bg-emerald-600 text-xs"
                                 }
                               >
                                 {b.origin}
@@ -361,8 +376,11 @@ function AdminInner() {
                       <TabsTrigger value="airbnb" className="whitespace-nowrap">
                         Airbnb ({airbnbBookings.length})
                       </TabsTrigger>
+                      <TabsTrigger value="expedia" className="whitespace-nowrap">
+                        Expedia ({expediaBookings.length})
+                      </TabsTrigger>
                       <TabsTrigger value="site" className="whitespace-nowrap">
-                        Sito Web ({siteBookings.length})
+                        Dirette ({siteBookings.length})
                       </TabsTrigger>
                       <TabsTrigger value="cancelled" className="whitespace-nowrap">
                         Cancellate ({cancelledBookings.length})
@@ -395,7 +413,9 @@ function AdminInner() {
                                       ? "bg-blue-600 text-xs"
                                       : b.origin === "airbnb"
                                         ? "bg-pink-600 text-xs"
-                                        : "bg-emerald-600 text-xs"
+                                        : b.origin === "expedia"
+                                          ? "bg-yellow-600 text-xs"
+                                          : "bg-emerald-600 text-xs"
                                   }
                                 >
                                   {b.origin}

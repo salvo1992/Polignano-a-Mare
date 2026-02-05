@@ -20,6 +20,7 @@ export function SmoobuSyncPanel() {
       airbnb: number
       expedia: number
       direct: number
+      blocked: number
       other: number
     }
   } | null>(null)

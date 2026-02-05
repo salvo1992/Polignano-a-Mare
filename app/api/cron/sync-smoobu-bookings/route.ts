@@ -9,7 +9,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 /**
  * Cron job che sincronizza prenotazioni da Smoobu e blocca/sblocca date automaticamente
- * - Legge prenotazioni da Smoobu (Booking.com, Airbnb, dirette)
+ * - Legge prenotazioni da Smoobu (Booking.com, Airbnb, Expedia, dirette)
  * - Sincronizza con Firebase
  * - Blocca automaticamente le date delle prenotazioni confermate
  * - Sblocca le date delle prenotazioni cancellate
@@ -51,15 +51,16 @@ export async function GET(request: Request) {
         const departureDate = new Date(booking.departure)
         if (departureDate < now) continue
 
-        // Determine source from channel
-        let bookingSource = "other"
-        const channelName = (booking.channelName || "").toLowerCase()
-        if (channelName.includes("booking")) bookingSource = "booking"
-        else if (channelName.includes("airbnb")) bookingSource = "airbnb"
-        else if (channelName.includes("expedia")) bookingSource = "expedia"
-        else if (booking.channelId === 70) bookingSource = "site"
+        // Use the referer already mapped by smoobu-client (uses correct channel IDs)
+        const bookingSource = booking.referer || "other"
         
-        if (bookingSource === "other") continue
+        // Skip blocked and unknown bookings
+        if (bookingSource === "blocked" || bookingSource === "other") {
+          continue
+        }
+        
+        // Map "direct" to "site" for consistency with existing data
+        const origin = bookingSource === "direct" ? "site" : bookingSource
 
         // Check if already exists by smoobuId or beds24Id (backward compat)
         const existingBySmoobu = await db
@@ -84,17 +85,17 @@ export async function GET(request: Request) {
             totalAmount: booking.price || 0,
             currency: "EUR",
             status: booking.status === "confirmed" ? "confirmed" : "pending",
-            origin: bookingSource,
+            origin: origin,
             roomId: booking.roomId.toString(),
             roomName: getRoomName(booking.roomId.toString()),
             smoobuId: booking.id,
-            channelId: booking.channelId,
-            channelName: booking.channelName,
+            channelId: booking.apiSourceId,
+            channelName: booking.apiSource,
             createdAt: booking.created || new Date().toISOString(),
             syncedAt: new Date().toISOString(),
           })
           syncedBookings++
-          console.log(`[Smoobu] Synced new booking ${booking.id} from ${bookingSource}`)
+          console.log(`[Smoobu] Synced new booking ${booking.id} from ${origin} (channel: ${booking.apiSource})`)
         }
       } catch (error) {
         console.error(`[Smoobu] Error syncing booking ${booking.id}:`, error)
