@@ -209,11 +209,15 @@ const filteredBookings = bookings.filter((booking) => {
           <span>Airbnb</span>
         </div>
         <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded bg-yellow-100 border border-yellow-300" />
+          <span>Expedia</span>
+        </div>
+        <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300" />
           <span>Sito Web</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-yellow-100 border border-yellow-400" />
+          <div className="w-3 h-3 rounded bg-orange-100 border border-orange-400" />
           <span>Manutenzione</span>
         </div>
       </div>
@@ -235,17 +239,20 @@ const filteredBookings = bookings.filter((booking) => {
           const blocked = isDateBlocked(day)
 
           let bgColor = "bg-green-50 border-green-200"
-          if (blocked) {
-            bgColor = "bg-yellow-50 border-yellow-300"
+          if (blocked && !hasBookings) {
+            bgColor = "bg-orange-50 border-orange-300"
           } else if (hasBookings) {
             const hasBookingCom = dayBookings.some((b) => b.origin === "booking")
             const hasAirbnb = dayBookings.some((b) => b.origin === "airbnb")
+            const hasExpedia = dayBookings.some((b) => b.origin === "expedia")
             const hasSite = dayBookings.some((b) => b.origin === "site")
 
             if (hasBookingCom) {
               bgColor = "bg-blue-50 border-blue-300"
             } else if (hasAirbnb) {
               bgColor = "bg-pink-50 border-pink-300"
+            } else if (hasExpedia) {
+              bgColor = "bg-yellow-50 border-yellow-300"
             } else if (hasSite) {
               bgColor = "bg-emerald-50 border-emerald-300"
             }
@@ -280,7 +287,9 @@ const filteredBookings = bookings.filter((booking) => {
                           ? "bg-blue-600 text-white"
                           : booking.origin === "airbnb"
                             ? "bg-pink-600 text-white"
-                            : "bg-emerald-600 text-white"
+                            : booking.origin === "expedia"
+                              ? "bg-yellow-600 text-white"
+                              : "bg-emerald-600 text-white"
                       }`}
                     >
                       {booking.origin}
@@ -336,7 +345,9 @@ const filteredBookings = bookings.filter((booking) => {
                           ? "bg-blue-600 text-xs"
                           : booking.origin === "airbnb"
                             ? "bg-pink-600 text-xs"
-                            : "bg-emerald-600 text-xs"
+                            : booking.origin === "expedia"
+                              ? "bg-yellow-600 text-xs"
+                              : "bg-emerald-600 text-xs"
                       }
                     >
                       {booking.origin}

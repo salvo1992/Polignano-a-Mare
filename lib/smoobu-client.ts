@@ -106,7 +106,7 @@ export interface SmoobuReview {
   rating: number
   comment: string
   guestName: string
-  source: "airbnb" | "booking" | "direct"
+  source: "airbnb" | "booking" | "expedia" | "direct"
   date: string
   response?: string
 }
@@ -281,6 +281,16 @@ class SmoobuClient {
     const airbnbBookings = allBookings.filter(b => b.apiSourceId === SMOOBU_CHANNELS.AIRBNB)
     console.log(`[Smoobu] Filtered ${airbnbBookings.length} Airbnb bookings from ${allBookings.length} total`)
     return airbnbBookings
+  }
+
+  /**
+   * Fetch bookings from Expedia only
+   */
+  async getExpediaBookings(from?: string, to?: string): Promise<SmoobuBooking[]> {
+    const allBookings = await this.getBookings(from, to)
+    const expediaBookings = allBookings.filter(b => b.apiSourceId === SMOOBU_CHANNELS.EXPEDIA)
+    console.log(`[Smoobu] Filtered ${expediaBookings.length} Expedia bookings from ${allBookings.length} total`)
+    return expediaBookings
   }
 
   /**
@@ -486,7 +496,7 @@ class SmoobuClient {
       const completedBookings = bookings.filter(b => 
         b.status === "confirmed" && 
         new Date(b.departure) < now &&
-        (b.referer === "airbnb" || b.referer === "booking")
+        (b.referer === "airbnb" || b.referer === "booking" || b.referer === "expedia")
       )
 
       console.log(`[Smoobu] Found ${completedBookings.length} completed channel bookings`)

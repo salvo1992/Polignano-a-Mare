@@ -22,6 +22,8 @@ export async function POST(request: Request) {
       smoobuBookings = await smoobuClient.getBookingComBookings(from, to)
     } else if (source === "airbnb") {
       smoobuBookings = await smoobuClient.getAirbnbBookings(from, to)
+    } else if (source === "expedia") {
+      smoobuBookings = await smoobuClient.getExpediaBookings(from, to)
     } else {
       smoobuBookings = await smoobuClient.getBookings(from, to)
     }
@@ -42,17 +44,19 @@ export async function POST(request: Request) {
 
     const bookingCount = breakdown[SMOOBU_CHANNELS.BOOKING] || 0
     const airbnbCount = breakdown[SMOOBU_CHANNELS.AIRBNB] || 0
+    const expediaCount = breakdown[SMOOBU_CHANNELS.EXPEDIA] || 0
     const directCount = breakdown[SMOOBU_CHANNELS.DIRECT] || 0
     const otherCount = Object.entries(breakdown)
       .filter(([id]) => ![
         String(SMOOBU_CHANNELS.BOOKING), 
         String(SMOOBU_CHANNELS.AIRBNB), 
+        String(SMOOBU_CHANNELS.EXPEDIA),
         String(SMOOBU_CHANNELS.DIRECT)
       ].includes(id))
       .reduce((sum, [, count]) => sum + count, 0)
 
     console.log(
-      `[Smoobu] Breakdown - Booking.com: ${bookingCount}, Airbnb: ${airbnbCount}, Direct: ${directCount}, Other: ${otherCount}`,
+      `[Smoobu] Breakdown - Booking.com: ${bookingCount}, Airbnb: ${airbnbCount}, Expedia: ${expediaCount}, Direct: ${directCount}, Other: ${otherCount}`,
     )
 
     let syncedCount = 0
@@ -67,6 +71,8 @@ export async function POST(request: Request) {
           bookingSource = "booking"
         } else if (booking.apiSourceId === SMOOBU_CHANNELS.AIRBNB) {
           bookingSource = "airbnb"
+        } else if (booking.apiSourceId === SMOOBU_CHANNELS.EXPEDIA) {
+          bookingSource = "expedia"
         } else if (booking.apiSourceId === SMOOBU_CHANNELS.DIRECT) {
           bookingSource = "direct"
         } else {
@@ -154,6 +160,7 @@ export async function POST(request: Request) {
       breakdown: {
         booking: bookingCount,
         airbnb: airbnbCount,
+        expedia: expediaCount,
         direct: directCount,
         other: otherCount,
       },
@@ -186,6 +193,8 @@ export async function GET(request: Request) {
       bookings = await smoobuClient.getBookingComBookings(from, to)
     } else if (source === "airbnb") {
       bookings = await smoobuClient.getAirbnbBookings(from, to)
+    } else if (source === "expedia") {
+      bookings = await smoobuClient.getExpediaBookings(from, to)
     } else {
       bookings = await smoobuClient.getBookings(from, to)
     }

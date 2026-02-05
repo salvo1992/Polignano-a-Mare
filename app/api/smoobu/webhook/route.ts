@@ -52,6 +52,8 @@ async function handleBookingUpdate(reservation: any) {
     source = "airbnb"
   } else if (channelId === SMOOBU_CHANNELS.BOOKING) {
     source = "booking"
+  } else if (channelId === SMOOBU_CHANNELS.EXPEDIA) {
+    source = "expedia"
   } else if (channelId === SMOOBU_CHANNELS.DIRECT) {
     source = "direct"
   }

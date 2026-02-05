@@ -18,6 +18,7 @@ export function SmoobuSyncPanel() {
     breakdown?: {
       booking: number
       airbnb: number
+      expedia: number
       direct: number
       other: number
     }
@@ -83,7 +84,7 @@ export function SmoobuSyncPanel() {
           <RefreshCw className="w-5 h-5" />
           Sincronizzazione Smoobu
         </CardTitle>
-        <CardDescription>Sincronizza prenotazioni da Airbnb e Booking.com</CardDescription>
+        <CardDescription>Sincronizza prenotazioni da Booking.com, Airbnb e Expedia</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
@@ -129,7 +130,7 @@ export function SmoobuSyncPanel() {
                   {syncResult.breakdown && (
                     <div className="mt-3 pt-3 border-t border-green-300">
                       <p className="text-xs font-medium text-green-900 mb-2">Prenotazioni per fonte:</p>
-                      <div className="grid grid-cols-3 gap-2 text-xs text-green-800">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-green-800">
                         <div className="flex items-center gap-2">
                           <Badge className="bg-blue-600 text-white">Booking.com</Badge>
                           <span className="font-semibold">{syncResult.breakdown.booking}</span>
@@ -137,6 +138,10 @@ export function SmoobuSyncPanel() {
                         <div className="flex items-center gap-2">
                           <Badge className="bg-pink-600 text-white">Airbnb</Badge>
                           <span className="font-semibold">{syncResult.breakdown.airbnb}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-yellow-600 text-white">Expedia</Badge>
+                          <span className="font-semibold">{syncResult.breakdown.expedia}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge className="bg-green-600 text-white">Dirette</Badge>
@@ -188,9 +193,10 @@ export function SmoobuSyncPanel() {
             </div>
           </div>
 
-          <div className="flex gap-2 pt-2">
+          <div className="flex flex-wrap gap-2 pt-2">
             <Badge className="bg-blue-600">Booking.com</Badge>
             <Badge className="bg-pink-600">Airbnb</Badge>
+            <Badge className="bg-yellow-600">Expedia</Badge>
             <Badge className="bg-green-600">Dirette</Badge>
           </div>
         </div>

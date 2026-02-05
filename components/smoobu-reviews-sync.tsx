@@ -53,7 +53,7 @@ export function SmoobuReviewsSync() {
           <MessageCircle className="w-5 h-5" />
           {t("reviewsSync")}
         </CardTitle>
-        <CardDescription>Sincronizza recensioni da Smoobu (Booking.com e Airbnb)</CardDescription>
+        <CardDescription>Sincronizza recensioni da Smoobu (Booking.com, Airbnb e Expedia)</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
@@ -109,7 +109,7 @@ export function SmoobuReviewsSync() {
 
         <div className="pt-4 border-t space-y-3">
           <h4 className="text-sm font-medium">{t("reviewsSources")}</h4>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Badge className="bg-blue-600">
               <Star className="w-3 h-3 mr-1" />
               Booking.com
@@ -118,9 +118,13 @@ export function SmoobuReviewsSync() {
               <Star className="w-3 h-3 mr-1" />
               Airbnb
             </Badge>
+            <Badge className="bg-yellow-600">
+              <Star className="w-3 h-3 mr-1" />
+              Expedia
+            </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Le recensioni vengono recuperate dai messaggi degli ospiti nelle prenotazioni completate tramite Smoobu.
+            Le recensioni vengono recuperate dai messaggi degli ospiti nelle prenotazioni completate su Booking.com, Airbnb e Expedia tramite Smoobu.
           </p>
         </div>
       </CardContent>

@@ -56,6 +56,7 @@ export async function GET(request: Request) {
         const channelName = (booking.channelName || "").toLowerCase()
         if (channelName.includes("booking")) bookingSource = "booking"
         else if (channelName.includes("airbnb")) bookingSource = "airbnb"
+        else if (channelName.includes("expedia")) bookingSource = "expedia"
         else if (booking.channelId === 70) bookingSource = "site"
         
         if (bookingSource === "other") continue
