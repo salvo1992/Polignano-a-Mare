@@ -689,11 +689,19 @@ export const LanguageProvider = ({ children }) => {
 
   const currentLanguage = translations[language]
 
+  const t = (key: string, fallback?: string): string => {
+    return currentLanguage?.[key] || fallback || key
+  }
+
+  const setLanguage = (lang: string) => {
+    changeLanguage(lang)
+  }
+  
   return (
-    <LanguageContext.Provider value={{ language, changeLanguage, currentLanguage }}>
-      {children}
-    </LanguageContext.Provider>
+  <LanguageContext.Provider value={{ language, setLanguage, changeLanguage, currentLanguage, t }}>
+  {children}
+  </LanguageContext.Provider>
   )
-}
+  }
 
 export const useLanguage = () => useContext(LanguageContext)

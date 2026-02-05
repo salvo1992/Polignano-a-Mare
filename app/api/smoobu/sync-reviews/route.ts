@@ -1,79 +1,81 @@
 import { NextResponse } from "next/server"
 import { smoobuClient } from "@/lib/smoobu-client"
-import { getFirestore } from "@/lib/firebase-admin"
+import { db } from "@/lib/firebase"
+import { collection, query, where, getDocs, addDoc, limit as firestoreLimit } from "firebase/firestore"
 
 /**
- * Sync reviews from Smoobu (Booking.com and Airbnb) to Firebase
- * Smoobu aggregates reviews from connected channels
+ * Sync completed bookings from Smoobu as review entries in Firebase.
+ * Smoobu does NOT have a reviews API - reviews live on Airbnb/Booking.com/Expedia.
+ * This creates review entries from completed bookings so the admin can track them.
  */
 export async function POST() {
   try {
     const reviews = await smoobuClient.getReviews()
 
-    console.log(`[Smoobu] Retrieved ${reviews.length} total reviews`)
+    console.log(`[Smoobu] Retrieved ${reviews.length} completed bookings for review tracking`)
 
     if (reviews.length === 0) {
       return NextResponse.json({
         success: true,
-        message: "Nessuna recensione trovata. Le recensioni vengono recuperate dai messaggi degli ospiti delle prenotazioni completate su Booking.com e Airbnb.",
+        message: "Nessuna prenotazione completata trovata per il tracking delle recensioni.",
         synced: 0,
         skipped: 0,
         total: 0,
       })
     }
 
-    const db = getFirestore()
-    const reviewsRef = db.collection("reviews")
+    const reviewsRef = collection(db, "reviews")
 
     let synced = 0
     let skipped = 0
 
     for (const review of reviews) {
       try {
-        const uniqueId = review.id || `smoobu_${review.bookingId}_${review.guestName}_${review.date}`
+        const uniqueId = review.id || `smoobu_${review.bookingId}`
 
-        // Check if review already exists
-        const existingQuery = await reviewsRef.where("smoobuId", "==", uniqueId).limit(1).get()
+        // Check if review already exists by smoobuId
+        const existingQuery = query(reviewsRef, where("smoobuId", "==", uniqueId), firestoreLimit(1))
+        const existingSnap = await getDocs(existingQuery)
 
-        if (!existingQuery.empty) {
-          console.log(`[Smoobu] Review ${uniqueId} already exists, skipping`)
+        if (!existingSnap.empty) {
           skipped++
           continue
         }
 
-        // Also check by old beds24Id in case of migrated reviews
-        const existingBeds24Query = await reviewsRef.where("beds24Id", "==", uniqueId).limit(1).get()
-        if (!existingBeds24Query.empty) {
+        // Also check by old beds24Id for migrated reviews
+        const existingBeds24Query = query(reviewsRef, where("beds24Id", "==", uniqueId), firestoreLimit(1))
+        const existingBeds24Snap = await getDocs(existingBeds24Query)
+        if (!existingBeds24Snap.empty) {
           skipped++
           continue
         }
 
-        if (!review.comment && !review.rating) {
+        // Skip blocked entries
+        if (!review.guestName || review.guestName.includes("BLOCKED")) {
           skipped++
           continue
         }
 
-        // Add review to Firebase
-        await reviewsRef.add({
+        // Add review entry to Firebase
+        await addDoc(reviewsRef, {
           smoobuId: uniqueId,
           bookingId: review.bookingId,
           roomId: review.roomId,
           name: review.guestName,
-          rating: review.rating,
+          rating: review.rating || 0,
           comment: review.comment || "",
           source: review.source,
           date: review.date,
-          response: review.response || null,
+          response: null,
           verified: true,
           synced: true,
           syncedAt: new Date().toISOString(),
           createdAt: review.date,
         })
 
-        console.log(`[Smoobu] Successfully synced review ${uniqueId}`)
         synced++
       } catch (error) {
-        console.error(`[Smoobu] Error syncing review ${review.id}:`, error)
+        console.error(`[Smoobu] Error syncing review entry ${review.id}:`, error)
         skipped++
       }
     }
@@ -82,8 +84,8 @@ export async function POST() {
       success: true,
       message:
         synced > 0
-          ? `Sincronizzate ${synced} recensioni da Smoobu (Booking.com e Airbnb)`
-          : "Nessuna nuova recensione da sincronizzare",
+          ? `Sincronizzate ${synced} voci da prenotazioni completate (Booking.com, Airbnb, Expedia)`
+          : "Nessuna nuova voce da sincronizzare. Tutte le prenotazioni completate sono gia' state importate.",
       synced,
       skipped,
       total: reviews.length,
@@ -94,7 +96,7 @@ export async function POST() {
     return NextResponse.json(
       {
         success: false,
-        error: "Errore durante la sincronizzazione delle recensioni",
+        error: "Errore durante la sincronizzazione",
         details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },
@@ -103,7 +105,7 @@ export async function POST() {
 }
 
 /**
- * Get reviews from Smoobu (without syncing)
+ * Get completed bookings from Smoobu for review tracking
  */
 export async function GET() {
   try {

@@ -68,6 +68,8 @@ export async function GET(request: Request) {
           const checkInDate = new Date(booking.arrival + "T00:00:00.000Z").toISOString()
           const checkOutDate = new Date(booking.departure + "T00:00:00.000Z").toISOString()
 
+          const localRoomId = resolveLocalRoomId(booking.roomId.toString(), booking.apartmentName)
+          
           await db.collection("bookings").add({
             checkIn: checkInDate,
             checkOut: checkOutDate,
@@ -81,8 +83,8 @@ export async function GET(request: Request) {
             currency: "EUR",
             status: booking.status === "confirmed" ? "confirmed" : "pending",
             origin: bookingSource,
-            roomId: booking.roomId.toString(),
-            roomName: getRoomName(booking.roomId.toString()),
+            roomId: localRoomId,
+            roomName: getRoomName(localRoomId),
             smoobuId: booking.id,
             channelId: booking.channelId,
             channelName: booking.channelName,
@@ -139,9 +141,16 @@ export async function GET(request: Request) {
           // Block on Smoobu if it's a website booking without smoobuId
           if (booking.origin === "site" && !booking.smoobuId) {
             try {
-              console.log(`[Smoobu] Blocking dates on Smoobu for website booking ${booking.id}`)
+              // Resolve Smoobu apartment ID from Firebase roomId
+              const apartments = await smoobuClient.getApartmentsCached()
+              const ROOM_TO_APT_NAME: Record<string, string> = { "1": "acies", "2": "aquarum" }
+              const aptName = ROOM_TO_APT_NAME[booking.roomId]
+              const apt = aptName ? apartments.find(a => a.name.toLowerCase() === aptName) : null
+              const smoobuAptId = apt ? String(apt.id) : booking.smoobuApartmentId || booking.roomId
+
+              console.log(`[Smoobu] Blocking dates on Smoobu for website booking ${booking.id}, apt: ${smoobuAptId}`)
               const blockResult = await smoobuClient.blockDates(
-                booking.roomId,
+                smoobuAptId,
                 fromDate,
                 toDate,
                 `website-booking-${booking.id}`
@@ -311,10 +320,28 @@ export async function GET(request: Request) {
   }
 }
 
+// Smoobu apartment name -> Firebase room ID mapping
+const SMOOBU_NAME_TO_ROOM_ID: Record<string, string> = {
+  "acies": "1",
+  "aquarum": "2",
+}
+
+// Firebase room ID -> Firebase room name
 function getRoomName(roomId: string): string {
   const roomMap: Record<string, string> = {
-    "2": "Camera Deluxe",
-    "3": "Camera Suite",
+  "1": "Camera Familiare con Balcone",
+  "2": "Camera Matrimoniale con Vasca Idromassaggio",
   }
   return roomMap[roomId] || `Camera ${roomId}`
-}
+  }
+
+function resolveLocalRoomId(smoobuApartmentId: string, apartmentName?: string): string {
+  if (apartmentName) {
+    const normalized = apartmentName.toLowerCase().trim()
+    if (SMOOBU_NAME_TO_ROOM_ID[normalized]) return SMOOBU_NAME_TO_ROOM_ID[normalized]
+    for (const [key, roomId] of Object.entries(SMOOBU_NAME_TO_ROOM_ID)) {
+      if (normalized.includes(key) || key.includes(normalized)) return roomId
+    }
+  }
+  return smoobuApartmentId
+  }
