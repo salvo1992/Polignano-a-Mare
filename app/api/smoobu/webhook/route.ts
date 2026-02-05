@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/firebase"
 import { collection, doc, setDoc, query, where, getDocs } from "firebase/firestore"
-import { SMOOBU_CHANNELS, isAirbnbChannel, isBlockedChannel } from "@/lib/smoobu-client"
+import { detectSourceFromChannelName } from "@/lib/smoobu-client"
 
 /**
  * Webhook endpoint for Smoobu to push real-time booking updates
@@ -44,24 +44,14 @@ export async function POST(request: Request) {
 }
 
 async function handleBookingUpdate(reservation: any) {
-  const channelId = reservation.channel?.id
-  const channelName = (reservation.channel?.name || "").toLowerCase()
+  const channelName = reservation.channel?.name || ""
   
-  // Determine source from channel ID (using official Smoobu channel IDs)
-  let source = "direct"
-  if (isAirbnbChannel(channelId) || channelName.includes("airbnb")) {
-    source = "airbnb"
-  } else if (channelId === SMOOBU_CHANNELS.BOOKING || channelName.includes("booking")) {
-    source = "booking"
-  } else if (channelId === SMOOBU_CHANNELS.EXPEDIA || channelName.includes("expedia")) {
-    source = "expedia"
-  } else if (channelId === SMOOBU_CHANNELS.DIRECT || channelName.includes("homepage")) {
-    source = "direct"
-  }
+  // Determine source from channel NAME (channel IDs are dynamic per Smoobu user)
+  const source = detectSourceFromChannelName(channelName)
 
   // Skip blocked bookings
-  if (reservation["is-blocked-booking"] || isBlockedChannel(channelId)) {
-    console.log(`[Smoobu] Skipping blocked booking (channelId: ${channelId})`)
+  if (reservation["is-blocked-booking"]) {
+    console.log(`[Smoobu] Skipping blocked booking`)
     return
   }
 
@@ -89,8 +79,8 @@ async function handleBookingUpdate(reservation: any) {
     roomName: reservation.apartment?.name || getRoomName(reservation.apartment?.id?.toString()),
     smoobuId: smoobuId,
     smoobuApartmentId: reservation.apartment?.id?.toString(),
-    channelId: channelId,
-    channelName: reservation.channel?.name || source,
+    channelId: reservation.channel?.id,
+    channelName: channelName || source,
     createdAt: reservation["created-at"] || new Date().toISOString(),
     syncedAt: new Date().toISOString(),
   }

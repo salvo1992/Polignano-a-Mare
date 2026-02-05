@@ -9,29 +9,29 @@
 const SMOOBU_API_URL = "https://login.smoobu.com/api"
 const SMOOBU_API_KEY = process.env.SMOOBU_API_KEY
 
-// Official Smoobu Channel IDs (from docs.smoobu.com)
+// Channel IDs in Smoobu
+// NOTE: In Smoobu, channel IDs are DYNAMIC per user (e.g. 465614 = Booking.com for one user).
+// Only the following IDs are FIXED across all users:
 export const SMOOBU_CHANNELS = {
-  DIRECT: parseInt(process.env.SMOOBU_CHANNEL_ID || "70"),  // Homepage / Direct bookings
-  LOCKED: parseInt(process.env.SMOOBU_CHANNEL_ID_Locked || "11"), // Blocked channel
-  BLOCKED_AUTO: 110,   // Blocked channel auto
-  AIRBNB_ICAL: 1,      // Airbnb iCal
-  AIRBNB: 74,           // Airbnb (main)
-  BOOKING: 14,          // Booking.com
-  EXPEDIA: 18,          // Expedia
-  VRBO: 28,             // VRBO / HomeAway
-  TRIPADVISOR: 24,      // TripAdvisor
-  AGODA: 68,            // Agoda
-  TRIP_COM: 109,        // Trip.com / Ctrip
+  DIRECT: parseInt(process.env.SMOOBU_CHANNEL_ID || "70"),   // Direct/manual bookings
+  LOCKED: parseInt(process.env.SMOOBU_CHANNEL_ID_Locked || "11"), // Blocked channel (default: 11)
+  BLOCKED_AUTO: 110,  // Blocked channel auto
 }
 
-// Helper: check if a channel ID is Airbnb (iCal or main)
-export function isAirbnbChannel(channelId: number): boolean {
-  return channelId === SMOOBU_CHANNELS.AIRBNB || channelId === SMOOBU_CHANNELS.AIRBNB_ICAL
-}
-
-// Helper: check if a channel ID is a blocked/maintenance channel
-export function isBlockedChannel(channelId: number): boolean {
-  return channelId === SMOOBU_CHANNELS.LOCKED || channelId === SMOOBU_CHANNELS.BLOCKED_AUTO || channelId === 11 || channelId === 90 || channelId === 110
+/**
+ * Detect booking source from channel name (case-insensitive)
+ * This is the CORRECT way to identify sources in Smoobu since channel IDs are dynamic per user
+ */
+export function detectSourceFromChannelName(channelName: string): string {
+  const name = (channelName || "").toLowerCase()
+  if (name.includes("booking")) return "booking"
+  if (name.includes("airbnb")) return "airbnb"
+  if (name.includes("expedia")) return "expedia"
+  if (name.includes("vrbo") || name.includes("homeaway")) return "vrbo"
+  if (name.includes("tripadvisor")) return "tripadvisor"
+  if (name.includes("blocked")) return "blocked"
+  if (name.includes("api") || name.includes("manual")) return "direct"
+  return "direct"
 }
 
 // Room name to Smoobu apartment ID mapping
@@ -108,6 +108,8 @@ export interface SmoobuBooking {
   referer: string
   apiSourceId?: number
   apiSource?: string
+  channelId?: number
+  channelName?: string
   created: string
   modified: string
   notes?: string
@@ -200,44 +202,10 @@ class SmoobuClient {
    * Convert Smoobu reservation to our standard booking format
    */
   private convertToBooking(reservation: SmoobuReservation): SmoobuBooking {
-    // Map channel ID to source name using official Smoobu channel IDs
-    const channelId = reservation.channel?.id
-    const channelName = (reservation.channel?.name || "").toLowerCase()
-    let referer = "direct"
-    let apiSource = "Direct"
-    
-    // Check by channel ID first, then by name as fallback
-    if (isAirbnbChannel(channelId)) {
-      referer = "airbnb"
-      apiSource = "Airbnb"
-    } else if (channelId === SMOOBU_CHANNELS.BOOKING || channelName.includes("booking")) {
-      referer = "booking"
-      apiSource = "Booking.com"
-    } else if (channelId === SMOOBU_CHANNELS.EXPEDIA || channelName.includes("expedia")) {
-      referer = "expedia"
-      apiSource = "Expedia"
-    } else if (channelId === SMOOBU_CHANNELS.VRBO || channelName.includes("vrbo") || channelName.includes("homeaway")) {
-      referer = "vrbo"
-      apiSource = "VRBO"
-    } else if (channelId === SMOOBU_CHANNELS.AGODA || channelName.includes("agoda")) {
-      referer = "agoda"
-      apiSource = "Agoda"
-    } else if (channelId === SMOOBU_CHANNELS.TRIP_COM || channelName.includes("trip.com") || channelName.includes("ctrip")) {
-      referer = "trip"
-      apiSource = "Trip.com"
-    } else if (isBlockedChannel(channelId)) {
-      referer = "blocked"
-      apiSource = "Blocked"
-    } else if (channelId === SMOOBU_CHANNELS.DIRECT || channelName.includes("homepage") || channelName.includes("direct")) {
-      referer = "direct"
-      apiSource = "Direct"
-    } else {
-      // Fallback: try to match by channel name
-      if (channelName.includes("airbnb")) { referer = "airbnb"; apiSource = "Airbnb" }
-      else if (channelName.includes("booking")) { referer = "booking"; apiSource = "Booking.com" }
-      else if (channelName.includes("expedia")) { referer = "expedia"; apiSource = "Expedia" }
-      else { referer = "other"; apiSource = reservation.channel?.name || "Other" }
-    }
+    // Use channel NAME to detect source (channel IDs are dynamic per Smoobu user)
+    const channelName = reservation.channel?.name || "Direct"
+    const referer = detectSourceFromChannelName(channelName)
+    const apiSource = channelName
 
     return {
       id: reservation.id.toString(),
@@ -251,10 +219,12 @@ class SmoobuClient {
       email: reservation.email || "",
       phone: reservation.phone || "",
       price: reservation.price || 0,
-      status: (reservation["is-blocked-booking"] || isBlockedChannel(reservation.channel?.id)) ? "blocked" : "confirmed",
-      referer: (reservation["is-blocked-booking"] || isBlockedChannel(reservation.channel?.id)) ? "blocked" : referer,
+      status: reservation["is-blocked-booking"] ? "blocked" : "confirmed",
+      referer,
       apiSourceId: reservation.channel?.id,
       apiSource,
+      channelId: reservation.channel?.id,
+      channelName,
       created: reservation["created-at"],
       modified: reservation["modified-at"],
       notes: reservation.notice || "",
@@ -268,34 +238,59 @@ class SmoobuClient {
    * @param apartmentId - Optional apartment ID to filter by
    */
   async getBookings(from?: string, to?: string, apartmentId?: string): Promise<SmoobuBooking[]> {
-    const params = new URLSearchParams()
-    
-    if (from) params.append("from", from)
-    if (to) params.append("to", to)
-    if (apartmentId) params.append("apartmentId", apartmentId)
-    params.append("pageSize", "100")
+    const allReservations: SmoobuReservation[] = []
+    let page = 1
+    let hasMore = true
 
-    const endpoint = `/reservations?${params.toString()}`
-    
-    try {
-      const response = await this.request<{ bookings: SmoobuReservation[] }>(endpoint)
-      const reservations = response.bookings || []
+    while (hasMore) {
+      const params = new URLSearchParams()
+      if (from) params.append("from", from)
+      if (to) params.append("to", to)
+      if (apartmentId) params.append("apartmentId", apartmentId)
+      params.append("pageSize", "100")
+      params.append("page", String(page))
+
+      const endpoint = `/reservations?${params.toString()}`
       
-      console.log(`[Smoobu] Retrieved ${reservations.length} reservations`)
-      
-      // Log channel breakdown for debugging
-      const channelBreakdown = reservations.reduce((acc, r) => {
-        const key = `${r.channel?.id}:${r.channel?.name || "unknown"}`
-        acc[key] = (acc[key] || 0) + 1
-        return acc
-      }, {} as Record<string, number>)
-      console.log(`[Smoobu] Channel breakdown:`, JSON.stringify(channelBreakdown))
-      
-      return reservations.map(r => this.convertToBooking(r))
-    } catch (error) {
-      console.error("[Smoobu] Error fetching bookings:", error)
-      throw error
+      try {
+        const response = await this.request<{ 
+          bookings: SmoobuReservation[]
+          page_count: number
+          page: number
+          total_items: number
+        }>(endpoint)
+        
+        const reservations = response.bookings || []
+        allReservations.push(...reservations)
+        
+        console.log(`[Smoobu] Page ${page}: ${reservations.length} reservations (total so far: ${allReservations.length}/${response.total_items || "?"})`)
+        
+        // Log channel names for debugging
+        if (page === 1 && reservations.length > 0) {
+          const channels = [...new Set(reservations.map(r => `${r.channel?.name || "unknown"} (id:${r.channel?.id})`))]
+          console.log(`[Smoobu] Channels found:`, channels)
+        }
+        
+        hasMore = page < (response.page_count || 1)
+        page++
+      } catch (error) {
+        console.error("[Smoobu] Error fetching bookings page", page, ":", error)
+        throw error
+      }
     }
+
+    console.log(`[Smoobu] Total reservations retrieved: ${allReservations.length}`)
+
+    const bookings = allReservations.map(r => this.convertToBooking(r))
+    
+    // Log breakdown by source
+    const sourceBreakdown: Record<string, number> = {}
+    for (const b of bookings) {
+      sourceBreakdown[b.referer] = (sourceBreakdown[b.referer] || 0) + 1
+    }
+    console.log(`[Smoobu] Bookings by source (from channel names):`, sourceBreakdown)
+    
+    return bookings
   }
 
   /**
@@ -309,7 +304,7 @@ class SmoobuClient {
   }
 
   /**
-   * Fetch bookings from Airbnb only (includes both iCal channel 1 and main channel 74)
+   * Fetch bookings from Airbnb only
    */
   async getAirbnbBookings(from?: string, to?: string): Promise<SmoobuBooking[]> {
     const allBookings = await this.getBookings(from, to)
@@ -319,7 +314,7 @@ class SmoobuClient {
   }
 
   /**
-   * Fetch bookings from Expedia only (channel 18)
+   * Fetch bookings from Expedia only
    */
   async getExpediaBookings(from?: string, to?: string): Promise<SmoobuBooking[]> {
     const allBookings = await this.getBookings(from, to)
@@ -329,12 +324,12 @@ class SmoobuClient {
   }
 
   /**
-   * Fetch direct bookings only (channel 70 / Homepage)
+   * Fetch direct bookings only
    */
   async getDirectBookings(from?: string, to?: string): Promise<SmoobuBooking[]> {
     const allBookings = await this.getBookings(from, to)
     const directBookings = allBookings.filter(b => b.referer === "direct")
-    console.log(`[Smoobu] Filtered ${directBookings.length} Direct bookings from ${allBookings.length} total`)
+    console.log(`[Smoobu] Filtered ${directBookings.length} direct bookings from ${allBookings.length} total`)
     return directBookings
   }
 

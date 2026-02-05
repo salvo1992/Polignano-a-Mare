@@ -89,9 +89,7 @@ export function GuestsTracking() {
                         ? "bg-blue-600"
                         : booking.origin === "airbnb"
                           ? "bg-pink-600"
-                          : booking.origin === "expedia"
-                            ? "bg-yellow-600"
-                            : "bg-emerald-600"
+                          : "bg-emerald-600"
                     }
                   >
                     {booking.origin}
