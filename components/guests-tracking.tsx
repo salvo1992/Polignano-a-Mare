@@ -84,15 +84,17 @@ export function GuestsTracking() {
                 </h4>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge
-                    className={
+                    className={`text-white ${
                       booking.origin === "booking"
                         ? "bg-blue-600"
                         : booking.origin === "airbnb"
                           ? "bg-pink-600"
-                          : "bg-emerald-600"
-                    }
+                          : booking.origin === "expedia"
+                            ? "bg-yellow-600"
+                            : "bg-emerald-600"
+                    }`}
                   >
-                    {booking.origin}
+                    {booking.origin === "direct" ? "Diretta" : booking.origin}
                   </Badge>
                   {status === "current" && <Badge className="bg-green-600">In Casa</Badge>}
                   {status === "upcoming" && <Badge className="bg-orange-600">In Arrivo</Badge>}

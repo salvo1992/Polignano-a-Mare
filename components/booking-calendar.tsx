@@ -196,7 +196,7 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300" />
-            <span>Sito Web</span>
+            <span>Sito / Dirette</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-orange-100 border border-orange-400" />
@@ -227,7 +227,7 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
               const hasBookingCom = dayBookings.some((b) => b.origin === "booking")
               const hasAirbnb = dayBookings.some((b) => b.origin === "airbnb")
               const hasExpedia = dayBookings.some((b) => b.origin === "expedia")
-              const hasSite = dayBookings.some((b) => b.origin === "site")
+              const hasSite = dayBookings.some((b) => b.origin === "site" || b.origin === "direct")
 
               if (hasBookingCom) {
                 bgColor = "bg-blue-50 border-blue-300"
@@ -274,7 +274,7 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
                                 : "bg-emerald-600 text-white"
                         }`}
                       >
-                        {booking.origin}
+                        {booking.origin === "direct" ? "diretta" : booking.origin}
                       </Badge>
                     ))}
                     {dayBookings.length > 1 && (
@@ -327,17 +327,17 @@ export function BookingCalendar({ roomId }: BookingCalendarProps) {
                     </div>
                     <div className="flex gap-2 items-start sm:flex-col sm:items-end">
                       <Badge
-                        className={
+                        className={`text-xs text-white ${
                           booking.origin === "booking"
-                            ? "bg-blue-600 text-xs"
+                            ? "bg-blue-600"
                             : booking.origin === "airbnb"
-                              ? "bg-pink-600 text-xs"
+                              ? "bg-pink-600"
                               : booking.origin === "expedia"
-                                ? "bg-yellow-600 text-xs"
-                                : "bg-emerald-600 text-xs"
-                        }
+                                ? "bg-yellow-600"
+                                : "bg-emerald-600"
+                        }`}
                       >
-                        {booking.origin}
+                        {booking.origin === "direct" ? "Diretta" : booking.origin}
                       </Badge>
                       <Badge
                         variant="outline"
