@@ -2,18 +2,37 @@
 
 import { createContext, useContext, useState } from "react"
 
-const LanguageContext = createContext()
+const LanguageContext = createContext({
+  language: "en",
+  setLanguage: (_lang) => {},
+  changeLanguage: (_lang) => {},
+  currentLanguage: {},
+  t: (key, fallback) => fallback || key,
+})
 
 export const LanguageProvider = ({ children }) => {
-  const [language, setLanguage] = useState("en")
+  const [language, setLang] = useState("en")
 
   const changeLanguage = (newLanguage) => {
-    setLanguage(newLanguage)
+    setLang(newLanguage)
   }
 
   // Translations object
   const translations = {
     it: {
+      home: "Home",
+      rooms: "Camere",
+      services: "Servizi",
+      booking: "Prenota",
+      contacts: "Contatti",
+      login: "Accedi",
+      logout: "Esci",
+      register: "Registrati",
+      bookNow: "Prenota Ora",
+      selectLanguage: "Lingua",
+      admin: "Pannello Admin",
+      user: "Area Utente",
+      whatsappMessage: "Ciao! Vorrei informazioni su AL 22 Suite & SPA",
       myAccount: "Il Mio Account",
       manageProfile: "Gestisci il tuo profilo e le prenotazioni",
       memberSince: "Membro dal",
@@ -147,6 +166,19 @@ export const LanguageProvider = ({ children }) => {
       tryAgainLater: "Il pagamento è stato annullato. Puoi riprovare quando vuoi.",
     },
     en: {
+      home: "Home",
+      rooms: "Rooms",
+      services: "Services",
+      booking: "Book",
+      contacts: "Contacts",
+      login: "Login",
+      logout: "Logout",
+      register: "Register",
+      bookNow: "Book Now",
+      selectLanguage: "Language",
+      admin: "Admin Panel",
+      user: "User Area",
+      whatsappMessage: "Hi! I would like information about AL 22 Suite & SPA",
       myAccount: "My Account",
       manageProfile: "Manage your profile and bookings",
       memberSince: "Member since",
@@ -283,6 +315,19 @@ export const LanguageProvider = ({ children }) => {
       tryAgainLater: "Payment was cancelled. You can try again later.",
     },
     fr: {
+      home: "Accueil",
+      rooms: "Chambres",
+      services: "Services",
+      booking: "Reserver",
+      contacts: "Contacts",
+      login: "Connexion",
+      logout: "Deconnexion",
+      register: "Inscription",
+      bookNow: "Reserver",
+      selectLanguage: "Langue",
+      admin: "Panneau Admin",
+      user: "Espace Utilisateur",
+      whatsappMessage: "Bonjour! Je voudrais des informations sur AL 22 Suite & SPA",
       myAccount: "Mon Compte",
       manageProfile: "Gérez votre profil et vos réservations",
       memberSince: "Membre depuis",
@@ -416,6 +461,19 @@ export const LanguageProvider = ({ children }) => {
       tryAgainLater: "Le paiement a été annulé. Vous pouvez réessayer plus tard.",
     },
     es: {
+      home: "Inicio",
+      rooms: "Habitaciones",
+      services: "Servicios",
+      booking: "Reservar",
+      contacts: "Contactos",
+      login: "Iniciar Sesion",
+      logout: "Cerrar Sesion",
+      register: "Registrarse",
+      bookNow: "Reservar Ahora",
+      selectLanguage: "Idioma",
+      admin: "Panel Admin",
+      user: "Area de Usuario",
+      whatsappMessage: "Hola! Me gustaria informacion sobre AL 22 Suite & SPA",
       myAccount: "Mi Cuenta",
       manageProfile: "Gestiona tu perfil y reservas",
       memberSince: "Miembro desde",
@@ -549,6 +607,19 @@ export const LanguageProvider = ({ children }) => {
       tryAgainLater: "El pago fue cancelado. Puedes intentar más tarde.",
     },
     de: {
+      home: "Startseite",
+      rooms: "Zimmer",
+      services: "Dienstleistungen",
+      booking: "Buchen",
+      contacts: "Kontakt",
+      login: "Anmelden",
+      logout: "Abmelden",
+      register: "Registrieren",
+      bookNow: "Jetzt Buchen",
+      selectLanguage: "Sprache",
+      admin: "Admin-Bereich",
+      user: "Benutzerbereich",
+      whatsappMessage: "Hallo! Ich haette gerne Informationen ueber AL 22 Suite & SPA",
       myAccount: "Mein Konto",
       manageProfile: "Verwalten Sie Ihr Profil und Ihre Buchungen",
       memberSince: "Mitglied seit",
@@ -689,12 +760,12 @@ export const LanguageProvider = ({ children }) => {
 
   const currentLanguage = translations[language]
 
-  const t = (key: string, fallback?: string): string => {
+  const t = (key, fallback) => {
     return currentLanguage?.[key] || fallback || key
   }
 
-  const setLanguage = (lang: string) => {
-    changeLanguage(lang)
+  const setLanguage = (lang) => {
+    setLang(lang)
   }
   
   return (
