@@ -10,7 +10,9 @@ import { Menu, X, User, LogOut, Home, Bed, Calendar, Phone, Crown, Sparkles, Sta
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const { t, language, setLanguage } = useLanguage()
+  const langCtx = useLanguage()
+  console.log("[v0] Header langCtx:", langCtx, "t type:", typeof langCtx?.t)
+  const { t, language, setLanguage } = langCtx
   const { user, logout } = useAuth()
 
   const handleLogout = () => {

@@ -2,13 +2,7 @@
 
 import { createContext, useContext, useState } from "react"
 
-const LanguageContext = createContext({
-  language: "en",
-  setLanguage: (_lang) => {},
-  changeLanguage: (_lang) => {},
-  currentLanguage: {},
-  t: (key, fallback) => fallback || key,
-})
+const LanguageContext = createContext(null)
 
 export const LanguageProvider = ({ children }) => {
   const [language, setLang] = useState("en")
@@ -760,19 +754,36 @@ export const LanguageProvider = ({ children }) => {
 
   const currentLanguage = translations[language]
 
-  const t = (key, fallback) => {
+  function t(key, fallback) {
     return currentLanguage?.[key] || fallback || key
   }
 
-  const setLanguage = (lang) => {
+  function setLanguage(lang) {
     setLang(lang)
   }
+
+  const contextValue = { language, setLanguage, changeLanguage, currentLanguage, t }
+  console.log("[v0] LanguageProvider rendering, t type:", typeof contextValue.t)
   
   return (
-  <LanguageContext.Provider value={{ language, setLanguage, changeLanguage, currentLanguage, t }}>
+  <LanguageContext.Provider value={contextValue}>
   {children}
   </LanguageContext.Provider>
   )
   }
 
-export const useLanguage = () => useContext(LanguageContext)
+export function useLanguage() {
+  const context = useContext(LanguageContext)
+  console.log("[v0] useLanguage context:", context ? "exists" : "null", "t type:", context ? typeof context.t : "no context")
+  if (!context || typeof context.t !== "function") {
+    console.log("[v0] useLanguage returning fallback")
+    return {
+      language: "it",
+      setLanguage: function noop() {},
+      changeLanguage: function noop() {},
+      currentLanguage: {},
+      t: function translate(key, fallback) { return fallback || key },
+    }
+  }
+  return context
+}
