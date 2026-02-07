@@ -5,49 +5,8 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore"
 
 export const dynamic = 'force-dynamic'
 
-// Map Firebase room IDs to room names for Smoobu lookup
-const ROOM_NAME_MAP: Record<string, string> = {
-  "1": "Acies",        // Camera Familiare -> Acies on Smoobu
-  "2": "Aquarum",      // Camera Matrimoniale -> Aquarum on Smoobu
-}
-
 /**
- * Resolve a Firebase roomId (like "1" or "2") to the Smoobu apartment ID
- * by querying the Smoobu apartments API and matching by name
- */
-async function resolveSmoobuApartmentId(roomId: string): Promise<string | null> {
-  try {
-    const apartments = await smoobuClient.getApartmentsCached()
-    const roomName = ROOM_NAME_MAP[roomId]
-    
-    if (!roomName) {
-      console.log(`[Smoobu] No room name mapping for roomId: ${roomId}`)
-      // Try using roomId directly as Smoobu apartment ID
-      const directMatch = apartments.find(a => String(a.id) === roomId)
-      if (directMatch) return String(directMatch.id)
-      return null
-    }
-
-    // Match by name (case-insensitive)
-    const apartment = apartments.find(a => 
-      a.name.toLowerCase() === roomName.toLowerCase()
-    )
-    
-    if (apartment) {
-      console.log(`[Smoobu] Resolved room "${roomName}" (roomId: ${roomId}) -> apartment ID: ${apartment.id}`)
-      return String(apartment.id)
-    }
-
-    console.log(`[Smoobu] No apartment found for room "${roomName}". Available:`, apartments.map(a => `${a.id}:${a.name}`))
-    return null
-  } catch (error) {
-    console.error("[Smoobu] Error resolving apartment ID:", error)
-    return null
-  }
-}
-
-/**
- * Block dates on Smoobu (syncs to Airbnb, Booking.com, Expedia)
+ * Block dates on Smoobu (syncs to Airbnb and Booking.com)
  * Used for maintenance or manual blocking
  * Falls back to Firestore-only storage if Smoobu API fails
  */
@@ -61,33 +20,24 @@ export async function POST(request: Request) {
 
     console.log(`[Smoobu] Blocking dates for room ${roomId}: ${from} to ${to}, reason: ${reason}`)
 
-    // Resolve the Smoobu apartment ID from Firebase room ID
-    const smoobuApartmentId = await resolveSmoobuApartmentId(roomId)
-    
     let smoobuSuccess = false
     let smoobuError = null
     let smoobuReservationId = null
 
-    if (!smoobuApartmentId) {
-      smoobuError = `Could not resolve Smoobu apartment ID for room ${roomId}. Check ROOM_NAME_MAP in block-dates route.`
-      console.error("[Smoobu]", smoobuError)
-    } else {
-      try {
-        const result = await smoobuClient.blockDates(smoobuApartmentId, from, to, reason || "maintenance")
-        smoobuSuccess = true
-        smoobuReservationId = result.id
-        console.log(`[Smoobu] Successfully blocked dates with reservation ID: ${result.id}`)
-      } catch (error) {
-        smoobuError = error instanceof Error ? error.message : String(error)
-        console.error("[Smoobu] Failed to block dates on Smoobu:", error)
-      }
+    try {
+      const result = await smoobuClient.blockDates(roomId, from, to, reason || "maintenance")
+      smoobuSuccess = true
+      smoobuReservationId = result.id
+      console.log(`[Smoobu] Successfully blocked dates with reservation ID: ${result.id}`)
+    } catch (error) {
+      smoobuError = error
+      console.error("[Smoobu] Failed to block dates (saving to Firestore only):", error)
     }
 
     // Save to Firestore as backup
     const blockedDatesRef = collection(db, "blocked_dates")
     await addDoc(blockedDatesRef, {
       roomId,
-      smoobuApartmentId: smoobuApartmentId || null,
       from,
       to,
       reason: reason || "maintenance",
@@ -98,8 +48,8 @@ export async function POST(request: Request) {
     })
 
     const message = smoobuSuccess
-      ? "Date bloccate su tutte le piattaforme (Smoobu, Airbnb, Booking.com, Expedia)"
-      : `Date bloccate solo sul sito. ATTENZIONE: Blocco su Smoobu fallito - ${smoobuError || "errore sconosciuto"}`
+      ? "Date bloccate con successo su tutte le piattaforme (Smoobu, Airbnb, Booking.com)"
+      : "Date bloccate sul sito. ATTENZIONE: Blocco su Smoobu fallito - blocca manualmente su Airbnb/Booking.com"
 
     return NextResponse.json({
       success: true,

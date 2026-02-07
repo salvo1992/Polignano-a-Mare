@@ -53,7 +53,7 @@ export function SmoobuReviewsSync() {
           <MessageCircle className="w-5 h-5" />
           {t("reviewsSync")}
         </CardTitle>
-        <CardDescription>Importa prenotazioni completate da Smoobu per il tracking delle recensioni</CardDescription>
+        <CardDescription>Sincronizza recensioni da Smoobu (Booking.com, Airbnb e Expedia)</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
@@ -124,7 +124,7 @@ export function SmoobuReviewsSync() {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Importa le prenotazioni completate da Smoobu per tenere traccia degli ospiti. Smoobu non ha un&apos;API per le recensioni: queste restano su Airbnb, Booking.com e Expedia.
+            Le recensioni vengono recuperate dai messaggi degli ospiti nelle prenotazioni completate su Booking.com, Airbnb e Expedia tramite Smoobu.
           </p>
         </div>
       </CardContent>
