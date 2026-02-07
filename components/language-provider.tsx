@@ -763,7 +763,6 @@ export const LanguageProvider = ({ children }) => {
   }
 
   const contextValue = { language, setLanguage, changeLanguage, currentLanguage, t }
-  console.log("[v0] LanguageProvider rendering, t type:", typeof contextValue.t)
   
   return (
   <LanguageContext.Provider value={contextValue}>
@@ -774,9 +773,7 @@ export const LanguageProvider = ({ children }) => {
 
 export function useLanguage() {
   const context = useContext(LanguageContext)
-  console.log("[v0] useLanguage context:", context ? "exists" : "null", "t type:", context ? typeof context.t : "no context")
   if (!context || typeof context.t !== "function") {
-    console.log("[v0] useLanguage returning fallback")
     return {
       language: "it",
       setLanguage: function noop() {},
