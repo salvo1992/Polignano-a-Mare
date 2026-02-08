@@ -26,6 +26,7 @@ export function BookingBlockDates() {
   const [reason, setReason] = useState("maintenance")
   const [blocking, setBlocking] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [successMessage, setSuccessMessage] = useState("")
   const [error, setError] = useState<string | null>(null)
   
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
@@ -76,6 +77,7 @@ export function BookingBlockDates() {
       }
 
       setSuccess(true)
+      setSuccessMessage(data.message || "Date bloccate con successo!")
       setRoomId("")
       setFrom("")
       setTo("")
@@ -83,7 +85,7 @@ export function BookingBlockDates() {
 
       await loadBlockedDates()
 
-      setTimeout(() => setSuccess(false), 5000)
+      setTimeout(() => setSuccess(false), 8000)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore sconosciuto")
     } finally {
@@ -166,10 +168,10 @@ export function BookingBlockDates() {
           />
         </div>
 
-        {success && (
+      {success && (
           <Alert className="bg-green-50 border-green-200">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-900">Date bloccate con successo!</AlertDescription>
+            <AlertDescription className="text-green-900">{successMessage || "Date bloccate con successo!"}</AlertDescription>
           </Alert>
         )}
 
@@ -196,7 +198,7 @@ export function BookingBlockDates() {
                 >
                   <div className="flex-1">
                     <p className="font-medium">
-                      Camera {blocked.roomId === "1" ? "Familiare" : "Matrimoniale"}
+                      {blocked.roomId === "1" ? "Camera Familiare" : blocked.roomId === "2" ? "Camera Matrimoniale" : `Camera ${blocked.roomId}`}
                     </p>
                     <p className="text-muted-foreground text-xs">
                       {formatDate(blocked.from)} - {formatDate(blocked.to)}

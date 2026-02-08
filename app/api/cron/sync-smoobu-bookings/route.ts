@@ -68,6 +68,8 @@ export async function GET(request: Request) {
           const checkInDate = new Date(booking.arrival + "T00:00:00.000Z").toISOString()
           const checkOutDate = new Date(booking.departure + "T00:00:00.000Z").toISOString()
 
+          const localRoomId = resolveLocalRoomId(booking.roomId.toString(), booking.apartmentName)
+
           await db.collection("bookings").add({
             checkIn: checkInDate,
             checkOut: checkOutDate,
@@ -81,8 +83,8 @@ export async function GET(request: Request) {
             currency: "EUR",
             status: booking.status === "confirmed" ? "confirmed" : "pending",
             origin: bookingSource,
-            roomId: booking.roomId.toString(),
-            roomName: getRoomName(booking.roomId.toString()),
+            roomId: localRoomId,
+            roomName: getRoomName(localRoomId),
             smoobuId: booking.id,
             channelId: booking.channelId,
             channelName: booking.channelName,
@@ -212,7 +214,7 @@ export async function GET(request: Request) {
 
     // Step 4: Block past dates
     console.log("[Smoobu] Step 4: Blocking past dates")
-    const roomIds = ["2", "3"]
+    const roomIds = ["1", "2"]
     let pastBlocks = 0
 
     for (const roomId of roomIds) {
@@ -311,10 +313,27 @@ export async function GET(request: Request) {
   }
 }
 
+// Smoobu apartment name -> Firebase room ID
+const SMOOBU_NAME_TO_ROOM_ID: Record<string, string> = {
+  "acies": "1",
+  "aquarum": "2",
+}
+
 function getRoomName(roomId: string): string {
   const roomMap: Record<string, string> = {
-    "2": "Camera Deluxe",
-    "3": "Camera Suite",
+    "1": "Camera Familiare con Balcone",
+    "2": "Camera Matrimoniale con Vasca Idromassaggio",
   }
   return roomMap[roomId] || `Camera ${roomId}`
+}
+
+function resolveLocalRoomId(smoobuApartmentId: string, apartmentName?: string): string {
+  if (apartmentName) {
+    const normalized = apartmentName.toLowerCase().trim()
+    if (SMOOBU_NAME_TO_ROOM_ID[normalized]) return SMOOBU_NAME_TO_ROOM_ID[normalized]
+    for (const [key, roomId] of Object.entries(SMOOBU_NAME_TO_ROOM_ID)) {
+      if (normalized.includes(key) || key.includes(normalized)) return roomId
+    }
+  }
+  return smoobuApartmentId
 }

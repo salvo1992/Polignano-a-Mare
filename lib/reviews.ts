@@ -10,7 +10,7 @@ export type Review = {
   comment: string
   date: string // es. "Dicembre 2024"
   verified?: boolean
-  source?: "booking" | "airbnb" | "manual" | "default" | "other"
+  source?: "booking" | "airbnb" | "expedia" | "manual" | "default" | "other"
   createdAt?: number // timestamp per ordinamenti
   featuredScore?: number // campo opzionale per "le più belle"
   beds24Id?: string // Legacy: tracking synced reviews from Beds24

@@ -124,7 +124,7 @@ export function SmoobuReviewsSync() {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            Le recensioni vengono recuperate dai messaggi degli ospiti nelle prenotazioni completate su Booking.com, Airbnb e Expedia tramite Smoobu.
+            Le voci vengono create dalle prenotazioni completate su Booking.com, Airbnb e Expedia tramite Smoobu. Puoi poi aggiungere manualmente il testo e il voto della recensione.
           </p>
         </div>
       </CardContent>

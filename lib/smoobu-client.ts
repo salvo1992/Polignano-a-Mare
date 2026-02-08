@@ -95,6 +95,7 @@ export interface SmoobuReservation {
 export interface SmoobuBooking {
   id: string
   roomId: string
+  apartmentName?: string
   arrival: string
   departure: string
   numAdult: number
@@ -210,6 +211,7 @@ class SmoobuClient {
     return {
       id: reservation.id.toString(),
       roomId: reservation.apartment?.id?.toString() || "",
+      apartmentName: reservation.apartment?.name || "",
       arrival: reservation.arrival,
       departure: reservation.departure,
       numAdult: reservation.adults || 1,
@@ -515,16 +517,16 @@ class SmoobuClient {
   }
 
   /**
-   * Fetch reviews from guest messages and booking data
-   * Smoobu aggregates reviews from channels (Airbnb, Booking.com)
-   * We extract review-like data from completed bookings with messages
+   * Fetch completed bookings from channels as review entries.
+   * Smoobu does NOT have a reviews API - reviews live on Airbnb/Booking.com/Expedia.
+   * We create review entries from completed channel bookings so the admin can
+   * track them and optionally add review text/ratings manually.
    */
   async getReviews(): Promise<SmoobuReview[]> {
-    console.log("[Smoobu] Fetching reviews from bookings and messages...")
+    console.log("[Smoobu] Fetching completed channel bookings for review tracking...")
     const reviews: SmoobuReview[] = []
 
     try {
-      // Get recent completed bookings (last 12 months)
       const now = new Date()
       const yearAgo = new Date(now)
       yearAgo.setFullYear(yearAgo.getFullYear() - 1)
@@ -533,64 +535,37 @@ class SmoobuClient {
       const to = now.toISOString().split("T")[0]
 
       const bookings = await this.getBookings(from, to)
-      const completedBookings = bookings.filter(b => 
-        b.status === "confirmed" && 
-        new Date(b.departure) < now &&
-        (b.referer === "airbnb" || b.referer === "booking" || b.referer === "expedia")
-      )
+      const completedBookings = bookings.filter(b => {
+        const departed = new Date(b.departure) < now
+        const isChannel = b.referer === "airbnb" || b.referer === "booking" || b.referer === "expedia"
+        return b.status === "confirmed" && departed && isChannel
+      })
 
       console.log(`[Smoobu] Found ${completedBookings.length} completed channel bookings`)
 
-      // For each booking, try to get messages that might contain reviews
       for (const booking of completedBookings) {
-        try {
-          const messages = await this.getMessages(booking.id)
-          
-          // Look for messages that look like reviews (from guest, after checkout)
-          const reviewMessages = messages.filter((m: any) => 
-            m.type === "guest" && 
-            m.message && 
-            m.message.length > 20
-          )
+        const guestName = `${booking.firstName} ${booking.lastName}`.trim()
+        if (!guestName || guestName === "BLOCKED" || guestName.includes("BLOCKED")) continue
 
-          if (reviewMessages.length > 0) {
-            const lastMsg = reviewMessages[reviewMessages.length - 1]
-            reviews.push({
-              id: `smoobu_${booking.id}`,
-              bookingId: booking.id,
-              roomId: booking.roomId,
-              rating: 5, // Default rating, adjust based on channel
-              comment: lastMsg.message,
-              guestName: `${booking.firstName} ${booking.lastName}`.trim(),
-              source: booking.referer as "airbnb" | "booking" | "direct",
-              date: booking.departure,
-              response: undefined,
-            })
-          }
-        } catch {
-          // Messages might not be available for all bookings
-          continue
-        }
+        reviews.push({
+          id: `smoobu_${booking.id}`,
+          bookingId: booking.id,
+          roomId: booking.roomId,
+          rating: 0, // 0 = no rating yet, admin can set manually
+          comment: booking.notes || "",
+          guestName,
+          source: booking.referer as "airbnb" | "booking" | "expedia" | "direct",
+          date: booking.departure,
+          response: undefined,
+        })
       }
 
-      console.log(`[Smoobu] Extracted ${reviews.length} reviews from messages`)
+      console.log(`[Smoobu] Created ${reviews.length} review entries from completed bookings`)
     } catch (error) {
       console.error("[Smoobu] Error fetching reviews:", error)
     }
 
     return reviews
-  }
-
-  /**
-   * Get messages for a booking
-   */
-  async getMessages(bookingId: string): Promise<any[]> {
-    try {
-      const response = await this.request<{ messages: any[] }>(`/reservations/${bookingId}/messages`)
-      return response.messages || []
-    } catch {
-      return []
-    }
   }
 
   /**

@@ -104,9 +104,9 @@ export async function POST(request: Request) {
           continue
         }
 
-        // Convert Smoobu apartment ID to local room ID
-        const localRoomId = convertSmoobuApartmentIdToLocal(booking.roomId)
-        console.log(`[Smoobu] Processing booking ${booking.id} - Smoobu apartmentId: ${booking.roomId}, Local roomId: ${localRoomId}`)
+        // Convert Smoobu apartment ID to local room ID using apartment name
+        const localRoomId = convertSmoobuApartmentIdToLocal(booking.roomId, booking.apartmentName)
+        console.log(`[Smoobu] Processing booking ${booking.id} - Smoobu apartment: "${booking.apartmentName}" (${booking.roomId}) -> roomId: ${localRoomId}`)
 
         const firebaseBooking = {
           checkIn: checkInDate,
@@ -209,8 +209,8 @@ export async function GET(request: Request) {
 
 function getRoomName(roomId: string): string {
   const roomMap: Record<string, string> = {
-    "2": "Camera Familiare con Balcone",
-    "3": "Camera Matrimoniale con Vasca Idromassaggio",
+    "1": "Camera Familiare con Balcone",
+    "2": "Camera Matrimoniale con Vasca Idromassaggio",
   }
   return roomMap[roomId] || "Camera Sconosciuta"
 }
@@ -234,12 +234,24 @@ function parseDate(dateString: string | undefined): string | null {
   }
 }
 
-// TODO: Update this mapping with your Smoobu apartment IDs
-function convertSmoobuApartmentIdToLocal(smoobuApartmentId: string): string {
-  const apartmentIdMap: Record<string, string> = {
-    // Add your Smoobu apartment ID mappings here
-    // Example: "123456": "2", // Camera Familiare con Balcone
-    // Example: "123457": "3", // Camera Matrimoniale con Vasca Idromassaggio
+// Smoobu apartment name -> Firebase room ID mapping
+// "Acies" = Camera Familiare = roomId "1"
+// "Aquarum" = Camera Matrimoniale = roomId "2"
+const SMOOBU_NAME_TO_ROOM_ID: Record<string, string> = {
+  "acies": "1",
+  "aquarum": "2",
+}
+
+function convertSmoobuApartmentIdToLocal(smoobuApartmentId: string, apartmentName?: string): string {
+  // Match by apartment name (most reliable - IDs are dynamic in Smoobu)
+  if (apartmentName) {
+    const normalized = apartmentName.toLowerCase().trim()
+    if (SMOOBU_NAME_TO_ROOM_ID[normalized]) return SMOOBU_NAME_TO_ROOM_ID[normalized]
+    for (const [key, roomId] of Object.entries(SMOOBU_NAME_TO_ROOM_ID)) {
+      if (normalized.includes(key) || key.includes(normalized)) return roomId
+    }
   }
-  return apartmentIdMap[smoobuApartmentId] || smoobuApartmentId
+  // Fallback: return Smoobu ID as-is (will show "Camera Sconosciuta")
+  console.warn(`[Smoobu] Could not map apartment "${apartmentName}" (ID: ${smoobuApartmentId}) to Firebase roomId`)
+  return smoobuApartmentId
 }
