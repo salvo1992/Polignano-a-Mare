@@ -59,17 +59,6 @@ export function BookingCalendarFiltered({ bookings, roomId, roomName }: BookingC
 
   const roomIdsToMatch = normalizeRoomIds(roomId, roomName)
 
-console.log("[v0] BookingCalendarFiltered - roomId:", roomId)
-console.log("[v0] BookingCalendarFiltered - roomName:", roomName)
-console.log("[v0] BookingCalendarFiltered - roomIdsToMatch:", roomIdsToMatch)
-console.log("[v0] BookingCalendarFiltered - all bookings:", bookings.map(b => ({
-  id: b.id,
-  roomId: b.roomId,
-  roomName: b.roomName,
-  origin: b.origin,
-  guest: `${b.guestFirst || b.firstName} ${b.guestLast || b.lastName}`
-})))
-
 const filteredBookings = bookings.filter((booking) => {
   const bookingRoomId = String(booking.roomId ?? "").trim()
   const bookingRoomName = (booking.roomName ?? "").toLowerCase()
@@ -85,15 +74,6 @@ const filteredBookings = bookings.filter((booking) => {
   return idMatches || nameMatches
 })
 
-console.log("[v0] BookingCalendarFiltered - filtered bookings:", filteredBookings.map(b => ({
-  id: b.id,
-  roomId: b.roomId,
-  roomName: b.roomName,
-  origin: b.origin
-})))
-
-
-  console.log("[v0] BookingCalendarFiltered - filtered bookings:", filteredBookings.map(b => ({ id: b.id, roomId: b.roomId, roomName: b.roomName, origin: b.origin })))
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
 
@@ -109,6 +89,8 @@ console.log("[v0] BookingCalendarFiltered - filtered bookings:", filteredBooking
            .filter((blocked: any) =>
         roomIdsToMatch.includes(String(blocked.roomId))
       ) as BlockedDate[]
+        
+        setBlockedDates(blockedData)
       }
     )
 
@@ -227,11 +209,15 @@ console.log("[v0] BookingCalendarFiltered - filtered bookings:", filteredBooking
           <span>Airbnb</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300" />
-          <span>Sito Web</span>
+          <div className="w-3 h-3 rounded bg-yellow-100 border border-yellow-300" />
+          <span>Expedia</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-yellow-100 border border-yellow-400" />
+          <div className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300" />
+          <span>Sito / Dirette</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded bg-orange-100 border border-orange-400" />
           <span>Manutenzione</span>
         </div>
       </div>
@@ -253,17 +239,20 @@ console.log("[v0] BookingCalendarFiltered - filtered bookings:", filteredBooking
           const blocked = isDateBlocked(day)
 
           let bgColor = "bg-green-50 border-green-200"
-          if (blocked) {
-            bgColor = "bg-yellow-50 border-yellow-300"
+          if (blocked && !hasBookings) {
+            bgColor = "bg-orange-50 border-orange-300"
           } else if (hasBookings) {
             const hasBookingCom = dayBookings.some((b) => b.origin === "booking")
             const hasAirbnb = dayBookings.some((b) => b.origin === "airbnb")
-            const hasSite = dayBookings.some((b) => b.origin === "site")
+            const hasExpedia = dayBookings.some((b) => b.origin === "expedia")
+            const hasSite = dayBookings.some((b) => b.origin === "site" || b.origin === "direct")
 
             if (hasBookingCom) {
               bgColor = "bg-blue-50 border-blue-300"
             } else if (hasAirbnb) {
               bgColor = "bg-pink-50 border-pink-300"
+            } else if (hasExpedia) {
+              bgColor = "bg-yellow-50 border-yellow-300"
             } else if (hasSite) {
               bgColor = "bg-emerald-50 border-emerald-300"
             }
@@ -298,10 +287,12 @@ console.log("[v0] BookingCalendarFiltered - filtered bookings:", filteredBooking
                           ? "bg-blue-600 text-white"
                           : booking.origin === "airbnb"
                             ? "bg-pink-600 text-white"
-                            : "bg-emerald-600 text-white"
+                            : booking.origin === "expedia"
+                              ? "bg-yellow-600 text-white"
+                              : "bg-emerald-600 text-white"
                       }`}
                     >
-                      {booking.origin}
+                      {booking.origin === "direct" ? "diretta" : booking.origin}
                     </Badge>
                   ))}
                   {dayBookings.length > 1 && (
@@ -349,15 +340,17 @@ console.log("[v0] BookingCalendarFiltered - filtered bookings:", filteredBooking
                   </div>
                   <div className="flex gap-2 items-start sm:flex-col sm:items-end">
                     <Badge
-                      className={
+                      className={`text-xs text-white ${
                         booking.origin === "booking"
-                          ? "bg-blue-600 text-xs"
+                          ? "bg-blue-600"
                           : booking.origin === "airbnb"
-                            ? "bg-pink-600 text-xs"
-                            : "bg-emerald-600 text-xs"
-                      }
+                            ? "bg-pink-600"
+                            : booking.origin === "expedia"
+                              ? "bg-yellow-600"
+                              : "bg-emerald-600"
+                      }`}
                     >
-                      {booking.origin}
+                      {booking.origin === "direct" ? "Diretta" : booking.origin}
                     </Badge>
                     <Badge
                       variant="outline"

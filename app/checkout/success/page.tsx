@@ -58,9 +58,9 @@ export default function CheckoutSuccess() {
 
       if (data.booking?.roomId && data.booking?.checkIn && data.booking?.checkOut) {
         try {
-          console.log("[v0] Blocking dates on Beds24 for booking:", data.booking.id)
+          console.log("[Smoobu] Blocking dates for booking:", data.booking.id)
           
-          const blockResponse = await fetch("/api/beds24/block-dates", {
+          const blockResponse = await fetch("/api/smoobu/block-dates", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -74,12 +74,12 @@ export default function CheckoutSuccess() {
           const blockResult = await blockResponse.json()
           
           if (blockResult.success) {
-            console.log("[v0] Dates blocked successfully on Beds24")
+            console.log("[Smoobu] Dates blocked successfully")
           } else {
-            console.warn("[v0] Date blocking completed with warnings:", blockResult.message)
+            console.warn("[Smoobu] Date blocking completed with warnings:", blockResult.message)
           }
         } catch (blockError) {
-          console.error("[v0] Error blocking dates on Beds24:", blockError)
+          console.error("[Smoobu] Error blocking dates:", blockError)
         }
       }
 

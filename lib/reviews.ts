@@ -13,9 +13,10 @@ export type Review = {
   source?: "booking" | "airbnb" | "manual" | "default" | "other"
   createdAt?: number // timestamp per ordinamenti
   featuredScore?: number // campo opzionale per "le più belle"
-  beds24Id?: string // Added beds24Id for tracking synced reviews
-  bookingId?: string // Added bookingId to link reviews to bookings
-  syncedAt?: string // Added syncedAt timestamp
+  beds24Id?: string // Legacy: tracking synced reviews from Beds24
+  smoobuId?: string // Tracking synced reviews from Smoobu
+  bookingId?: string // Link reviews to bookings
+  syncedAt?: string // Sync timestamp
 }
 
 const REVIEWS_COL = "reviews"
@@ -66,4 +67,3 @@ export async function getAllReviewsPage(opts?: {
 
   return { items, lastDoc: last }
 }
-

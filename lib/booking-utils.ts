@@ -13,10 +13,13 @@ export interface Booking {
   checkOut: string
   guests: number
   total: number
-  origin: "site" | "booking" | "airbnb"
+  origin: "site" | "booking" | "airbnb" | "expedia" | "direct"
   status: "pending" | "confirmed" | "cancelled"
   createdAt: Timestamp
   beds24Id?: string
+  smoobuId?: string
+  channelId?: number
+  channelName?: string
   syncedAt?: string
   services?: string[]
   priceBreakdown?: {
@@ -47,7 +50,7 @@ export async function checkBookingConflicts(
   roomId: string,
   checkIn: string,
   checkOut: string,
-  origin: "site" | "booking" | "airbnb",
+  origin: Booking["origin"],
 ): Promise<{ hasConflict: boolean; conflictingBooking?: Booking }> {
   const bookingsRef = collection(db, "bookings")
   const q = query(bookingsRef, where("roomId", "==", roomId), where("status", "in", ["pending", "confirmed"]))
@@ -91,14 +94,18 @@ export async function checkRoomAvailability(roomId: string, checkIn: string, che
   return !result.hasConflict
 }
 
-export function getBookingPriority(origin: "site" | "booking" | "airbnb"): number {
+export function getBookingPriority(origin: Booking["origin"]): number {
   switch (origin) {
     case "booking":
       return 1 // Highest priority
     case "airbnb":
-      return 2 // Medium priority
+      return 2
+    case "expedia":
+      return 3
     case "site":
-      return 3 // Lowest priority
+      return 4
+    case "direct":
+      return 5
     default:
       return 999
   }
@@ -132,4 +139,3 @@ export function getRoomStatus(
 
   return hasActiveBooking ? "booked" : "available"
 }
-

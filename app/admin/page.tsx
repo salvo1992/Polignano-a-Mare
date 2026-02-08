@@ -16,8 +16,8 @@ import { collection, onSnapshot, orderBy, query, doc, setDoc, getDoc } from "fir
 import { BookingCalendar } from "@/components/booking-calendar"
 import { RoomStatusToggle } from "@/components/room-status-toggle"
 import { GuestsTracking } from "@/components/guests-tracking"
-import { Beds24SyncPanel } from "@/components/beds24-sync-panel"
-import { Beds24ReviewsSync } from "@/components/beds24-reviews-sync"
+import { SmoobuSyncPanel } from "@/components/smoobu-sync-panel"
+import { SmoobuReviewsSync } from "@/components/smoobu-reviews-sync"
 import { BookingBlockDates } from "@/components/booking-block-dates"
 import { BookingCalendarFiltered } from "@/components/booking-calendar-filtered"
 import { AdminSecuritySettings } from "@/components/admin-security-settings"
@@ -126,7 +126,8 @@ function AdminInner() {
   const recent = currentAndUpcoming.slice(0, 5)
   const bookingComBookings = currentAndUpcoming.filter((b) => b.origin === "booking")
   const airbnbBookings = currentAndUpcoming.filter((b) => b.origin === "airbnb")
-  const siteBookings = currentAndUpcoming.filter((b) => b.origin === "site")
+  const expediaBookings = currentAndUpcoming.filter((b) => b.origin === "expedia")
+  const siteAndDirectBookings = currentAndUpcoming.filter((b) => b.origin === "site" || b.origin === "direct")
 
   const formatDate = (dateString: string) => {
     try {
@@ -207,7 +208,7 @@ function AdminInner() {
             </TabsList>
 
             <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm">Prenotazioni Totali</CardTitle>
@@ -221,7 +222,7 @@ function AdminInner() {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Badge className="bg-blue-600 text-xs">Booking.com</Badge>
+                      <Badge className="bg-blue-600 text-white text-xs">Booking.com</Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -233,7 +234,7 @@ function AdminInner() {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Badge className="bg-pink-600 text-xs">Airbnb</Badge>
+                      <Badge className="bg-pink-600 text-white text-xs">Airbnb</Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -245,12 +246,24 @@ function AdminInner() {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Badge className="bg-emerald-600 text-xs">Sito Web</Badge>
+                      <Badge className="bg-yellow-600 text-white text-xs">Expedia</Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{siteBookings.length}</div>
-                    <p className="text-xs text-muted-foreground mt-1">Dal sito web</p>
+                    <div className="text-3xl font-bold">{expediaBookings.length}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Da Expedia</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Badge className="bg-emerald-600 text-white text-xs">Sito / Dirette</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{siteAndDirectBookings.length}</div>
+                    <p className="text-xs text-muted-foreground mt-1">Dal sito web e dirette</p>
                   </CardContent>
                 </Card>
               </div>
@@ -281,17 +294,19 @@ function AdminInner() {
                             </div>
                             <div className="flex items-center justify-between sm:justify-end sm:flex-col sm:items-end gap-2">
                               <Badge
-                                className={
+                                className={`text-xs text-white ${
                                   b.origin === "booking"
-                                    ? "bg-blue-600 text-xs"
+                                    ? "bg-blue-600"
                                     : b.origin === "airbnb"
-                                      ? "bg-pink-600 text-xs"
-                                      : "bg-emerald-600 text-xs"
-                                }
+                                      ? "bg-pink-600"
+                                      : b.origin === "expedia"
+                                        ? "bg-yellow-600"
+                                        : "bg-emerald-600"
+                                }`}
                               >
-                                {b.origin}
+                                {b.origin === "direct" ? "Diretta" : b.origin}
                               </Badge>
-                              <p className="text-sm font-medium">€{b.total || b.totalAmount || "0"}</p>
+                              <p className="text-sm font-medium">€{b.total || (b as any).totalAmount || "0"}</p>
                             </div>
                           </div>
                         ))
@@ -361,8 +376,11 @@ function AdminInner() {
                       <TabsTrigger value="airbnb" className="whitespace-nowrap">
                         Airbnb ({airbnbBookings.length})
                       </TabsTrigger>
+                      <TabsTrigger value="expedia" className="whitespace-nowrap">
+                        Expedia ({expediaBookings.length})
+                      </TabsTrigger>
                       <TabsTrigger value="site" className="whitespace-nowrap">
-                        Sito Web ({siteBookings.length})
+                        Sito / Dirette ({siteAndDirectBookings.length})
                       </TabsTrigger>
                       <TabsTrigger value="cancelled" className="whitespace-nowrap">
                         Cancellate ({cancelledBookings.length})
@@ -390,17 +408,19 @@ function AdminInner() {
                               </div>
                               <div className="flex gap-2 flex-shrink-0">
                                 <Badge
-                                  className={
+                                  className={`text-xs text-white ${
                                     b.origin === "booking"
-                                      ? "bg-blue-600 text-xs"
+                                      ? "bg-blue-600"
                                       : b.origin === "airbnb"
-                                        ? "bg-pink-600 text-xs"
-                                        : "bg-emerald-600 text-xs"
-                                  }
+                                        ? "bg-pink-600"
+                                        : b.origin === "expedia"
+                                          ? "bg-yellow-600"
+                                          : "bg-emerald-600"
+                                  }`}
                                 >
-                                  {b.origin}
+                                  {b.origin === "direct" ? "Diretta" : b.origin}
                                 </Badge>
-                                <Badge className="text-xs">€{b.total || b.totalAmount || "0"}</Badge>
+                                <Badge className="text-xs">€{b.total || (b as any).totalAmount || "0"}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -490,11 +510,11 @@ function AdminInner() {
                       )}
                     </TabsContent>
 
-                    <TabsContent value="site" className="space-y-3">
-                      {siteBookings.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Nessuna prenotazione dal sito web</p>
+                    <TabsContent value="expedia" className="space-y-3">
+                      {expediaBookings.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nessuna prenotazione da Expedia</p>
                       ) : (
-                        siteBookings.map((b) => (
+                        expediaBookings.map((b) => (
                           <div
                             key={b.id}
                             className="flex flex-col gap-2 p-3 sm:p-4 border rounded-lg hover:bg-muted/30 transition-colors"
@@ -502,16 +522,16 @@ function AdminInner() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">
-                                  {b.firstName || b.guestFirst || "Nome non disponibile"}{" "}
-                                  {b.lastName || b.guestLast || ""}
+                                  {b.guestFirst || (b as any).firstName || "Nome non disponibile"}{" "}
+                                  {b.guestLast || (b as any).lastName || ""}
                                 </p>
                                 <p className="text-sm text-muted-foreground truncate">
                                   {b.email} • {b.phone}
                                 </p>
                               </div>
                               <div className="flex gap-2 flex-shrink-0">
-                                <Badge className="bg-emerald-600 text-xs">Sito Web</Badge>
-                                <Badge className="text-xs">€{b.totalAmount || b.total || "0"}</Badge>
+                                <Badge className="bg-yellow-600 text-white text-xs">Expedia</Badge>
+                                <Badge className="text-xs">€{b.total || (b as any).totalAmount || "0"}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -519,11 +539,45 @@ function AdminInner() {
                               <span className="text-xs sm:text-sm">
                                 {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
                               </span>
-                              {b.origin === "site" && b.services && b.services.length > 0 && (
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="site" className="space-y-3">
+                      {siteAndDirectBookings.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nessuna prenotazione dal sito web o diretta</p>
+                      ) : (
+                        siteAndDirectBookings.map((b) => (
+                          <div
+                            key={b.id}
+                            className="flex flex-col gap-2 p-3 sm:p-4 border rounded-lg hover:bg-muted/30 transition-colors"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">
+                                  {b.guestFirst || (b as any).firstName || "Nome non disponibile"}{" "}
+                                  {b.guestLast || (b as any).lastName || ""}
+                                </p>
+                                <p className="text-sm text-muted-foreground truncate">
+                                  {b.email} • {b.phone}
+                                </p>
+                              </div>
+                              <div className="flex gap-2 flex-shrink-0">
+                                <Badge className="bg-emerald-600 text-white text-xs">
+                                  {b.origin === "direct" ? "Diretta" : "Sito Web"}
+                                </Badge>
+                                <Badge className="text-xs">€{b.total || (b as any).totalAmount || "0"}</Badge>
+                              </div>
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
+                              <span className="truncate">{b.roomName}</span>
+                              <span className="text-xs sm:text-sm">
+                                {formatDate(b.checkIn)} → {formatDate(b.checkOut)}
+                              </span>
+                              {b.services && b.services.length > 0 && (
                                 <span className="text-xs text-primary">+ {b.services.join(", ")}</span>
-                              )}
-                              {b.origin === "site" && (!b.services || b.services.length === 0) && (
-                                <span className="text-xs text-muted-foreground">Senza servizi aggiuntivi</span>
                               )}
                             </div>
                           </div>
@@ -555,17 +609,19 @@ function AdminInner() {
                                   CANCELLATA
                                 </Badge>
                                 <Badge
-                                  className={
+                                  className={`text-xs text-white ${
                                     b.origin === "booking"
-                                      ? "bg-blue-600 text-xs"
+                                      ? "bg-blue-600"
                                       : b.origin === "airbnb"
-                                        ? "bg-pink-600 text-xs"
-                                        : "bg-emerald-600 text-xs"
-                                  }
+                                        ? "bg-pink-600"
+                                        : b.origin === "expedia"
+                                          ? "bg-yellow-600"
+                                          : "bg-emerald-600"
+                                  }`}
                                 >
-                                  {b.origin}
+                                  {b.origin === "direct" ? "Diretta" : b.origin}
                                 </Badge>
-                                <Badge className="text-xs line-through">€{b.totalAmount || b.total || "0"}</Badge>
+                                <Badge className="text-xs line-through">€{(b as any).totalAmount || b.total || "0"}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -659,8 +715,8 @@ function AdminInner() {
 
             <TabsContent value="settings" className="space-y-4 sm:space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                <Beds24SyncPanel />
-                <Beds24ReviewsSync />
+                <SmoobuSyncPanel />
+                <SmoobuReviewsSync />
               </div>
 
               <BookingBlockDates />
@@ -760,3 +816,4 @@ function AdminInner() {
     </main>
   )
 }
+
