@@ -107,7 +107,7 @@ export default function ReviewsSection({ className }: Props) {
     const loadReviews = async () => {
       try {
         const top = await getTop4Reviews()
-        // Filter out pending reviews
+        // getTop4Reviews already filters hidden + empty, just ensure basics
         const published = top.filter((r) => r.rating > 0 && r.comment)
         setReviews(published.length >= 2 ? published : DEFAULT_REVIEWS)
       } catch {

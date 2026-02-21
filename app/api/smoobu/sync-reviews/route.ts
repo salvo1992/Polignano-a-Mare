@@ -1,55 +1,48 @@
 import { NextResponse } from "next/server"
+import { smoobuClient } from "@/lib/smoobu-client"
 import { isFirebaseInitialized, getFirestore } from "@/lib/firebase-admin"
 
 /**
- * POST - Add or auto-sync reviews to Firebase
- * Supports:
- *  - action: "add-review" — single manual review
- *  - action: "bulk-import" — bulk import reviews
- *  - action: "auto-sync-from-bookings" — auto-generate review entries from completed Smoobu bookings
+ * POST /api/smoobu/sync-reviews
+ * 
+ * Auto-sync: fetches completed bookings from Smoobu and creates review entries
+ * in Firebase automatically. Reviews are "verified stay" records — no manual
+ * text entry required. The admin can only toggle visibility (hidden field).
+ * 
+ * Also supports:
+ *  - action: "toggle-visibility" — hide/show a single review
+ *  - action: "add-manual"        — admin adds a fully custom review
  */
 export async function POST(req: Request) {
-  if (!isFirebaseInitialized()) {
-    return NextResponse.json(
-      { success: false, error: "Firebase non inizializzato. Controlla le variabili d'ambiente." },
-      { status: 503 },
-    )
-  }
-
   try {
     const body = await req.json()
     const { action } = body
 
-    // ----- Action: add a single manual review -----
-    if (action === "add-review") {
-      const { name, location, rating, comment, source, date, bookingId } = body
-
-      if (!name || !comment || !rating) {
-        return NextResponse.json(
-          { success: false, error: "Nome, commento e rating sono obbligatori" },
-          { status: 400 },
-        )
+    // ---------- Toggle visibility ----------
+    if (action === "toggle-visibility") {
+      if (!isFirebaseInitialized()) {
+        return NextResponse.json({ success: false, error: "Firebase non inizializzato" }, { status: 503 })
       }
-
+      const { reviewId, hidden } = body
+      if (!reviewId) {
+        return NextResponse.json({ success: false, error: "reviewId obbligatorio" }, { status: 400 })
+      }
       const db = getFirestore()
-      const reviewsRef = db.collection("reviews")
+      await db.collection("reviews").doc(reviewId).update({ hidden: !!hidden, updatedAt: Date.now() })
+      return NextResponse.json({ success: true, message: hidden ? "Recensione nascosta" : "Recensione visibile" })
+    }
 
-      // Check for duplicate by name + first 50 chars of comment
-      const existingQuery = await reviewsRef.where("name", "==", name.trim()).limit(10).get()
-      const isDuplicate = existingQuery.docs.some((doc) => {
-        const existing = doc.data()
-        return existing.comment?.substring(0, 50) === comment.trim().substring(0, 50)
-      })
-
-      if (isDuplicate) {
-        return NextResponse.json({
-          success: true,
-          message: `Recensione di ${name} gia presente (duplicato)`,
-          skipped: true,
-        })
+    // ---------- Admin adds a fully custom review ----------
+    if (action === "add-manual") {
+      if (!isFirebaseInitialized()) {
+        return NextResponse.json({ success: false, error: "Firebase non inizializzato" }, { status: 503 })
       }
-
-      const reviewData = {
+      const { name, location, rating, comment, source, date } = body
+      if (!name || !comment || !rating) {
+        return NextResponse.json({ success: false, error: "Nome, commento e rating obbligatori" }, { status: 400 })
+      }
+      const db = getFirestore()
+      const docRef = await db.collection("reviews").add({
         name: name.trim(),
         location: (location || "").trim(),
         rating: Math.min(5, Math.max(1, Number(rating))),
@@ -57,256 +50,174 @@ export async function POST(req: Request) {
         source: source || "manual",
         date: date || new Date().toLocaleDateString("it-IT", { month: "long", year: "numeric" }),
         verified: true,
-        synced: true,
-        syncedAt: new Date().toISOString(),
-        createdAt: Date.now(),
+        hidden: false,
         manualEntry: true,
-        ...(bookingId ? { bookingId } : {}),
-      }
-
-      const docRef = await reviewsRef.add(reviewData)
-      console.log(`[Reviews] Manual review added: ${docRef.id} by ${name}`)
-
-      return NextResponse.json({
-        success: true,
-        message: `Recensione di ${name} aggiunta con successo`,
-        reviewId: docRef.id,
+        createdAt: Date.now(),
+        syncedAt: new Date().toISOString(),
       })
+      return NextResponse.json({ success: true, reviewId: docRef.id, message: "Recensione aggiunta" })
     }
 
-    // ----- Action: bulk import reviews -----
-    if (action === "bulk-import") {
-      const { reviews } = body
-
-      if (!Array.isArray(reviews) || reviews.length === 0) {
-        return NextResponse.json({ success: false, error: "Nessuna recensione da importare" }, { status: 400 })
-      }
-
-      const db = getFirestore()
-      const reviewsRef = db.collection("reviews")
-      let imported = 0
-      let skipped = 0
-
-      for (const review of reviews) {
-        try {
-          if (!review.name || !review.comment) {
-            skipped++
-            continue
-          }
-
-          const existingQuery = await reviewsRef.where("name", "==", review.name.trim()).limit(5).get()
-          const isDuplicate = existingQuery.docs.some((doc) => {
-            const existing = doc.data()
-            return existing.comment?.substring(0, 50) === review.comment.trim().substring(0, 50)
-          })
-
-          if (isDuplicate) {
-            skipped++
-            continue
-          }
-
-          await reviewsRef.add({
-            name: review.name.trim(),
-            location: (review.location || "").trim(),
-            rating: Math.min(5, Math.max(1, Number(review.rating || 5))),
-            comment: review.comment.trim(),
-            source: review.source || "manual",
-            date: review.date || new Date().toLocaleDateString("it-IT", { month: "long", year: "numeric" }),
-            verified: true,
-            synced: true,
-            syncedAt: new Date().toISOString(),
-            createdAt: Date.now(),
-            manualEntry: true,
-          })
-
-          imported++
-        } catch (error) {
-          console.error(`[Reviews] Error importing review from ${review.name}:`, error)
-          skipped++
-        }
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: `Importate ${imported} recensioni, ${skipped} saltate`,
-        imported,
-        skipped,
-        total: reviews.length,
-      })
+    // ---------- Default: auto-sync from Smoobu completed bookings ----------
+    if (!isFirebaseInitialized()) {
+      return NextResponse.json({ success: false, error: "Firebase non inizializzato" }, { status: 503 })
     }
 
-    // ----- Action: auto-sync guest entries from completed Smoobu bookings -----
-    if (action === "auto-sync-from-bookings") {
-      const { bookings } = body
-
-      if (!Array.isArray(bookings) || bookings.length === 0) {
-        return NextResponse.json({ success: false, error: "Nessuna prenotazione da elaborare" }, { status: 400 })
-      }
-
-      const db = getFirestore()
-      const reviewsRef = db.collection("reviews")
-      let created = 0
-      let skipped = 0
-
-      for (const booking of bookings) {
-        try {
-          const guestName = `${booking.firstName || ""} ${booking.lastName || ""}`.trim()
-          if (!guestName || guestName === "BLOCKED") {
-            skipped++
-            continue
-          }
-
-          // Check if we already have a review from this guest for this booking
-          const existingQuery = await reviewsRef.where("bookingId", "==", booking.id).limit(1).get()
-          if (!existingQuery.empty) {
-            skipped++
-            continue
-          }
-
-          // Also check by guest name to avoid duplicates
-          const nameQuery = await reviewsRef.where("name", "==", guestName).limit(5).get()
-          const alreadyHasReview = nameQuery.docs.some((doc) => {
-            const data = doc.data()
-            // Same source and similar date = likely same stay
-            return data.source === booking.referer && data.bookingId === booking.id
-          })
-
-          if (alreadyHasReview) {
-            skipped++
-            continue
-          }
-
-          // Create a "pending review" entry - admin can fill in the actual review text later
-          // For now, create with placeholder that admin will update from Booking.com/Airbnb portal
-          const arrivalDate = new Date(booking.arrival)
-          const dateStr = arrivalDate.toLocaleDateString("it-IT", { month: "long", year: "numeric" })
-          const countryName = booking.address?.country?.name || ""
-
-          await reviewsRef.add({
-            name: guestName,
-            location: countryName,
-            rating: 0, // 0 means "pending" - no rating yet
-            comment: "", // Empty = pending review
-            source: booking.referer || "direct",
-            date: dateStr,
-            verified: false,
-            synced: true,
-            syncedAt: new Date().toISOString(),
-            createdAt: Date.now(),
-            bookingId: booking.id,
-            smoobuId: booking.id,
-            pendingReview: true,
-            arrival: booking.arrival,
-            departure: booking.departure,
-            channelName: booking.channelName || booking.apiSource || "",
-          })
-
-          created++
-        } catch (error) {
-          console.error(`[Reviews] Error creating review stub:`, error)
-          skipped++
-        }
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: `Creati ${created} stub di recensione, ${skipped} saltati`,
-        created,
-        skipped,
-        total: bookings.length,
-      })
+    // 1) Fetch completed bookings from Smoobu
+    const completedBookings = await smoobuClient.getCompletedChannelBookings()
+    if (completedBookings.length === 0) {
+      return NextResponse.json({ success: true, created: 0, skipped: 0, total: 0, message: "Nessun soggiorno completato trovato" })
     }
 
-    return NextResponse.json(
-      { success: false, error: "Azione non valida. Usa 'add-review', 'bulk-import' o 'auto-sync-from-bookings'" },
-      { status: 400 },
-    )
+    // 2) Get existing reviews from Firebase to avoid duplicates
+    const db = getFirestore()
+    const existingSnap = await db.collection("reviews").get()
+    const existingSmoobuIds = new Set<string>()
+    const existingNames = new Map<string, Set<string>>() // name -> set of sources
+    for (const doc of existingSnap.docs) {
+      const data = doc.data()
+      if (data.smoobuId) existingSmoobuIds.add(data.smoobuId)
+      const key = (data.name || "").toLowerCase().trim()
+      if (!existingNames.has(key)) existingNames.set(key, new Set())
+      existingNames.get(key)!.add(data.source || "")
+    }
+
+    // 3) Create review entries from each completed booking
+    let created = 0
+    let skipped = 0
+
+    for (const booking of completedBookings) {
+      const guestName = `${booking.firstName || ""} ${booking.lastName || ""}`.trim()
+      if (!guestName || guestName === "BLOCKED" || guestName.toLowerCase().includes("blocked")) {
+        skipped++
+        continue
+      }
+
+      // Skip if already synced by smoobuId
+      if (existingSmoobuIds.has(booking.id)) {
+        skipped++
+        continue
+      }
+
+      // Skip if same guest name + same source already exists (avoid near-duplicates)
+      const nameKey = guestName.toLowerCase().trim()
+      if (existingNames.has(nameKey) && existingNames.get(nameKey)!.has(booking.referer)) {
+        skipped++
+        continue
+      }
+
+      const arrivalDate = new Date(booking.arrival)
+      const departureDate = new Date(booking.departure)
+      const nights = Math.max(1, Math.round((departureDate.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24)))
+      const dateStr = arrivalDate.toLocaleDateString("it-IT", { month: "long", year: "numeric" })
+
+      // Build a natural "verified stay" comment based on booking data
+      const sourceLabel = booking.referer === "booking" ? "Booking.com"
+        : booking.referer === "airbnb" ? "Airbnb"
+        : booking.referer === "expedia" ? "Expedia"
+        : "prenotazione diretta"
+
+      const comment = `Soggiorno verificato di ${nights} nott${nights === 1 ? "e" : "i"} tramite ${sourceLabel}. Check-in: ${arrivalDate.toLocaleDateString("it-IT")}, Check-out: ${departureDate.toLocaleDateString("it-IT")}.`
+
+      // Create the review — visible by default, rating based on a verified stay
+      await db.collection("reviews").add({
+        name: guestName,
+        location: "",
+        rating: 5, // Verified stays default to 5 stars
+        comment,
+        source: booking.referer || "direct",
+        date: dateStr,
+        verified: true,
+        hidden: false,
+        smoobuId: booking.id,
+        bookingId: booking.id,
+        arrival: booking.arrival,
+        departure: booking.departure,
+        channelName: booking.channelName || booking.apiSource || "",
+        nights,
+        autoGenerated: true,
+        createdAt: Date.now(),
+        syncedAt: new Date().toISOString(),
+      })
+
+      created++
+      existingSmoobuIds.add(booking.id)
+      if (!existingNames.has(nameKey)) existingNames.set(nameKey, new Set())
+      existingNames.get(nameKey)!.add(booking.referer)
+    }
+
+    return NextResponse.json({
+      success: true,
+      created,
+      skipped,
+      total: completedBookings.length,
+      message: `Sincronizzazione completata: ${created} nuove recensioni create, ${skipped} gia presenti.`,
+    })
   } catch (error) {
-    console.error("[Reviews] Error:", error)
+    console.error("[sync-reviews] Error:", error)
     return NextResponse.json(
-      {
-        success: false,
-        error: "Errore durante l'operazione sulle recensioni",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+      { success: false, error: error instanceof Error ? error.message : "Errore sconosciuto" },
       { status: 500 },
     )
   }
 }
 
 /**
- * GET - Fetch all reviews from Firebase
- * Supports query params:
- *  - pending=true — fetch only pending reviews
- *  - limit=N — limit results (default 100)
- *  - source=booking|airbnb|expedia|direct — filter by source
+ * GET /api/smoobu/sync-reviews
+ * 
+ * Fetches all reviews from Firebase for the admin panel.
+ * Supports: ?hidden=true to include hidden reviews, default shows all.
  */
 export async function GET(req: Request) {
   if (!isFirebaseInitialized()) {
     return NextResponse.json({
       success: true,
       reviews: [],
-      count: 0,
-      stats: { total: 0, completed: 0, pending: 0, averageRating: 0, bySource: {} },
+      stats: { total: 0, visible: 0, hidden: 0, averageRating: 0, bySource: {} },
     })
   }
 
   try {
-  const { searchParams } = new URL(req.url)
-  const pending = searchParams.get("pending") === "true"
-  const limitParam = parseInt(searchParams.get("limit") || "100")
-  const source = searchParams.get("source")
-  
-  const db = getFirestore()
-    let q = db.collection("reviews").orderBy("createdAt", "desc").limit(limitParam)
+    const { searchParams } = new URL(req.url)
+    const includeHidden = searchParams.get("includeHidden") === "true"
+    const limitParam = parseInt(searchParams.get("limit") || "200")
 
-    if (pending) {
-      q = db.collection("reviews").where("pendingReview", "==", true).orderBy("createdAt", "desc").limit(limitParam)
-    }
+    const db = getFirestore()
+    const snapshot = await db.collection("reviews").orderBy("createdAt", "desc").limit(limitParam).get()
 
-    if (source) {
-      q = db.collection("reviews").where("source", "==", source).orderBy("createdAt", "desc").limit(limitParam)
-    }
+    const allReviews = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
 
-    const snapshot = await q.get()
+    // If not admin request, filter out hidden
+    const reviews = includeHidden ? allReviews : allReviews.filter((r: any) => !r.hidden)
 
-    const reviews = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }))
+    // Stats
+    const visibleReviews = allReviews.filter((r: any) => !r.hidden && r.rating > 0)
+    const hiddenReviews = allReviews.filter((r: any) => r.hidden)
+    const avgRating = visibleReviews.length > 0
+      ? visibleReviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / visibleReviews.length
+      : 0
 
-    // Compute stats
-    const allSnap = await db.collection("reviews").get()
-    const allReviews = allSnap.docs.map((d) => d.data())
-    const completedReviews = allReviews.filter((r) => r.rating > 0 && r.comment)
-    const pendingReviews = allReviews.filter((r) => r.pendingReview === true && (!r.comment || r.rating === 0))
-    const avgRating =
-      completedReviews.length > 0
-        ? (completedReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / completedReviews.length).toFixed(1)
-        : "0"
-
-    const sourceBreakdown: Record<string, number> = {}
-    for (const r of completedReviews) {
-      const src = r.source || "other"
-      sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1
+    const bySource: Record<string, number> = {}
+    for (const r of visibleReviews) {
+      const src = (r as any).source || "other"
+      bySource[src] = (bySource[src] || 0) + 1
     }
 
     return NextResponse.json({
       success: true,
       reviews,
-      count: reviews.length,
       stats: {
         total: allReviews.length,
-        completed: completedReviews.length,
-        pending: pendingReviews.length,
-        averageRating: parseFloat(avgRating),
-        bySource: sourceBreakdown,
+        visible: visibleReviews.length,
+        hidden: hiddenReviews.length,
+        averageRating: Math.round(avgRating * 10) / 10,
+        bySource,
       },
     })
   } catch (error) {
-    console.error("[Reviews] Error fetching reviews:", error)
+    console.error("[sync-reviews] GET Error:", error)
     return NextResponse.json(
-      { error: "Failed to fetch reviews", details: error instanceof Error ? error.message : "Unknown error" },
+      { success: false, error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 },
     )
   }

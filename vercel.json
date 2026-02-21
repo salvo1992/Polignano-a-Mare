@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sync-smoobu-bookings",
       "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/sync-smoobu-reviews",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

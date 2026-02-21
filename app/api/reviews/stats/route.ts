@@ -26,7 +26,8 @@ export async function GET() {
     const snapshot = await db.collection("reviews").get()
 
     const allReviews = snapshot.docs.map((d) => d.data())
-    const completedReviews = allReviews.filter((r) => r.rating > 0 && r.comment)
+    // Only count visible reviews (not hidden by admin)
+    const completedReviews = allReviews.filter((r) => r.rating > 0 && r.comment && !r.hidden)
 
     const avgRating =
       completedReviews.length > 0

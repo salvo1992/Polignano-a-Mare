@@ -110,7 +110,7 @@ export default function AllReviewsPage() {
         minRating: minRating || undefined,
       })
 
-      // Filter out pending reviews (no comment or rating 0)
+      // getAllReviewsPage already filters hidden reviews, just ensure rating + comment
       const filtered = res.items.filter((r) => r.rating > 0 && r.comment)
       const newItems = filtered.length ? filtered : reset ? DEFAULT_REVIEWS : []
       setItems((prev) => (reset ? newItems : [...prev, ...newItems]))
