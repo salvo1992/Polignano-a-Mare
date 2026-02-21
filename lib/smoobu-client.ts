@@ -163,14 +163,20 @@ export interface SmoobuRate {
 
 class SmoobuClient {
   private baseUrl: string
-  private apiKey: string
 
   constructor() {
-    if (!SMOOBU_API_KEY) {
+    this.baseUrl = SMOOBU_API_URL
+  }
+
+  /**
+   * Get the API key, lazily validated at request time (not at module load / build time)
+   */
+  private getApiKey(): string {
+    const key = process.env.SMOOBU_API_KEY
+    if (!key) {
       throw new Error("SMOOBU_API_KEY environment variable is required")
     }
-    this.baseUrl = SMOOBU_API_URL
-    this.apiKey = SMOOBU_API_KEY
+    return key
   }
 
   /**
@@ -183,7 +189,7 @@ class SmoobuClient {
       ...options,
       headers: {
         "Content-Type": "application/json",
-        "Api-Key": this.apiKey,
+        "Api-Key": this.getApiKey(),
         "Cache-Control": "no-cache",
         ...options.headers,
       },
