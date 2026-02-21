@@ -40,10 +40,12 @@ export async function POST(req: Request) {
 
     try {
       const apartments = await smoobuClient.getApartmentsCached()
+      console.log("[v0 CREATE-RES] Smoobu apartments:", apartments.map(a => `${a.id}:${a.name}`))
       setSmoobuApartmentIds(apartments)
 
       // Get the Smoobu name for this local room ID (e.g. "1" -> "Acies", "2" -> "Aquarum")
       const smoobuName = getSmoobuName(roomId)
+      console.log("[v0 CREATE-RES] roomId:", roomId, "-> smoobuName:", smoobuName)
 
       if (smoobuName) {
         const match = apartments.find(

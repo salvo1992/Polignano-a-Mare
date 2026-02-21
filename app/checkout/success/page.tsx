@@ -80,14 +80,15 @@ export default function CheckoutSuccess() {
           })
 
           const smoobuResult = await smoobuResponse.json()
+          console.log("[v0] Smoobu response status:", smoobuResponse.status, "body:", JSON.stringify(smoobuResult))
           
           if (smoobuResult.success) {
-            console.log("[Smoobu] Reservation created successfully, ID:", smoobuResult.smoobuReservationId)
+            console.log("[v0] Smoobu reservation created OK, ID:", smoobuResult.smoobuReservationId)
           } else {
-            console.warn("[Smoobu] Reservation creation had issues:", smoobuResult.message)
+            console.error("[v0] Smoobu reservation FAILED:", smoobuResult.error, smoobuResult.details)
           }
         } catch (smoobuError) {
-          console.error("[Smoobu] Error creating reservation:", smoobuError)
+          console.error("[v0] Smoobu create-reservation call FAILED:", smoobuError)
         }
       }
 
