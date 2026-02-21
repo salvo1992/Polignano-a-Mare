@@ -1,19 +1,26 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getAdminDb } from "@/lib/firebase-admin"
+import { db } from "@/lib/firebase"
+import { collection, query, where, getDocs } from "firebase/firestore"
 
+/**
+ * GET - Fetch all unavailable dates for a given room
+ * Combines: confirmed bookings + blocked_dates
+ * Uses client-side Firebase SDK (works without Firebase Admin PEM key)
+ */
 export async function GET(request: NextRequest) {
   try {
-    const db = getAdminDb()
     const { searchParams } = new URL(request.url)
     const roomId = searchParams.get("roomId")
 
     const unavailableDates: Set<string> = new Set()
 
     // 1. Get all active bookings (confirmed, paid, pending)
-    const bookingsRef = db.collection("bookings")
-    let bookingsQuery = bookingsRef.where("status", "in", ["confirmed", "paid", "pending"])
-
-    const bookingsSnap = await bookingsQuery.get()
+    const bookingsRef = collection(db, "bookings")
+    const bookingsQuery = query(
+      bookingsRef,
+      where("status", "in", ["confirmed", "paid", "pending"]),
+    )
+    const bookingsSnap = await getDocs(bookingsQuery)
 
     bookingsSnap.forEach((doc) => {
       const booking = doc.data()
@@ -34,10 +41,10 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // 2. Get blocked_dates from Firebase (synced from Smoobu)
+    // 2. Get blocked_dates from Firebase
     try {
-      const blockedRef = db.collection("blocked_dates")
-      const blockedSnap = await blockedRef.get()
+      const blockedRef = collection(db, "blocked_dates")
+      const blockedSnap = await getDocs(blockedRef)
 
       blockedSnap.forEach((doc) => {
         const blocked = doc.data()
@@ -57,37 +64,7 @@ export async function GET(request: NextRequest) {
         }
       })
     } catch (blockedError) {
-      // blocked_dates collection might not exist yet - that's fine
       console.warn("[unavailable-dates] blocked_dates collection error:", blockedError)
-    }
-
-    // 3. Also check Smoobu-synced bookings that might have a different status field
-    try {
-      const smoobuBookingsRef = db.collection("smoobu_bookings")
-      const smoobuSnap = await smoobuBookingsRef.get()
-
-      smoobuSnap.forEach((doc) => {
-        const booking = doc.data()
-
-        // Skip cancelled bookings
-        if (booking.status === "cancelled" || booking.status === "canceled") return
-
-        // If roomId filter is provided, check room match
-        if (roomId && booking.roomId && booking.roomId !== roomId) {
-          return
-        }
-
-        const arrival = new Date(booking.arrival || booking.checkIn)
-        const departure = new Date(booking.departure || booking.checkOut)
-
-        if (isNaN(arrival.getTime()) || isNaN(departure.getTime())) return
-
-        for (let d = new Date(arrival); d < departure; d.setDate(d.getDate() + 1)) {
-          unavailableDates.add(d.toISOString().split("T")[0])
-        }
-      })
-    } catch {
-      // smoobu_bookings collection might not exist - that's fine
     }
 
     const sortedDates = [...unavailableDates].sort()

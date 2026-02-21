@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { smoobuClient } from "@/lib/smoobu-client"
-import { getFirestore } from "@/lib/firebase-admin"
+import { db } from "@/lib/firebase"
+import { doc, collection, setDoc, updateDoc } from "firebase/firestore"
 
 /**
  * POST - Create a real reservation on Smoobu after payment
@@ -100,9 +101,9 @@ export async function POST(req: Request) {
     console.log("[Smoobu] Reservation created with ID:", smoobuResult.id)
 
     // Update the Firebase booking with the Smoobu reservation ID
-    const db = getFirestore()
     try {
-      await db.doc(`bookings/${bookingId}`).update({
+      const bookingRef = doc(db, "bookings", bookingId)
+      await updateDoc(bookingRef, {
         smoobuReservationId: smoobuResult.id,
         smoobuSyncedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -110,7 +111,23 @@ export async function POST(req: Request) {
       console.log("[Smoobu] Firebase booking updated with smoobuReservationId:", smoobuResult.id)
     } catch (dbError) {
       console.error("[Smoobu] Error updating Firebase booking:", dbError)
-      // The Smoobu reservation was still created successfully
+    }
+
+    // Also create a blocked_dates entry so the calendar immediately reflects the booking
+    try {
+      const blockRef = doc(collection(db, "blocked_dates"))
+      await setDoc(blockRef, {
+        roomId: roomId,
+        from: checkIn,
+        to: checkOut,
+        reason: `auto-booking: ${firstName || "Guest"} ${lastName || ""} (ID: ${bookingId})`,
+        syncedToSmoobu: true,
+        smoobuReservationId: smoobuResult.id,
+        createdAt: new Date().toISOString(),
+      })
+      console.log("[Smoobu] blocked_dates entry created for dates:", checkIn, "->", checkOut)
+    } catch (blockError) {
+      console.error("[Smoobu] Error creating blocked_dates entry:", blockError)
     }
 
     return NextResponse.json({

@@ -90,6 +90,23 @@ async function handleBookingUpdate(reservation: any) {
     const bookingRef = doc(collection(db, "bookings"))
     await setDoc(bookingRef, firebaseBooking)
     console.log(`[Smoobu] Created new booking from webhook: ${smoobuId}`)
+
+    // Also create a blocked_dates entry so calendar immediately blocks these dates
+    try {
+      const blockRef = doc(collection(db, "blocked_dates"))
+      await setDoc(blockRef, {
+        roomId: firebaseBooking.roomId,
+        from: reservation.arrival,
+        to: reservation.departure,
+        reason: `auto-booking: ${firebaseBooking.guestFirst} ${firebaseBooking.guestLast} (Smoobu: ${smoobuId})`,
+        syncedToSmoobu: true,
+        smoobuReservationId: smoobuId,
+        createdAt: new Date().toISOString(),
+      })
+      console.log(`[Smoobu] blocked_dates entry created from webhook for: ${reservation.arrival} -> ${reservation.departure}`)
+    } catch (blockErr) {
+      console.error(`[Smoobu] Error creating blocked_dates entry:`, blockErr)
+    }
   } else {
     // Update existing booking
     const existingDoc = existingBookings.docs[0]

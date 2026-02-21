@@ -134,6 +134,22 @@ export async function POST(request: Request) {
         const bookingRef = doc(collection(db, "bookings"))
         await setDoc(bookingRef, firebaseBooking)
 
+        // Also create a blocked_dates entry so calendar blocks these dates immediately
+        try {
+          const blockRef = doc(collection(db, "blocked_dates"))
+          await setDoc(blockRef, {
+            roomId: localRoomId,
+            from: checkInDate,
+            to: checkOutDate,
+            reason: `auto-booking: ${booking.firstName} ${booking.lastName} (Smoobu: ${booking.id})`,
+            syncedToSmoobu: true,
+            smoobuReservationId: booking.id,
+            createdAt: new Date().toISOString(),
+          })
+        } catch (blockErr) {
+          console.error(`[Smoobu] Error creating blocked_dates entry for booking ${booking.id}:`, blockErr)
+        }
+
         console.log(`[Smoobu] Synced booking ${booking.id} from ${bookingSource} (channelId: ${booking.apiSourceId})`)
         syncedCount++
       } catch (bookingError) {
