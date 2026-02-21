@@ -11,12 +11,35 @@ if (!admin.apps.length) {
     if (!projectId || !clientEmail || !privateKey) {
       console.warn("[Firebase Admin] Missing environment variables. Webhook functionality will be limited.")
     } else {
+      // Robustly parse the private key:
+      // 1. Remove surrounding quotes if present
+      // 2. Replace literal \n with actual newlines
+      // 3. Handle base64-encoded keys
+      let parsedKey = privateKey
+      // Strip wrapping quotes
+      if ((parsedKey.startsWith('"') && parsedKey.endsWith('"')) ||
+          (parsedKey.startsWith("'") && parsedKey.endsWith("'"))) {
+        parsedKey = parsedKey.slice(1, -1)
+      }
+      // Replace escaped newlines
+      parsedKey = parsedKey.replace(/\\n/g, "\n")
+      // If still no PEM header, try base64 decode
+      if (!parsedKey.includes("-----BEGIN")) {
+        try {
+          const decoded = Buffer.from(parsedKey, "base64").toString("utf-8")
+          if (decoded.includes("-----BEGIN")) {
+            parsedKey = decoded
+          }
+        } catch {
+          // not base64, use as-is
+        }
+      }
+
       admin.initializeApp({
         credential: admin.credential.cert({
           projectId,
           clientEmail,
-          // Replace escaped newlines in private key
-          privateKey: privateKey.replace(/\\n/g, "\n"),
+          privateKey: parsedKey,
         }),
       })
       console.log("[Firebase Admin] Initialized successfully")

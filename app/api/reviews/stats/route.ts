@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { isFirebaseInitialized, getFirestore } from "@/lib/firebase-admin"
+import { db } from "@/lib/firebase"
+import { collection, getDocs } from "firebase/firestore"
 
 const DEFAULT_STATS = {
   success: true,
@@ -11,22 +12,14 @@ const DEFAULT_STATS = {
 
 /**
  * GET - Fetch review statistics from Firebase
- * Used by homepage and reviews page for dynamic stats display
- * Falls back to default values if Firebase is not initialized
+ * Uses client-side Firebase SDK (no Firebase Admin dependency)
  */
 export async function GET() {
-  // Guard: if Firebase Admin is not initialized, return safe defaults
-  if (!isFirebaseInitialized()) {
-    console.warn("[ReviewStats] Firebase Admin not initialized, returning defaults")
-    return NextResponse.json(DEFAULT_STATS)
-  }
-
   try {
-    const db = getFirestore()
-    const snapshot = await db.collection("reviews").get()
+    const reviewsRef = collection(db, "reviews")
+    const snapshot = await getDocs(reviewsRef)
 
     const allReviews = snapshot.docs.map((d) => d.data())
-    // Only count visible reviews (not hidden by admin)
     const completedReviews = allReviews.filter((r) => r.rating > 0 && r.comment && !r.hidden)
 
     const avgRating =
@@ -40,9 +33,9 @@ export async function GET() {
       sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1
     }
 
-    // Calculate satisfaction: % of reviews with rating >= 4
     const satisfied = completedReviews.filter((r) => r.rating >= 4).length
-    const satisfactionPct = completedReviews.length > 0 ? Math.round((satisfied / completedReviews.length) * 100) : 0
+    const satisfactionPct =
+      completedReviews.length > 0 ? Math.round((satisfied / completedReviews.length) * 100) : 0
 
     return NextResponse.json({
       success: true,
