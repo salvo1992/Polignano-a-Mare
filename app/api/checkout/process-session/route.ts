@@ -1,63 +1,46 @@
 import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
-import { getAdminDb } from "@/lib/firebase-admin"
-import { FieldValue } from "firebase-admin/firestore"
+import { db } from "@/lib/firebase"
+import { doc, getDoc, updateDoc, serverTimestamp, increment } from "firebase/firestore"
 import { sendModificationEmail } from "@/lib/email"
 import { calculateNights } from "@/lib/pricing"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-11-20.acacia" })
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-11-20.acacia",
+})
 
 export async function POST(request: NextRequest) {
   try {
     const { sessionId } = await request.json()
 
-    console.log("[v0 DEBUG] ====== PROCESS SESSION START ======")
-    console.log("[v0 DEBUG] Session ID:", sessionId)
+    console.log("[v0 PROCESS-SESSION] ====== START ======")
+    console.log("[v0 PROCESS-SESSION] Session ID:", sessionId)
 
     if (!sessionId) {
-      console.error("[v0 DEBUG] ❌ Missing session ID")
       return NextResponse.json({ error: "Session ID mancante" }, { status: 400 })
     }
 
-    console.log("[v0 DEBUG] Retrieving session from Stripe...")
     const session = await stripe.checkout.sessions.retrieve(sessionId)
-    console.log("[v0 DEBUG] Session retrieved:", {
-      id: session.id,
-      payment_status: session.payment_status,
-      metadata: session.metadata,
-    })
+    console.log("[v0 PROCESS-SESSION] Stripe status:", session.payment_status)
 
     if (session.payment_status !== "paid") {
-      console.error("[v0 DEBUG] ❌ Payment not completed:", session.payment_status)
       return NextResponse.json({ error: "Pagamento non completato" }, { status: 400 })
     }
 
     const metadata = session.metadata
     if (!metadata || !metadata.bookingId) {
-      console.error("[v0 DEBUG] ❌ Missing metadata:", metadata)
       return NextResponse.json({ error: "Metadati sessione mancanti" }, { status: 400 })
     }
 
-    console.log("[v0 DEBUG] Metadata parsed:", metadata)
-    console.log("[v0 DEBUG] Payment type:", metadata.type)
+    const bookingRef = doc(db, "bookings", metadata.bookingId)
+    const bookingSnap = await getDoc(bookingRef)
 
-    const db = getAdminDb()
-    const bookingRef = db.collection("bookings").doc(metadata.bookingId)
-    const bookingSnap = await bookingRef.get()
-
-    if (!bookingSnap.exists) {
-      console.error("[v0 DEBUG] ❌ Booking not found:", metadata.bookingId)
+    if (!bookingSnap.exists()) {
       return NextResponse.json({ error: "Prenotazione non trovata" }, { status: 404 })
     }
 
     const booking = bookingSnap.data()
-    console.log("[v0 DEBUG] Current booking data:", {
-      totalAmount: booking?.totalAmount,
-      depositPaid: booking?.depositPaid,
-      balanceDue: booking?.balanceDue,
-    })
-
-    const isNewBooking = metadata.type !== "change_dates" && metadata.type !== "add_guest"
+    console.log("[v0 PROCESS-SESSION] Booking found:", metadata.bookingId)
 
     if (metadata.type === "change_dates") {
       const depositAmount = Number.parseInt(metadata.depositAmount)
@@ -66,125 +49,132 @@ export async function POST(request: NextRequest) {
       const penalty = Number.parseInt(metadata.penalty || "0")
       const priceDifference = Number.parseInt(metadata.priceDifference)
 
-      console.log("[v0 DEBUG] ====== CHANGE DATES PAYMENT DETECTED ======")
-      console.log("[v0 DEBUG] Amounts:", {
-        depositAmount: depositAmount / 100,
-        balanceAmount: balanceAmount / 100,
-        newTotalAmount: newTotalAmount / 100,
-        penalty: penalty / 100,
-      })
-      console.log("[v0 DEBUG] New dates:", {
+      console.log("[v0 PROCESS-SESSION] Change dates:", {
         checkIn: metadata.checkIn,
         checkOut: metadata.checkOut,
-        nights: calculateNights(metadata.checkIn, metadata.checkOut),
+        newTotal: newTotalAmount / 100,
       })
 
-      console.log("[v0 DEBUG] Updating booking in database...")
-      await bookingRef.update({
+      await updateDoc(bookingRef, {
         checkIn: metadata.checkIn,
         checkOut: metadata.checkOut,
         nights: calculateNights(metadata.checkIn, metadata.checkOut),
         totalAmount: newTotalAmount,
-        depositPaid: FieldValue.increment(depositAmount),
-        balanceDue: FieldValue.increment(balanceAmount),
-        updatedAt: FieldValue.serverTimestamp(),
+        depositPaid: increment(depositAmount),
+        balanceDue: increment(balanceAmount),
+        updatedAt: serverTimestamp(),
       })
-      console.log("[v0 DEBUG] ✅ Database updated successfully")
 
-      console.log("[v0 DEBUG] Sending modification email...")
-      await sendModificationEmail({
-        to: booking?.email,
-        bookingId: metadata.bookingId,
-        firstName: booking?.firstName,
-        lastName: booking?.lastName,
-        checkIn: metadata.checkIn,
-        checkOut: metadata.checkOut,
-        roomName: booking?.roomName,
-        guests: booking?.guests || 2,
-        nights: calculateNights(metadata.checkIn, metadata.checkOut),
-        originalAmount: Number.parseInt(metadata.originalAmount),
-        newAmount: newTotalAmount,
-        penalty,
-        dateChangeCost: priceDifference,
-        modificationType: "dates",
-      })
-      console.log("[v0 DEBUG] ✅ Email sent successfully")
-      console.log("[v0 DEBUG] ====== CHANGE DATES COMPLETE ======")
+      try {
+        await sendModificationEmail({
+          to: booking?.email,
+          bookingId: metadata.bookingId,
+          firstName: booking?.firstName,
+          lastName: booking?.lastName,
+          checkIn: metadata.checkIn,
+          checkOut: metadata.checkOut,
+          roomName: booking?.roomName,
+          guests: booking?.guests || 2,
+          nights: calculateNights(metadata.checkIn, metadata.checkOut),
+          originalAmount: Number.parseInt(metadata.originalAmount),
+          newAmount: newTotalAmount,
+          penalty,
+          dateChangeCost: priceDifference,
+          modificationType: "dates",
+        })
+      } catch (emailErr) {
+        console.error("[v0 PROCESS-SESSION] Email error:", emailErr)
+      }
     } else if (metadata.type === "add_guest") {
       const newGuestsCount = Number.parseInt(metadata.newGuestsCount)
       const newTotalAmount = Number.parseInt(metadata.newTotalAmount)
       const originalAmount = Number.parseInt(metadata.originalAmount)
       const guestAdditionCost = Number.parseInt(metadata.guestAdditionCost)
 
-      console.log("[v0 DEBUG] ====== ADD GUEST PAYMENT DETECTED ======")
-      console.log("[v0 DEBUG] Amounts:", {
-        newTotalAmount: newTotalAmount / 100,
-        guestAdditionCost: guestAdditionCost / 100,
-      })
-      console.log("[v0 DEBUG] New guests count:", newGuestsCount)
-
-      console.log("[v0 DEBUG] Updating booking in database...")
-      await bookingRef.update({
+      await updateDoc(bookingRef, {
         guests: newGuestsCount,
         totalAmount: newTotalAmount,
-        updatedAt: FieldValue.serverTimestamp(),
+        updatedAt: serverTimestamp(),
       })
-      console.log("[v0 DEBUG] ✅ Database updated successfully")
 
-      const nights = calculateNights(booking?.checkIn, booking?.checkOut)
-      console.log("[v0 DEBUG] Sending modification email...")
-      await sendModificationEmail({
-        to: booking?.email,
-        bookingId: metadata.bookingId,
-        firstName: booking?.firstName,
-        lastName: booking?.lastName,
-        checkIn: booking?.checkIn,
-        checkOut: booking?.checkOut,
-        roomName: booking?.roomName,
-        guests: newGuestsCount,
-        nights,
-        originalAmount,
-        newAmount: newTotalAmount,
-        guestAdditionCost,
-        modificationType: "guests",
-      })
-      console.log("[v0 DEBUG] ✅ Email sent successfully")
-      console.log("[v0 DEBUG] ====== ADD GUEST COMPLETE ======")
+      try {
+        const nights = calculateNights(booking?.checkIn, booking?.checkOut)
+        await sendModificationEmail({
+          to: booking?.email,
+          bookingId: metadata.bookingId,
+          firstName: booking?.firstName,
+          lastName: booking?.lastName,
+          checkIn: booking?.checkIn,
+          checkOut: booking?.checkOut,
+          roomName: booking?.roomName,
+          guests: newGuestsCount,
+          nights,
+          originalAmount,
+          newAmount: newTotalAmount,
+          guestAdditionCost,
+          modificationType: "guests",
+        })
+      } catch (emailErr) {
+        console.error("[v0 PROCESS-SESSION] Email error:", emailErr)
+      }
     } else {
-      console.log("[v0 DEBUG] ====== CONFIRMATION PAYMENT DETECTED ======")
-      console.log("[v0 DEBUG] Updating booking status to confirmed...")
-      await bookingRef.update({
+      // New booking confirmation
+      console.log("[v0 PROCESS-SESSION] Confirming new booking")
+      await updateDoc(bookingRef, {
         status: "confirmed",
         paymentProvider: "stripe",
         paymentId: session.payment_intent as string,
-        paidAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+        paidAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       })
-      console.log("[v0 DEBUG] ✅ Booking status updated to confirmed after payment")
-      console.log("[v0 DEBUG] ====== CONFIRMATION COMPLETE ======")
+      console.log("[v0 PROCESS-SESSION] Booking confirmed successfully")
     }
 
-    const updatedBookingSnap = await bookingRef.get()
-    const updatedBooking = updatedBookingSnap.data()
+    // Re-read updated booking
+    const updatedSnap = await getDoc(bookingRef)
+    const updatedBooking = updatedSnap.data()
 
-    console.log("[v0 DEBUG] Final booking state:", {
-      totalAmount: updatedBooking?.totalAmount,
-      depositPaid: updatedBooking?.depositPaid,
-      balanceDue: updatedBooking?.balanceDue,
-      checkIn: updatedBooking?.checkIn,
-      checkOut: updatedBooking?.checkOut,
+    // Serialize Firestore Timestamps and ensure dates are strings
+    const serialized: Record<string, any> = {
+      id: metadata.bookingId,
+      bookingId: metadata.bookingId,
+    }
+    if (updatedBooking) {
+      for (const [key, value] of Object.entries(updatedBooking)) {
+        if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
+          // Firestore Timestamp -> ISO string
+          serialized[key] = value.toDate().toISOString()
+        } else if (value && typeof value === "object" && ("seconds" in value || "_seconds" in value)) {
+          // Serialized Timestamp
+          const secs = (value as any).seconds || (value as any)._seconds || 0
+          serialized[key] = new Date(secs * 1000).toISOString()
+        } else {
+          serialized[key] = value
+        }
+      }
+    }
+
+    // Ensure checkIn/checkOut are YYYY-MM-DD strings for Smoobu
+    if (serialized.checkIn && serialized.checkIn.includes("T")) {
+      serialized.checkIn = serialized.checkIn.split("T")[0]
+    }
+    if (serialized.checkOut && serialized.checkOut.includes("T")) {
+      serialized.checkOut = serialized.checkOut.split("T")[0]
+    }
+
+    console.log("[v0 PROCESS-SESSION] Returning booking:", {
+      roomId: serialized.roomId,
+      checkIn: serialized.checkIn,
+      checkOut: serialized.checkOut,
     })
-    console.log("[v0 DEBUG] ====== PROCESS SESSION COMPLETE ======")
+    console.log("[v0 PROCESS-SESSION] ====== COMPLETE ======")
 
     return NextResponse.json({
       success: true,
-      booking: {
-        id: metadata.bookingId,
-        ...updatedBooking,
-      },
+      booking: serialized,
     })
   } catch (error: any) {
-    console.error("[v0 DEBUG] ❌ ERROR in process-session:", error)
+    console.error("[v0 PROCESS-SESSION] ERROR:", error)
     return NextResponse.json({ error: error.message || "Errore nell'elaborazione" }, { status: 500 })
   }
 }
