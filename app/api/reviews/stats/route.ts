@@ -1,11 +1,26 @@
 import { NextResponse } from "next/server"
-import { getFirestore } from "@/lib/firebase-admin"
+import { isFirebaseInitialized, getFirestore } from "@/lib/firebase-admin"
+
+const DEFAULT_STATS = {
+  success: true,
+  totalReviews: 0,
+  averageRating: 0,
+  satisfaction: 0,
+  bySource: {},
+}
 
 /**
  * GET - Fetch review statistics from Firebase
  * Used by homepage and reviews page for dynamic stats display
+ * Falls back to default values if Firebase is not initialized
  */
 export async function GET() {
+  // Guard: if Firebase Admin is not initialized, return safe defaults
+  if (!isFirebaseInitialized()) {
+    console.warn("[ReviewStats] Firebase Admin not initialized, returning defaults")
+    return NextResponse.json(DEFAULT_STATS)
+  }
+
   try {
     const db = getFirestore()
     const snapshot = await db.collection("reviews").get()
@@ -37,9 +52,6 @@ export async function GET() {
     })
   } catch (error) {
     console.error("[ReviewStats] Error:", error)
-    return NextResponse.json(
-      { success: false, totalReviews: 0, averageRating: 0, satisfaction: 0, bySource: {} },
-      { status: 200 }, // Return defaults even on error
-    )
+    return NextResponse.json(DEFAULT_STATS)
   }
 }

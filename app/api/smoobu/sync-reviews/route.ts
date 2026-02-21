@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getFirestore } from "@/lib/firebase-admin"
+import { isFirebaseInitialized, getFirestore } from "@/lib/firebase-admin"
 
 /**
  * POST - Add or auto-sync reviews to Firebase
@@ -9,6 +9,13 @@ import { getFirestore } from "@/lib/firebase-admin"
  *  - action: "auto-sync-from-bookings" — auto-generate review entries from completed Smoobu bookings
  */
 export async function POST(req: Request) {
+  if (!isFirebaseInitialized()) {
+    return NextResponse.json(
+      { success: false, error: "Firebase non inizializzato. Controlla le variabili d'ambiente." },
+      { status: 503 },
+    )
+  }
+
   try {
     const body = await req.json()
     const { action } = body
@@ -235,13 +242,22 @@ export async function POST(req: Request) {
  *  - source=booking|airbnb|expedia|direct — filter by source
  */
 export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url)
-    const pending = searchParams.get("pending") === "true"
-    const limitParam = parseInt(searchParams.get("limit") || "100")
-    const source = searchParams.get("source")
+  if (!isFirebaseInitialized()) {
+    return NextResponse.json({
+      success: true,
+      reviews: [],
+      count: 0,
+      stats: { total: 0, completed: 0, pending: 0, averageRating: 0, bySource: {} },
+    })
+  }
 
-    const db = getFirestore()
+  try {
+  const { searchParams } = new URL(req.url)
+  const pending = searchParams.get("pending") === "true"
+  const limitParam = parseInt(searchParams.get("limit") || "100")
+  const source = searchParams.get("source")
+  
+  const db = getFirestore()
     let q = db.collection("reviews").orderBy("createdAt", "desc").limit(limitParam)
 
     if (pending) {

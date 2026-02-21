@@ -26,11 +26,21 @@ if (!admin.apps.length) {
   }
 }
 
+export const isFirebaseInitialized = () => {
+  return admin.apps.length > 0
+}
+
 export const getFirestore = () => {
+  if (!admin.apps.length) {
+    throw new Error("Firebase Admin not initialized — check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY env vars")
+  }
   return admin.firestore()
 }
 
 export const getAdminDb = () => {
+  if (!admin.apps.length) {
+    throw new Error("Firebase Admin not initialized — check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY env vars")
+  }
   return admin.firestore()
 }
 
