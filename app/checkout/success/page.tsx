@@ -56,30 +56,38 @@ export default function CheckoutSuccess() {
       setBooking(data.booking)
       setEmailSent(true) // Email already sent by process-session API
 
+      // Create a REAL reservation on Smoobu (not just block dates)
+      // This ensures Booking.com, Airbnb, etc. are updated automatically
       if (data.booking?.roomId && data.booking?.checkIn && data.booking?.checkOut) {
         try {
-          console.log("[Smoobu] Blocking dates for booking:", data.booking.id)
+          console.log("[Smoobu] Creating reservation for booking:", data.booking.id)
           
-          const blockResponse = await fetch("/api/smoobu/block-dates", {
+          const smoobuResponse = await fetch("/api/smoobu/create-reservation", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              bookingId: data.booking.id || data.booking.bookingId,
               roomId: data.booking.roomId,
-              from: data.booking.checkIn,
-              to: data.booking.checkOut,
-              reason: `website_booking_${data.booking.id}`
+              checkIn: data.booking.checkIn,
+              checkOut: data.booking.checkOut,
+              firstName: data.booking.firstName,
+              lastName: data.booking.lastName,
+              email: data.booking.email,
+              phone: data.booking.phone || "",
+              guests: data.booking.guests || 1,
+              totalAmount: data.booking.totalAmount || 0,
             }),
           })
 
-          const blockResult = await blockResponse.json()
+          const smoobuResult = await smoobuResponse.json()
           
-          if (blockResult.success) {
-            console.log("[Smoobu] Dates blocked successfully")
+          if (smoobuResult.success) {
+            console.log("[Smoobu] Reservation created successfully, ID:", smoobuResult.smoobuReservationId)
           } else {
-            console.warn("[Smoobu] Date blocking completed with warnings:", blockResult.message)
+            console.warn("[Smoobu] Reservation creation had issues:", smoobuResult.message)
           }
-        } catch (blockError) {
-          console.error("[Smoobu] Error blocking dates:", blockError)
+        } catch (smoobuError) {
+          console.error("[Smoobu] Error creating reservation:", smoobuError)
         }
       }
 
