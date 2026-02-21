@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,17 +15,13 @@ import {
   CheckCircle2,
   Trash2,
   RefreshCw,
-  Download,
   Users,
+  Zap,
+  Clock,
+  Edit3,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface ReviewForm {
   name: string
@@ -34,6 +30,7 @@ interface ReviewForm {
   comment: string
   source: string
   date: string
+  bookingId?: string
 }
 
 interface CompletedBooking {
@@ -44,7 +41,8 @@ interface CompletedBooking {
   departure: string
   referer: string
   roomId: string
-  channelName: string
+  channelName?: string
+  apiSource?: string
 }
 
 interface ExistingReview {
@@ -55,6 +53,16 @@ interface ExistingReview {
   source: string
   date: string
   location?: string
+  pendingReview?: boolean
+  bookingId?: string
+}
+
+interface ReviewStats {
+  total: number
+  completed: number
+  pending: number
+  averageRating: number
+  bySource: Record<string, number>
 }
 
 const emptyReview: ReviewForm = {
@@ -68,21 +76,23 @@ const emptyReview: ReviewForm = {
 
 export function SmoobuReviewsSync() {
   const [saving, setSaving] = useState(false)
-  const [result, setResult] = useState<{
-    success: boolean
-    message: string
-  } | null>(null)
+  const [autoSyncing, setAutoSyncing] = useState(false)
+  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [review, setReview] = useState<ReviewForm>({ ...emptyReview })
   const [recentReviews, setRecentReviews] = useState<Array<ReviewForm & { id?: string }>>([])
 
-  // Completed bookings from Smoobu (potential review sources)
+  // Smoobu completed bookings
   const [completedBookings, setCompletedBookings] = useState<CompletedBooking[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
 
-  // Existing reviews from Firebase
+  // Firebase reviews
   const [existingReviews, setExistingReviews] = useState<ExistingReview[]>([])
   const [loadingReviews, setLoadingReviews] = useState(false)
+  const [stats, setStats] = useState<ReviewStats | null>(null)
+
+  // Edit mode for pending reviews
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null)
 
   const hasLoadedRef = useRef(false)
 
@@ -101,22 +111,16 @@ export function SmoobuReviewsSync() {
       const now = new Date()
       const yearAgo = new Date(now)
       yearAgo.setFullYear(yearAgo.getFullYear() - 1)
-
       const from = yearAgo.toISOString().split("T")[0]
       const to = now.toISOString().split("T")[0]
 
-      const response = await fetch(
-        `/api/smoobu/sync-bookings?from=${from}&to=${to}&source=all`
-      )
+      const response = await fetch(`/api/smoobu/sync-bookings?from=${from}&to=${to}&source=all`)
       const data = await response.json()
 
       if (response.ok && data.bookings) {
-        // Filter only completed bookings (departure date in the past)
         const completed = data.bookings.filter(
-          (b: any) =>
-            new Date(b.departure) < now &&
-            b.status !== "blocked" &&
-            b.referer !== "blocked"
+          (b: CompletedBooking & { status?: string }) =>
+            new Date(b.departure) < now && b.referer !== "blocked" && (b as any).status !== "blocked",
         )
         setCompletedBookings(completed)
       }
@@ -130,11 +134,14 @@ export function SmoobuReviewsSync() {
   const fetchExistingReviews = async () => {
     setLoadingReviews(true)
     try {
-      const response = await fetch("/api/smoobu/sync-reviews")
+      const response = await fetch("/api/smoobu/sync-reviews?limit=200")
       const data = await response.json()
 
       if (response.ok && data.reviews) {
         setExistingReviews(data.reviews)
+      }
+      if (data.stats) {
+        setStats(data.stats)
       }
     } catch (err) {
       console.error("[Reviews] Error fetching existing reviews:", err)
@@ -142,6 +149,42 @@ export function SmoobuReviewsSync() {
       setLoadingReviews(false)
     }
   }
+
+  // Auto-sync: create review stubs from completed Smoobu bookings
+  const autoSyncFromBookings = useCallback(async () => {
+    if (completedBookings.length === 0) {
+      setError("Nessuna prenotazione completata da sincronizzare. Aggiorna prima le prenotazioni.")
+      return
+    }
+
+    setAutoSyncing(true)
+    setError(null)
+    setResult(null)
+
+    try {
+      const response = await fetch("/api/smoobu/sync-reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "auto-sync-from-bookings",
+          bookings: completedBookings,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Errore nella sincronizzazione automatica")
+      }
+
+      setResult({ success: true, message: data.message })
+      fetchExistingReviews()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore sconosciuto")
+    } finally {
+      setAutoSyncing(false)
+    }
+  }, [completedBookings])
 
   const handleAddReview = async () => {
     if (!review.name || !review.comment || !review.rating) {
@@ -172,8 +215,7 @@ export function SmoobuReviewsSync() {
       setResult({ success: true, message: data.message })
       setRecentReviews((prev) => [{ ...review, id: data.reviewId }, ...prev])
       setReview({ ...emptyReview })
-
-      // Refresh existing reviews
+      setEditingReviewId(null)
       fetchExistingReviews()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore sconosciuto")
@@ -186,37 +228,84 @@ export function SmoobuReviewsSync() {
     setReview((prev) => ({ ...prev, rating: star }))
   }
 
-  // Pre-fill review form from a completed booking
+  // Pre-fill from a completed booking
   const prefillFromBooking = (booking: CompletedBooking) => {
-    const sourceMap: Record<string, string> = {
-      booking: "booking",
-      airbnb: "airbnb",
-      expedia: "expedia",
-      direct: "direct",
-    }
     const arrivalDate = new Date(booking.arrival)
-    const dateStr = arrivalDate.toLocaleDateString("it-IT", {
-      month: "long",
-      year: "numeric",
-    })
+    const dateStr = arrivalDate.toLocaleDateString("it-IT", { month: "long", year: "numeric" })
 
     setReview({
       name: `${booking.firstName} ${booking.lastName}`.trim(),
       location: "",
       rating: 5,
       comment: "",
-      source: sourceMap[booking.referer] || "manual",
+      source: booking.referer || "manual",
       date: dateStr,
+      bookingId: booking.id,
     })
+    setEditingReviewId(null)
   }
 
-  // Count bookings that don't have reviews yet
+  // Edit a pending review
+  const editPendingReview = (rev: ExistingReview) => {
+    setReview({
+      name: rev.name,
+      location: rev.location || "",
+      rating: rev.rating || 5,
+      comment: rev.comment || "",
+      source: rev.source || "manual",
+      date: rev.date || "",
+      bookingId: rev.bookingId,
+    })
+    setEditingReviewId(rev.id)
+  }
+
+  // Bookings that don't have reviews yet
   const bookingsWithoutReviews = completedBookings.filter((b) => {
     const guestName = `${b.firstName} ${b.lastName}`.trim().toLowerCase()
     return !existingReviews.some(
-      (r) => r.name.toLowerCase() === guestName
+      (r) => r.name.toLowerCase() === guestName || r.bookingId === b.id,
     )
   })
+
+  // Pending reviews (have booking stub but no comment yet)
+  const pendingReviews = existingReviews.filter(
+    (r) => r.pendingReview === true && (!r.comment || r.rating === 0),
+  )
+
+  // Completed reviews (have rating + comment)
+  const completedReviewsList = existingReviews.filter(
+    (r) => r.rating > 0 && r.comment,
+  )
+
+  const getSourceColor = (source: string) => {
+    switch (source) {
+      case "booking":
+        return "bg-blue-600 text-white"
+      case "airbnb":
+        return "bg-pink-600 text-white"
+      case "expedia":
+        return "bg-yellow-600 text-white"
+      case "direct":
+        return "bg-emerald-600 text-white"
+      default:
+        return "bg-muted text-foreground"
+    }
+  }
+
+  const getSourceLabel = (source: string) => {
+    switch (source) {
+      case "booking":
+        return "Booking.com"
+      case "airbnb":
+        return "Airbnb"
+      case "expedia":
+        return "Expedia"
+      case "direct":
+        return "Diretta"
+      default:
+        return source
+    }
+  }
 
   return (
     <Card>
@@ -226,58 +315,107 @@ export function SmoobuReviewsSync() {
           Recensioni da Smoobu
         </CardTitle>
         <CardDescription>
-          Recupera le prenotazioni completate da Smoobu e gestisci le recensioni.
-          Le recensioni vengono sincronizzate automaticamente.
+          Recupera automaticamente le prenotazioni completate da Smoobu e gestisci le recensioni.
+          Le recensioni verranno mostrate nella pagina Recensioni e nella Home.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Sync status */}
-        <div className="flex items-center justify-between">
+        {/* Auto-sync bar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border p-4 bg-muted/20">
           <div>
-            <p className="text-sm font-medium">Prenotazioni completate da Smoobu</p>
+            <p className="text-sm font-medium">Sincronizzazione automatica da Smoobu</p>
             <p className="text-xs text-muted-foreground">
               {loadingBookings
-                ? "Caricamento..."
-                : `${completedBookings.length} prenotazioni completate trovate`}
+                ? "Caricamento prenotazioni..."
+                : `${completedBookings.length} prenotazioni completate, ${bookingsWithoutReviews.length} senza recensione`}
             </p>
           </div>
-          <Button
-            onClick={() => {
-              fetchCompletedBookings()
-              fetchExistingReviews()
-            }}
-            disabled={loadingBookings}
-            variant="outline"
-            size="sm"
-          >
-            {loadingBookings ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            <span className="ml-2">Aggiorna</span>
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => {
+                fetchCompletedBookings()
+                fetchExistingReviews()
+              }}
+              disabled={loadingBookings || loadingReviews}
+              variant="outline"
+              size="sm"
+            >
+              {loadingBookings ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              <span className="ml-1.5">Aggiorna</span>
+            </Button>
+            <Button
+              onClick={autoSyncFromBookings}
+              disabled={autoSyncing || completedBookings.length === 0}
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {autoSyncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              <span className="ml-1.5">Auto-Sync Recensioni</span>
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-lg border p-3 text-center">
-            <p className="text-2xl font-bold">{existingReviews.length}</p>
-            <p className="text-xs text-muted-foreground">Recensioni salvate</p>
+            <p className="text-2xl font-bold">{stats?.completed ?? completedReviewsList.length}</p>
+            <p className="text-xs text-muted-foreground">Recensioni pubblicate</p>
+          </div>
+          <div className="rounded-lg border p-3 text-center">
+            <p className="text-2xl font-bold text-amber-600">{stats?.pending ?? pendingReviews.length}</p>
+            <p className="text-xs text-muted-foreground">In attesa</p>
           </div>
           <div className="rounded-lg border p-3 text-center">
             <p className="text-2xl font-bold">{completedBookings.length}</p>
             <p className="text-xs text-muted-foreground">Soggiorni completati</p>
           </div>
           <div className="rounded-lg border p-3 text-center">
-            <p className="text-2xl font-bold text-amber-600">
-              {bookingsWithoutReviews.length}
-            </p>
-            <p className="text-xs text-muted-foreground">Senza recensione</p>
+            <div className="flex items-center justify-center gap-1">
+              <p className="text-2xl font-bold">{stats?.averageRating?.toFixed(1) ?? "0"}</p>
+              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+            </div>
+            <p className="text-xs text-muted-foreground">Media voto</p>
           </div>
         </div>
 
-        {/* Completed bookings without reviews */}
+        {/* Pending reviews - reviews that need the admin to fill in */}
+        {pendingReviews.length > 0 && (
+          <div className="space-y-3 rounded-lg border p-4 bg-amber-50/50">
+            <h4 className="text-sm font-semibold flex items-center gap-2 text-amber-800">
+              <Clock className="w-4 h-4" />
+              Recensioni in attesa ({pendingReviews.length})
+            </h4>
+            <p className="text-xs text-muted-foreground">
+              Queste prenotazioni sono state sincronizzate da Smoobu. Clicca per aggiungere il testo della recensione
+              copiandolo dal portale originale.
+            </p>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {pendingReviews.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => editPendingReview(r)}
+                  className={`w-full flex items-center justify-between p-2 rounded-md border text-sm transition-colors text-left ${
+                    editingReviewId === r.id
+                      ? "bg-amber-100 border-amber-300"
+                      : "hover:bg-amber-50 border-amber-200"
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{r.name}</p>
+                    <p className="text-xs text-muted-foreground">{r.date}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`text-xs ${getSourceColor(r.source)}`}>{getSourceLabel(r.source)}</Badge>
+                    <Edit3 className="w-3.5 h-3.5 text-muted-foreground" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Completed bookings without any review entry */}
         {bookingsWithoutReviews.length > 0 && (
           <div className="space-y-3 rounded-lg border p-4">
             <h4 className="text-sm font-semibold flex items-center gap-2">
@@ -285,7 +423,7 @@ export function SmoobuReviewsSync() {
               Ospiti senza recensione ({bookingsWithoutReviews.length})
             </h4>
             <p className="text-xs text-muted-foreground">
-              Clicca su un ospite per pre-compilare il modulo con i dati da Smoobu
+              Clicca su un ospite per pre-compilare il modulo, oppure usa "Auto-Sync" per creare stub automaticamente.
             </p>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {bookingsWithoutReviews.slice(0, 20).map((b) => (
@@ -304,30 +442,18 @@ export function SmoobuReviewsSync() {
                       {new Date(b.departure).toLocaleDateString("it-IT")}
                     </p>
                   </div>
-                  <Badge
-                    className={`text-xs text-white ml-2 ${
-                      b.referer === "booking"
-                        ? "bg-blue-600"
-                        : b.referer === "airbnb"
-                          ? "bg-pink-600"
-                          : b.referer === "expedia"
-                            ? "bg-yellow-600"
-                            : "bg-emerald-600"
-                    }`}
-                  >
-                    {b.referer === "direct" ? "Diretta" : b.referer}
-                  </Badge>
+                  <Badge className={`text-xs ml-2 ${getSourceColor(b.referer)}`}>{getSourceLabel(b.referer)}</Badge>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* Add Review Form */}
+        {/* Add / Edit Review Form */}
         <div className="space-y-4 rounded-lg border p-4">
           <h4 className="text-sm font-semibold flex items-center gap-2">
             <Plus className="w-4 h-4" />
-            Aggiungi Recensione
+            {editingReviewId ? "Completa Recensione" : "Aggiungi Recensione"}
           </h4>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -337,21 +463,16 @@ export function SmoobuReviewsSync() {
                 id="review-name"
                 placeholder="es. Marco Rossi"
                 value={review.name}
-                onChange={(e) =>
-                  setReview((prev) => ({ ...prev, name: e.target.value }))
-                }
+                onChange={(e) => setReview((prev) => ({ ...prev, name: e.target.value }))}
               />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="review-location">Provenienza</Label>
               <Input
                 id="review-location"
                 placeholder="es. Milano, Italia"
                 value={review.location}
-                onChange={(e) =>
-                  setReview((prev) => ({ ...prev, location: e.target.value }))
-                }
+                onChange={(e) => setReview((prev) => ({ ...prev, location: e.target.value }))}
               />
             </div>
           </div>
@@ -359,12 +480,7 @@ export function SmoobuReviewsSync() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Fonte *</Label>
-              <Select
-                value={review.source}
-                onValueChange={(val) =>
-                  setReview((prev) => ({ ...prev, source: val }))
-                }
-              >
+              <Select value={review.source} onValueChange={(val) => setReview((prev) => ({ ...prev, source: val }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona fonte" />
                 </SelectTrigger>
@@ -377,16 +493,13 @@ export function SmoobuReviewsSync() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="review-date">Data (opzionale)</Label>
               <Input
                 id="review-date"
                 placeholder="es. Gennaio 2025"
                 value={review.date}
-                onChange={(e) =>
-                  setReview((prev) => ({ ...prev, date: e.target.value }))
-                }
+                onChange={(e) => setReview((prev) => ({ ...prev, date: e.target.value }))}
               />
             </div>
           </div>
@@ -403,16 +516,12 @@ export function SmoobuReviewsSync() {
                 >
                   <Star
                     className={`w-6 h-6 ${
-                      star <= review.rating
-                        ? "fill-yellow-400 text-yellow-400"
-                        : "text-muted-foreground/30"
+                      star <= review.rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
                     }`}
                   />
                 </button>
               ))}
-              <span className="ml-2 text-sm text-muted-foreground">
-                {review.rating}/5
-              </span>
+              <span className="ml-2 text-sm text-muted-foreground">{review.rating}/5</span>
             </div>
           </div>
 
@@ -423,9 +532,7 @@ export function SmoobuReviewsSync() {
               placeholder="Incolla qui il testo della recensione dal portale Booking.com, Airbnb, ecc..."
               rows={4}
               value={review.comment}
-              onChange={(e) =>
-                setReview((prev) => ({ ...prev, comment: e.target.value }))
-              }
+              onChange={(e) => setReview((prev) => ({ ...prev, comment: e.target.value }))}
             />
           </div>
 
@@ -433,20 +540,22 @@ export function SmoobuReviewsSync() {
             <Button onClick={handleAddReview} disabled={saving}>
               {saving ? (
                 <>
-                  <Star className="w-4 h-4 mr-2 animate-spin" />
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                   Salvataggio...
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4 mr-2" />
-                  Aggiungi Recensione
+                  {editingReviewId ? "Salva Recensione" : "Aggiungi Recensione"}
                 </>
               )}
             </Button>
-
             <Button
               variant="outline"
-              onClick={() => setReview({ ...emptyReview })}
+              onClick={() => {
+                setReview({ ...emptyReview })
+                setEditingReviewId(null)
+              }}
               disabled={saving}
             >
               <Trash2 className="w-4 h-4 mr-2" />
@@ -472,51 +581,87 @@ export function SmoobuReviewsSync() {
           </Alert>
         )}
 
-        {/* Recently added reviews */}
+        {/* Recently added reviews this session */}
         {recentReviews.length > 0 && (
           <div className="space-y-3">
-            <h4 className="text-sm font-medium">
-              Aggiunte di recente in questa sessione
-            </h4>
+            <h4 className="text-sm font-medium">Aggiunte di recente in questa sessione</h4>
             <div className="space-y-2">
               {recentReviews.map((r, i) => (
-                <div
-                  key={r.id || i}
-                  className="flex items-center gap-3 rounded-md border p-3 text-sm"
-                >
+                <div key={r.id || i} className="flex items-center gap-3 rounded-md border p-3 text-sm">
                   <div className="flex items-center gap-0.5">
                     {[...Array(5)].map((_, s) => (
                       <Star
                         key={s}
                         className={`w-3 h-3 ${
-                          s < r.rating
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-muted-foreground/30"
+                          s < r.rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
                         }`}
                       />
                     ))}
                   </div>
                   <span className="font-medium">{r.name}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {r.source === "booking"
-                      ? "Booking.com"
-                      : r.source === "airbnb"
-                        ? "Airbnb"
-                        : r.source}
-                  </Badge>
-                  <span className="text-muted-foreground truncate flex-1">
-                    {r.comment.substring(0, 60)}...
-                  </span>
+                  <Badge className={`text-xs ${getSourceColor(r.source)}`}>{getSourceLabel(r.source)}</Badge>
+                  <span className="text-muted-foreground truncate flex-1">{r.comment.substring(0, 60)}...</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Source badges */}
+        {/* Last completed reviews in Firebase */}
+        {completedReviewsList.length > 0 && (
+          <div className="space-y-3 pt-4 border-t">
+            <h4 className="text-sm font-medium">Ultime recensioni pubblicate ({completedReviewsList.length})</h4>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {completedReviewsList.slice(0, 10).map((r) => (
+                <div key={r.id} className="flex items-start gap-3 rounded-md border p-3 text-sm">
+                  <div className="flex items-center gap-0.5 pt-0.5">
+                    {[...Array(5)].map((_, s) => (
+                      <Star
+                        key={s}
+                        className={`w-3 h-3 ${
+                          s < r.rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{r.name}</span>
+                      <Badge className={`text-xs ${getSourceColor(r.source)}`}>{getSourceLabel(r.source)}</Badge>
+                    </div>
+                    <p className="text-muted-foreground line-clamp-2 mt-0.5">{r.comment}</p>
+                    {r.date && <p className="text-xs text-muted-foreground mt-1">{r.date}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Info footer */}
         <div className="pt-4 border-t space-y-3">
-          <h4 className="text-sm font-medium">Fonti supportate</h4>
-          <div className="flex flex-wrap gap-2">
+          <h4 className="text-sm font-medium">Come funziona</h4>
+          <div className="space-y-2 text-xs text-muted-foreground">
+            <div className="flex items-start gap-2">
+              <Zap className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-emerald-600" />
+              <p>
+                <strong>Auto-Sync:</strong> Crea automaticamente uno stub per ogni prenotazione completata da Smoobu
+              </p>
+            </div>
+            <div className="flex items-start gap-2">
+              <Edit3 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-600" />
+              <p>
+                <strong>In attesa:</strong> Clicca su uno stub per compilare la recensione copiandola dal portale
+              </p>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-green-600" />
+              <p>
+                <strong>Pubblicata:</strong> Le recensioni completate appaiono nella Home e nella pagina Recensioni
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-2">
             <Badge className="bg-blue-600 text-white">
               <Star className="w-3 h-3 mr-1" />
               Booking.com
@@ -529,17 +674,11 @@ export function SmoobuReviewsSync() {
               <Star className="w-3 h-3 mr-1" />
               Expedia
             </Badge>
-            <Badge className="bg-green-600 text-white">
+            <Badge className="bg-emerald-600 text-white">
               <Star className="w-3 h-3 mr-1" />
               Dirette
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Le prenotazioni completate vengono recuperate automaticamente da
-            Smoobu. Seleziona un ospite dalla lista per aggiungere velocemente
-            la sua recensione copiandola dal portale originale (Booking.com,
-            Airbnb, ecc.).
-          </p>
         </div>
       </CardContent>
     </Card>
