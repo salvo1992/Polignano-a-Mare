@@ -1,52 +1,67 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
-import { Waves, Utensils, Mountain, Dumbbell } from "lucide-react"
-import { useLanguage } from "@/components/language-provider"
+import { Sparkles, Utensils, Ship, Car, Wine, Heart } from "lucide-react"
+
+const categories = [
+  {
+    icon: Sparkles,
+    name: "Benessere",
+    description: "Massaggi rilassanti e trattamenti per rigenerare corpo e mente",
+    count: 1,
+    color: "bg-blue-100 text-blue-700",
+  },
+  {
+    icon: Utensils,
+    name: "Gastronomia",
+    description: "Cena romantica con menu completo presso Villa degli Aranci",
+    count: 1,
+    color: "bg-orange-100 text-orange-700",
+  },
+  {
+    icon: Ship,
+    name: "Esperienze",
+    description: "Tour in barca lungo le grotte e la costa di Polignano a Mare",
+    count: 2,
+    color: "bg-cyan-100 text-cyan-700",
+  },
+  {
+    icon: Car,
+    name: "Trasporti",
+    description: "Trasferimenti privati da aeroporto di Bari e Brindisi",
+    count: 1,
+    color: "bg-green-100 text-green-700",
+  },
+  {
+    icon: Wine,
+    name: "In Camera",
+    description: "Bollicine e champagne consegnate direttamente in camera",
+    count: 1,
+    color: "bg-purple-100 text-purple-700",
+  },
+  {
+    icon: Heart,
+    name: "Eventi Speciali",
+    description: "Compleanni, anniversari e proposte di matrimonio su misura",
+    count: 1,
+    color: "bg-rose-100 text-rose-700",
+  },
+]
 
 export function ServiceCategories() {
-  const { t } = useLanguage()
-
-  const categories = [
-    {
-      icon: Waves,
-      name: t("wellnessCategory"),
-      description: t("wellnessCategoryDesc"),
-      count: 8,
-      color: "bg-blue-100 text-blue-700",
-    },
-    {
-      icon: Utensils,
-      name: t("gastronomyCategory"),
-      description: t("gastronomyCategoryDesc"),
-      count: 6,
-      color: "bg-orange-100 text-orange-700",
-    },
-    {
-      icon: Mountain,
-      name: t("activitiesCategory"),
-      description: t("activitiesCategoryDesc"),
-      count: 12,
-      color: "bg-green-100 text-green-700",
-    },
-    {
-      icon: Dumbbell,
-      name: t("fitnessCategory"),
-      description: t("fitnessCategoryDesc"),
-      count: 4,
-      color: "bg-purple-100 text-purple-700",
-    },
-  ]
-
   return (
     <section className="py-12 bg-secondary/20">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
-          <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">{t("serviceCategories")}</h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">{t("serviceCategoriesDesc")}</p>
+          <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
+            Le Nostre Categorie
+          </h2>
+          <p className="text-muted-foreground max-w-2xl mx-auto text-balance">
+            Scopri tutti i servizi disponibili per rendere il vostro soggiorno a Polignano a Mare indimenticabile
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {categories.map((category, index) => {
             const Icon = category.icon
             return (
@@ -54,17 +69,14 @@ export function ServiceCategories() {
                 key={index}
                 className="group cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-105"
               >
-                <CardContent className="p-6 text-center">
+                <CardContent className="p-5 text-center">
                   <div
-                    className={`w-16 h-16 rounded-full ${category.color} flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform`}
+                    className={`w-14 h-14 rounded-full ${category.color} flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform`}
                   >
-                    <Icon className="w-8 h-8" />
+                    <Icon className="w-7 h-7" />
                   </div>
-                  <h3 className="font-semibold text-lg mb-2 text-foreground">{category.name}</h3>
-                  <p className="text-muted-foreground text-sm mb-3">{category.description}</p>
-                  <div className="text-xs text-primary font-medium">
-                    {category.count} {t("servicesAvailable")}
-                  </div>
+                  <h3 className="font-semibold text-sm mb-1 text-foreground">{category.name}</h3>
+                  <p className="text-muted-foreground text-xs leading-relaxed">{category.description}</p>
                 </CardContent>
               </Card>
             )
