@@ -15,7 +15,7 @@ import {
   EyeOff,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { db } from "@/lib/firebase"
+import { db } from "@/lib/firebase" // client-side Firebase SDK
 import {
   collection,
   getDocs,

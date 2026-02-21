@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { smoobuClient } from "@/lib/smoobu-client"
-import { db } from "@/lib/firebase"
+import { db } from "@/lib/firebase" // client-side Firebase SDK
 import {
   collection,
   getDocs,
