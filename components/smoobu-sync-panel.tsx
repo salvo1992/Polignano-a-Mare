@@ -1,15 +1,18 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { RefreshCw, Download, Calendar, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react"
+import { RefreshCw, Download, Calendar, AlertCircle, CheckCircle2, AlertTriangle, Clock, Zap } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+
+const AUTO_SYNC_INTERVAL = 10 * 60 * 1000 // 10 minuti
 
 export function SmoobuSyncPanel() {
   const [syncing, setSyncing] = useState(false)
   const [lastSync, setLastSync] = useState<Date | null>(null)
+  const [nextAutoSync, setNextAutoSync] = useState<Date | null>(null)
   const [syncResult, setSyncResult] = useState<{
     success: boolean
     synced: number
@@ -26,25 +29,13 @@ export function SmoobuSyncPanel() {
   const [error, setError] = useState<string | null>(null)
   const syncLockRef = useRef(false)
   const hasAutoSyncedRef = useRef(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  useEffect(() => {
-    if (!hasAutoSyncedRef.current) {
-      hasAutoSyncedRef.current = true
-      syncBookings()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const syncBookings = async () => {
-    if (syncLockRef.current) {
-      console.log("[Smoobu] Sync already in progress, skipping")
-      return
-    }
-
+  const syncBookingsAuto = useCallback(async () => {
+    if (syncLockRef.current) return
     syncLockRef.current = true
     setSyncing(true)
     setError(null)
-    setSyncResult(null)
 
     try {
       const from = new Date()
@@ -69,12 +60,33 @@ export function SmoobuSyncPanel() {
 
       setSyncResult(data)
       setLastSync(new Date())
+      setNextAutoSync(new Date(Date.now() + AUTO_SYNC_INTERVAL))
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore sconosciuto")
     } finally {
       setSyncing(false)
       syncLockRef.current = false
     }
+  }, [])
+
+  // Auto-sync on mount + periodic interval
+  useEffect(() => {
+    if (!hasAutoSyncedRef.current) {
+      hasAutoSyncedRef.current = true
+      syncBookingsAuto()
+    }
+
+    intervalRef.current = setInterval(() => {
+      syncBookingsAuto()
+    }, AUTO_SYNC_INTERVAL)
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+  }, [syncBookingsAuto])
+
+  const syncBookings = async () => {
+    await syncBookingsAuto()
   }
 
   return (
@@ -177,27 +189,48 @@ export function SmoobuSyncPanel() {
         )}
 
         <div className="pt-4 border-t space-y-3">
-          <h4 className="text-sm font-medium">Informazioni</h4>
+          <h4 className="text-sm font-medium">Sincronizzazione Automatica</h4>
+          
+          <Alert className="bg-emerald-50 border-emerald-200">
+            <Zap className="h-4 w-4 text-emerald-600" />
+            <AlertDescription className="text-emerald-900">
+              <div className="space-y-1">
+                <p className="font-medium">Sincronizzazione automatica attiva</p>
+                <div className="text-xs space-y-0.5">
+                  <p>Cron job server: ogni 2 ore (Smoobu &rarr; Firebase)</p>
+                  <p>Auto-sync pannello: ogni 10 minuti mentre sei online</p>
+                  <p>Webhook real-time: aggiornamenti istantanei da Smoobu</p>
+                  {nextAutoSync && (
+                    <p className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Prossimo auto-sync: {nextAutoSync.toLocaleTimeString("it-IT")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+
           <div className="space-y-2 text-sm text-muted-foreground">
             <div className="flex items-start gap-2">
               <Calendar className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <p>Sincronizza automaticamente all'apertura del pannello admin</p>
+              <p>Sincronizza automaticamente all'apertura e ogni 10 minuti</p>
             </div>
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <p>Previene automaticamente doppie prenotazioni</p>
+              <p>Previene automaticamente doppie prenotazioni (dedup per smoobuId)</p>
             </div>
             <div className="flex items-start gap-2">
               <RefreshCw className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <p>Ricevi aggiornamenti in tempo reale tramite webhook</p>
+              <p>Webhook real-time: aggiornamenti istantanei da Booking.com, Airbnb, Expedia</p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2 pt-2">
-            <Badge className="bg-blue-600">Booking.com</Badge>
-            <Badge className="bg-pink-600">Airbnb</Badge>
-            <Badge className="bg-yellow-600">Expedia</Badge>
-            <Badge className="bg-green-600">Dirette</Badge>
+            <Badge className="bg-blue-600 text-white">Booking.com</Badge>
+            <Badge className="bg-pink-600 text-white">Airbnb</Badge>
+            <Badge className="bg-yellow-600 text-white">Expedia</Badge>
+            <Badge className="bg-green-600 text-white">Dirette</Badge>
           </div>
         </div>
       </CardContent>

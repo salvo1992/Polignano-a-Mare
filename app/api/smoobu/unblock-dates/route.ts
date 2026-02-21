@@ -3,20 +3,18 @@ import { smoobuClient } from "@/lib/smoobu-client"
 import { db } from "@/lib/firebase"
 import { doc, deleteDoc, getDoc } from "firebase/firestore"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
 /**
  * Unblock dates on Smoobu and remove from Firestore
+ * Performs bidirectional unblock: removes from Smoobu first, then from Firestore
  */
 export async function POST(request: Request) {
   try {
     const { blockId } = await request.json()
 
     if (!blockId) {
-      return NextResponse.json(
-        { error: "Missing blockId" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Missing blockId" }, { status: 400 })
     }
 
     console.log(`[Smoobu] Unblocking dates with ID: ${blockId}`)
@@ -33,31 +31,48 @@ export async function POST(request: Request) {
     }
 
     const blockData = blockDoc.data()
-    
-    // Try to unblock on Smoobu if it was synced
+
+    // Step 1: Try to unblock on Smoobu if it was synced
     let smoobuSuccess = false
+    let smoobuError = null
+
     if (blockData.syncedToSmoobu && blockData.smoobuReservationId) {
       try {
-        await smoobuClient.unblockDates(blockData.smoobuReservationId.toString())
+        await smoobuClient.unblockDates(
+          blockData.smoobuReservationId.toString()
+        )
         smoobuSuccess = true
-        console.log(`[Smoobu] Successfully unblocked reservation`)
+        console.log(
+          `[Smoobu] Successfully unblocked reservation ${blockData.smoobuReservationId}`
+        )
       } catch (error) {
+        smoobuError = error instanceof Error ? error.message : String(error)
         console.error("[Smoobu] Failed to unblock on Smoobu:", error)
       }
+    } else {
+      // Not synced to Smoobu, so local-only unblock
+      smoobuSuccess = true // no Smoobu action needed
     }
 
-    // Remove from Firestore
+    // Step 2: Remove from Firestore
     await deleteDoc(blockRef)
-    console.log(`[Smoobu] Removed from Firestore`)
+    console.log(`[Smoobu] Removed block from Firestore: ${blockId}`)
 
-    const message = smoobuSuccess 
-      ? "Date sbloccate con successo su tutte le piattaforme"
-      : "Date sbloccate dal sito. Verifica manualmente su Smoobu/Airbnb/Booking.com"
+    const wasSmoobuSynced = blockData.syncedToSmoobu && blockData.smoobuReservationId
+
+    let message: string
+    if (!wasSmoobuSynced) {
+      message = "Date sbloccate dal sito (non era sincronizzato con Smoobu)"
+    } else if (smoobuSuccess) {
+      message = "Date sbloccate con successo su tutte le piattaforme (Smoobu, Booking.com, Airbnb, Expedia)"
+    } else {
+      message = `Date sbloccate dal sito. ATTENZIONE: Sblocco su Smoobu fallito (${smoobuError}) - sblocca manualmente su Airbnb/Booking.com`
+    }
 
     return NextResponse.json({
       success: true,
       smoobuSuccess,
-      message
+      message,
     })
   } catch (error) {
     console.error("[Smoobu] Error unblocking dates:", error)
