@@ -7,6 +7,7 @@ import { Home, Wrench, CheckCircle } from 'lucide-react'
 import { db } from "@/lib/firebase"
 import { collection, query, where, onSnapshot ,doc, updateDoc } from "firebase/firestore"
 import type { Room } from "@/lib/booking-utils"
+import { resolveToLocalRoomId } from "@/lib/room-mapping"
 
 interface RoomStatusToggleProps {
   room: Room
@@ -38,67 +39,17 @@ export function RoomStatusToggle({ room }: RoomStatusToggleProps) {
     let bookings: any[] = []
     let blockedDates: any[] = []
 
+    // Use centralized room mapping: resolve any ID to local room ID
+    const localRoomId = resolveToLocalRoomId(String(room.id))
+
     const matchesRoomBooking = (booking: any): boolean => {
-      const bookingRoomId = String(booking.roomId ?? "").trim()
-      const smoobuRoomId = String(booking.smoobuRoomId ?? booking.beds24RoomId ?? "").trim()
-      const origin = String(booking.origin ?? "").toLowerCase()
-      const siteId = String(room.id)
-
-      // 🔹 Camera Familiare con Balcone
-      if (roomType === "balcony") {
-        // Prenotazioni dal sito: id 1
-        if (origin === "site" && bookingRoomId === "1") return true
-
-        // Prenotazioni da Booking/Beds24: id 2 o beds24RoomId 621530
-        if (origin === "booking" && bookingRoomId === "2") return true
-        if (smoobuRoomId === "621530") return true
-
-        // Fallback: se la stanza in Firestore ha id 1, matcha anche quello
-        if (bookingRoomId === siteId && siteId === "1") return true
-
-        return false
-      }
-
-      // 🔹 Camera Matrimoniale con Vasca Idromassaggio
-      if (roomType === "spa") {
-        // Prenotazioni dal sito: id 2
-        if (origin === "site" && bookingRoomId === "2") return true
-
-        // Prenotazioni da Booking/Beds24: id 3 o beds24RoomId 621531
-        if (origin === "booking" && bookingRoomId === "3") return true
-        if (smoobuRoomId === "621531") return true
-
-        // Fallback: se la stanza in Firestore ha id 2, matcha anche quello
-        if (bookingRoomId === siteId && siteId === "2") return true
-
-        return false
-      }
-
-      // 🔹 Caso generico: stanza che non riconosciamo per nome
-      return bookingRoomId === siteId
+      const bookingRoomId = resolveToLocalRoomId(String(booking.roomId ?? ""))
+      return bookingRoomId === localRoomId
     }
 
     const matchesRoomBlock = (blocked: any): boolean => {
-      const blockedRoomId = String(blocked.roomId ?? "").trim()
-      const siteId = String(room.id)
-
-      if (roomType === "balcony") {
-        // In blocked_dates probabilmente usi gli ID locali delle stanze
-        if (blockedRoomId === "1") return true
-        if (blockedRoomId === "621530") return true
-        // sicurezza in più
-        if (blockedRoomId === siteId && siteId === "1") return true
-        return false
-      }
-
-      if (roomType === "spa") {
-        if (blockedRoomId === "2") return true
-        if (blockedRoomId === "621531") return true
-        if (blockedRoomId === siteId && siteId === "2") return true
-        return false
-      }
-
-      return blockedRoomId === siteId
+      const blockedRoomId = resolveToLocalRoomId(String(blocked.roomId ?? ""))
+      return blockedRoomId === localRoomId
     }
 
     const calculateStatus = () => {

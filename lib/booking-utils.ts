@@ -1,5 +1,6 @@
 import { db } from "./firebase"
 import { collection, query, where, getDocs, type Timestamp } from "firebase/firestore"
+import { resolveToLocalRoomId } from "./room-mapping"
 
 export interface Booking {
   id: string
@@ -125,8 +126,12 @@ async function checkBlockedDatesConflict(
     for (const doc of snapshot.docs) {
       const blocked = doc.data()
 
-      // If roomId doesn't match, skip
-      if (blocked.roomId && blocked.roomId !== roomId) continue
+      // If roomId doesn't match, skip (resolve both to local IDs for comparison)
+      if (blocked.roomId) {
+        const resolvedBlocked = resolveToLocalRoomId(blocked.roomId)
+        const resolvedRequest = resolveToLocalRoomId(roomId)
+        if (resolvedBlocked !== resolvedRequest) continue
+      }
 
       const from = new Date(blocked.startDate || blocked.from || blocked.arrival)
       const to = new Date(blocked.endDate || blocked.to || blocked.departure)

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { db } from "@/lib/firebase"
 import { collection, query, onSnapshot } from "firebase/firestore"
 import type { Booking } from "@/lib/booking-utils"
+import { resolveToLocalRoomId } from "@/lib/room-mapping"
 
 interface BookingCalendarFilteredProps {
   bookings: Booking[]
@@ -29,50 +30,13 @@ export function BookingCalendarFiltered({ bookings, roomId, roomName }: BookingC
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
-  const normalizeRoomIds = (id: string, roomName: string): string[] => {
-  const ids: string[] = []
+  // Resolve the requested room to a local ID using centralized mapping
+  const localRoomId = resolveToLocalRoomId(roomId) || resolveToLocalRoomId(roomName) || roomId
 
-  if (id) {
-    ids.push(id)
-  }
-
-  const lowerName = roomName.toLowerCase()
-
-  // Camera Familiare con Balcone
-  if (lowerName.includes("familiare") || lowerName.includes("balcone")) {
-    ids.push("2", "621530")
-  }
-
-  // Camera Matrimoniale con Vasca Idromassaggio / Suite
-  if (
-    lowerName.includes("vasca") ||
-    lowerName.includes("idromassaggio") ||
-    lowerName.includes("suite")
-  ) {
-    ids.push("3", "621531")
-  }
-
-  // Evita duplicati
-  return Array.from(new Set(ids))
-}
-
-
-  const roomIdsToMatch = normalizeRoomIds(roomId, roomName)
-
-const filteredBookings = bookings.filter((booking) => {
-  const bookingRoomId = String(booking.roomId ?? "").trim()
-  const bookingRoomName = (booking.roomName ?? "").toLowerCase()
-  const targetName = roomName.toLowerCase()
-
-  const idMatches =
-    bookingRoomId !== "" && roomIdsToMatch.includes(bookingRoomId)
-
-  const nameMatches =
-    bookingRoomName !== "" &&
-    (bookingRoomName.includes(targetName) || targetName.includes(bookingRoomName))
-
-  return idMatches || nameMatches
-})
+  const filteredBookings = bookings.filter((booking) => {
+    const bookingLocalId = resolveToLocalRoomId(String(booking.roomId ?? ""))
+    return bookingLocalId === localRoomId
+  })
 
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
@@ -87,7 +51,7 @@ const filteredBookings = bookings.filter((booking) => {
             ...doc.data(),
           }))
            .filter((blocked: any) =>
-        roomIdsToMatch.includes(String(blocked.roomId))
+        resolveToLocalRoomId(String(blocked.roomId)) === localRoomId
       ) as BlockedDate[]
         
         setBlockedDates(blockedData)

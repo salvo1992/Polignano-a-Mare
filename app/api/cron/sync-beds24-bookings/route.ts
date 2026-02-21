@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { beds24Client } from "@/lib/beds24-client"
 import { getAdminDb } from "@/lib/firebase-admin"
 import { Resend } from "resend"
+import { getRoomName as centralGetRoomName } from "@/lib/room-mapping"
 
 export const dynamic = "force-dynamic"
 
@@ -318,9 +319,5 @@ export async function GET(request: Request) {
 }
 
 function getRoomName(roomId: string): string {
-  const roomMap: Record<string, string> = {
-    "2": "Camera Deluxe",
-    "3": "Camera Suite",
-  }
-  return roomMap[roomId] || `Camera ${roomId}`
+  return centralGetRoomName(roomId)
 }

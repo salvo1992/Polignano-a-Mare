@@ -27,22 +27,22 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { BookingCalendarPicker, type DateRange } from "@/components/booking-calendar-picker"
 import { useLanguage } from "@/components/language-provider"
 import { useDynamicPrice } from "@/hooks/use-dynamic-price"
+import { ROOM_MAPPINGS, getRoomName } from "@/lib/room-mapping"
 
-const ROOM_IDS: Record<string, string> = { deluxe: "1", suite: "2" }
+// Room IDs map directly: the select value IS the local room ID ("1" or "2")
+const ROOM_IDS: Record<string, string> = { "1": "1", "2": "2" }
 const ROOM_NAMES: Record<string, string> = {
-  deluxe: "Camera Familiare con Balcone",
-  suite: "Camera Matrimoniale con Vasca Idromassaggio",
+  "1": "Camera Familiare con Balcone",
+  "2": "Camera Matrimoniale con Vasca Idromassaggio",
 }
 
 const AVAILABLE_SERVICES = [
-  { name: "Massaggio Rilassante Romano", price: 80 },
-  { name: "Cena Romantica Imperiale", price: 120 },
-  { name: "Tour Enogastronomico dei Castelli", price: 95 },
-  { name: "Trattamento Viso alle Terme", price: 65 },
-  { name: "Passeggiata a Cavallo", price: 75 },
-  { name: "Corso di Cucina Romana", price: 85 },
-  { name: "Tour Fotografico Roma Antica", price: 110 },
-  { name: "Yoga al Tramonto", price: 45 },
+  { name: "Massaggio Rilassante", price: 80 },
+  { name: "Cena Romantica", price: 120 },
+  { name: "Tour in Barca Polignano", price: 40 },
+  { name: "Trasferimento Aeroporto", price: 130 },
+  { name: "Berlucchi 61 Pas Dose", price: 75 },
+  { name: "Champagne in Camera", price: 129 },
 ]
 
 export default function PrenotaPage() {
@@ -52,7 +52,7 @@ export default function PrenotaPage() {
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
 
   // ---- Prezzi / form ----
-  const [roomPrices, setRoomPrices] = useState<Record<string, number>>({ deluxe: 120, suite: 180 })
+  const [roomPrices, setRoomPrices] = useState<Record<string, number>>({ "1": 180, "2": 150 })
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -96,8 +96,8 @@ export default function PrenotaPage() {
         const rooms = await getAllRooms()
         const prices: Record<string, number> = {}
         rooms.forEach((room) => {
-          if (room.id === "1") prices.deluxe = room.price
-          if (room.id === "2") prices.suite = room.price
+          if (room.id === "1") prices["1"] = room.price
+          if (room.id === "2") prices["2"] = room.price
         })
         setRoomPrices((prev) => ({ ...prev, ...prices }))
       } catch (error) {
@@ -453,8 +453,8 @@ export default function PrenotaPage() {
                       required
                     >
                       <option value="">{t("bookingFormSelectRoom") || "Seleziona una camera"}</option>
-                      <option value="deluxe">{t("bookingFormPanoramicSuite") || "Camera familiare con balcone"}</option>
-                      <option value="suite">{t("bookingFormjacuziRoom") || "Camera jacuzi"}</option>
+                      <option value="1">Camera Familiare con Balcone</option>
+                      <option value="2">Camera Matrimoniale con Vasca Idromassaggio</option>
                     </select>
                   </div>
 

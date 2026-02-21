@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { smoobuClient } from "@/lib/smoobu-client"
 import { db } from "@/lib/firebase"
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore"
+import { getSmoobuName, setSmoobuApartmentIds } from "@/lib/room-mapping"
 
 export const dynamic = "force-dynamic"
 
@@ -54,9 +55,26 @@ export async function POST(request: Request) {
     let smoobuReservationId = null
 
     // Step 1: Block on Smoobu first (this propagates to Booking.com, Airbnb, Expedia)
+    // Resolve local room ID to Smoobu apartment ID
     try {
+      const apartments = await smoobuClient.getApartmentsCached()
+      setSmoobuApartmentIds(apartments)
+
+      // Find Smoobu apartment by name mapping (e.g. "1" -> "Acies", "2" -> "Aquarum")
+      const smoobuName = getSmoobuName(roomId.toString())
+      let smoobuAptId = roomId.toString()
+      if (smoobuName) {
+        const apt = apartments.find(
+          (a) => a.name.toLowerCase().includes(smoobuName.toLowerCase()),
+        )
+        if (apt) {
+          smoobuAptId = apt.id.toString()
+          console.log(`[Smoobu] Resolved room ${roomId} -> ${smoobuName} -> apartment ${smoobuAptId}`)
+        }
+      }
+
       const result = await smoobuClient.blockDates(
-        roomId.toString(),
+        smoobuAptId,
         from,
         to,
         reason || "maintenance"

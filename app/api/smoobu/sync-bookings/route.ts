@@ -2,6 +2,11 @@ import { NextResponse } from "next/server"
 import { smoobuClient } from "@/lib/smoobu-client"
 import { db } from "@/lib/firebase"
 import { collection, doc, setDoc, getDocs, query, where } from "firebase/firestore"
+import {
+  getRoomName as centralGetRoomName,
+  convertSmoobuApartmentIdToLocal as centralConvert,
+  setSmoobuApartmentIds,
+} from "@/lib/room-mapping"
 
 /**
  * Sync bookings from Smoobu to Firebase
@@ -15,6 +20,15 @@ export async function POST(request: Request) {
     const { from, to, source } = body
 
     console.log(`[Smoobu] Fetching bookings - Source: ${source || "all"}`)
+
+    // Preload Smoobu apartments to populate the room ID mapping
+    try {
+      const apartments = await smoobuClient.getApartmentsCached()
+      setSmoobuApartmentIds(apartments)
+      console.log(`[Smoobu] Loaded ${apartments.length} apartment mappings`)
+    } catch (err) {
+      console.warn("[Smoobu] Could not preload apartment mappings:", err)
+    }
 
     let smoobuBookings: any[] = []
 
@@ -224,11 +238,7 @@ export async function GET(request: Request) {
 }
 
 function getRoomName(roomId: string): string {
-  const roomMap: Record<string, string> = {
-    "2": "Camera Familiare con Balcone",
-    "3": "Camera Matrimoniale con Vasca Idromassaggio",
-  }
-  return roomMap[roomId] || "Camera Sconosciuta"
+  return centralGetRoomName(roomId)
 }
 
 function parseDate(dateString: string | undefined): string | null {
@@ -250,12 +260,6 @@ function parseDate(dateString: string | undefined): string | null {
   }
 }
 
-// TODO: Update this mapping with your Smoobu apartment IDs
 function convertSmoobuApartmentIdToLocal(smoobuApartmentId: string): string {
-  const apartmentIdMap: Record<string, string> = {
-    // Add your Smoobu apartment ID mappings here
-    // Example: "123456": "2", // Camera Familiare con Balcone
-    // Example: "123457": "3", // Camera Matrimoniale con Vasca Idromassaggio
-  }
-  return apartmentIdMap[smoobuApartmentId] || smoobuApartmentId
+  return centralConvert(smoobuApartmentId)
 }

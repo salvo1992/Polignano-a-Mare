@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { beds24Client } from "@/lib/beds24-client"
 import { db } from "@/lib/firebase"
 import { collection, doc, setDoc, getDocs, query, where } from "firebase/firestore"
+import { getRoomName as centralGetRoomName } from "@/lib/room-mapping"
 
 /**
  * Sync bookings from Beds24 to Firebase
@@ -227,13 +228,7 @@ export async function GET(request: Request) {
 }
 
 function getRoomName(roomId: string): string {
-  const roomMap: Record<string, string> = {
-    "621530": "Camera Familiare con Balcone",
-    "621531": "Camera Matrimoniale con Vasca Idromassaggio",
-    "2": "Camera Familiare con Balcone", // Added local room IDs
-    "3": "Camera Matrimoniale con Vasca Idromassaggio",
-  }
-  return roomMap[roomId] || "Camera Sconosciuta"
+  return centralGetRoomName(roomId)
 }
 
 // Helper function to parse dates safely

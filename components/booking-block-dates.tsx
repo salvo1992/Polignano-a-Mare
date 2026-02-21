@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Ban, CheckCircle2, AlertCircle, Unlock, RefreshCw, CloudOff, Cloud } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { getRoomName as centralGetRoomName, resolveToLocalRoomId } from "@/lib/room-mapping"
 
 interface BlockedDate {
   id: string
@@ -64,18 +65,18 @@ export function BookingBlockDates() {
           setRoomId(data.apartments[0].id.toString())
         }
       } else {
-        // Fallback to hardcoded rooms if Smoobu is not available
+        // Fallback to local rooms if Smoobu is not available
         setApartments([
-          { id: 2, name: "Camera Familiare con Balcone" },
-          { id: 3, name: "Camera Matrimoniale con Vasca Idromassaggio" },
+          { id: 1, name: "Camera Familiare con Balcone" },
+          { id: 2, name: "Camera Matrimoniale con Vasca Idromassaggio" },
         ])
       }
     } catch (err) {
       console.error("[BlockDates] Error loading Smoobu apartments:", err)
       // Fallback
       setApartments([
-        { id: 2, name: "Camera Familiare con Balcone" },
-        { id: 3, name: "Camera Matrimoniale con Vasca Idromassaggio" },
+        { id: 1, name: "Camera Familiare con Balcone" },
+        { id: 2, name: "Camera Matrimoniale con Vasca Idromassaggio" },
       ])
     } finally {
       setLoadingApartments(false)
@@ -181,6 +182,11 @@ export function BookingBlockDates() {
   }
 
   const getRoomName = (id: string) => {
+    // Resolve any ID (Smoobu or local) to local room name
+    const localId = resolveToLocalRoomId(id)
+    const name = centralGetRoomName(localId)
+    if (name !== `Camera ${localId}`) return name
+    // Fallback to apartment list
     const apt = apartments.find((a) => a.id.toString() === id)
     return apt?.name || `Camera ${id}`
   }
