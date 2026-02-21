@@ -1,5 +1,6 @@
 import { db } from "./firebase"
 import { collection, query, where, getDocs, type Timestamp } from "firebase/firestore"
+import { resolveToLocalRoomId } from "./room-mapping"
 
 export interface Booking {
   id: string
@@ -89,9 +90,74 @@ export async function checkBookingConflicts(
   return { hasConflict: false }
 }
 
+/**
+ * Check room availability considering BOTH bookings AND blocked dates
+ * This is the main function used by the booking widget
+ */
 export async function checkRoomAvailability(roomId: string, checkIn: string, checkOut: string): Promise<boolean> {
-  const result = await checkBookingConflicts(roomId, checkIn, checkOut, "site")
-  return !result.hasConflict
+  // Check against existing bookings
+  const bookingConflict = await checkBookingConflicts(roomId, checkIn, checkOut, "site")
+  if (bookingConflict.hasConflict) return false
+
+  // Also check against blocked_dates collection
+  const blockedConflict = await checkBlockedDatesConflict(roomId, checkIn, checkOut)
+  if (blockedConflict) return false
+
+  return true
+}
+
+/**
+ * Check if the requested dates overlap with any blocked date ranges
+ */
+async function checkBlockedDatesConflict(
+  roomId: string,
+  checkIn: string,
+  checkOut: string,
+): Promise<boolean> {
+  try {
+    const blockedRef = collection(db, "blocked_dates")
+    const snapshot = await getDocs(blockedRef)
+
+    const requestStart = new Date(checkIn)
+    const requestEnd = new Date(checkOut)
+    requestStart.setHours(0, 0, 0, 0)
+    requestEnd.setHours(0, 0, 0, 0)
+
+    for (const doc of snapshot.docs) {
+      const blocked = doc.data()
+
+      // If roomId doesn't match, skip (resolve both to local IDs for comparison)
+      if (blocked.roomId) {
+        const resolvedBlocked = resolveToLocalRoomId(blocked.roomId)
+        const resolvedRequest = resolveToLocalRoomId(roomId)
+        if (resolvedBlocked !== resolvedRequest) continue
+      }
+
+      const from = new Date(blocked.startDate || blocked.from || blocked.arrival)
+      const to = new Date(blocked.endDate || blocked.to || blocked.departure)
+      from.setHours(0, 0, 0, 0)
+      to.setHours(0, 0, 0, 0)
+
+      if (isNaN(from.getTime()) || isNaN(to.getTime())) continue
+
+      // Check date overlap
+      const hasOverlap =
+        (requestStart >= from && requestStart < to) ||
+        (requestEnd > from && requestEnd <= to) ||
+        (requestStart <= from && requestEnd >= to)
+
+      if (hasOverlap) {
+        console.log(
+          `[v0] Blocked date conflict: ${from.toISOString().split("T")[0]} - ${to.toISOString().split("T")[0]} overlaps with ${checkIn} - ${checkOut}`,
+        )
+        return true
+      }
+    }
+    return false
+  } catch (error) {
+    console.error("[v0] Error checking blocked dates:", error)
+    return false // Don't block booking if check fails
+  }
 }
 
 export function getBookingPriority(origin: Booking["origin"]): number {

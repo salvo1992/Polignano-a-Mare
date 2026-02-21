@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/firebase"
 import { collection, doc, setDoc, query, where, getDocs } from "firebase/firestore"
+import { getRoomName as centralGetRoomName } from "@/lib/room-mapping"
 
 /**
  * Webhook endpoint for Beds24 to push real-time booking updates
@@ -113,9 +114,5 @@ async function handleBookingCancellation(booking: any) {
 }
 
 function getRoomName(roomId: string): string {
-  const roomMap: Record<string, string> = {
-    "1": "Camera Familiare con Balcone",
-    "2": "Camera Matrimoniale con Vasca Idromassaggio",
-  }
-  return roomMap[roomId] || "Camera Sconosciuta"
+  return centralGetRoomName(roomId)
 }

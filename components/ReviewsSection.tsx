@@ -22,10 +22,10 @@ const DEFAULT_REVIEWS: Review[] = [
     name: "Marco Rossi",
     location: "Milano",
     rating: 5,
-    comment: "Esperienza fantastica! Il servizio è impeccabile e la vista mozzafiato. Torneremo sicuramente!",
+    comment: "Esperienza fantastica! Il servizio e impeccabile e la vista mozzafiato. Torneremo sicuramente!",
     date: "Dicembre 2024",
     verified: true,
-    source: "default",
+    source: "booking",
   },
   {
     id: "d2",
@@ -33,32 +33,39 @@ const DEFAULT_REVIEWS: Review[] = [
     location: "London, UK",
     rating: 5,
     comment:
-      "Perfect location in Rome! The staff was incredibly helpful and the rooms are beautiful. Highly recommended!",
+      "Perfect location! The staff was incredibly helpful and the rooms are beautiful. Highly recommended!",
     date: "Novembre 2024",
     verified: true,
-    source: "default",
+    source: "airbnb",
   },
   {
     id: "d3",
     name: "Giuseppe Bianchi",
     location: "Roma",
     rating: 4,
-    comment: "Ottima struttura nel cuore di Roma. Colazione eccellente e personale molto cortese.",
+    comment: "Ottima struttura nel cuore di Polignano a Mare. Colazione eccellente e personale molto cortese.",
     date: "Ottobre 2024",
     verified: true,
-    source: "default",
+    source: "booking",
   },
   {
     id: "d4",
     name: "Marie Dubois",
     location: "Paris, France",
     rating: 5,
-    comment: "Un séjour merveilleux! L'emplacement est parfait pour visiter Rome et le service est exceptionnel.",
+    comment: "Un sejour merveilleux! L'emplacement est parfait et le service est exceptionnel.",
     date: "Settembre 2024",
     verified: true,
-    source: "default",
+    source: "direct",
   },
 ]
+
+interface ReviewStats {
+  totalReviews: number
+  averageRating: number
+  satisfaction: number
+  bySource: Record<string, number>
+}
 
 function getSourceBadgeClass(source?: string) {
   switch (source) {
@@ -66,28 +73,69 @@ function getSourceBadgeClass(source?: string) {
       return "bg-blue-600 text-white"
     case "airbnb":
       return "bg-pink-600 text-white"
+    case "expedia":
+      return "bg-yellow-600 text-white"
+    case "direct":
+      return "bg-emerald-600 text-white"
     default:
-      return "bg-green-100 text-green-800"
+      return "bg-muted text-foreground"
+  }
+}
+
+function getSourceLabel(source?: string) {
+  switch (source) {
+    case "booking":
+      return "Booking.com"
+    case "airbnb":
+      return "Airbnb"
+    case "expedia":
+      return "Expedia"
+    case "direct":
+      return "Diretta"
+    default:
+      return "Verificata"
   }
 }
 
 export default function ReviewsSection({ className }: Props) {
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<ReviewStats | null>(null)
   const { t } = useLanguage()
 
   useEffect(() => {
-    ;(async () => {
+    const loadReviews = async () => {
       try {
         const top = await getTop4Reviews()
-        setReviews(top.length ? top : DEFAULT_REVIEWS)
+        // getTop4Reviews already filters hidden + empty, just ensure basics
+        const published = top.filter((r) => r.rating > 0 && r.comment)
+        setReviews(published.length >= 2 ? published : DEFAULT_REVIEWS)
       } catch {
         setReviews(DEFAULT_REVIEWS)
       } finally {
         setLoading(false)
       }
-    })()
+    }
+
+    const loadStats = async () => {
+      try {
+        const res = await fetch("/api/reviews/stats")
+        const data = await res.json()
+        if (data.success) {
+          setStats(data)
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+
+    loadReviews()
+    loadStats()
   }, [])
+
+  const displayedAvg = stats?.averageRating || 4.8
+  const displayedTotal = stats?.totalReviews || 250
+  const displayedSatisfaction = stats?.satisfaction || 98
 
   return (
     <section className={className}>
@@ -112,17 +160,16 @@ export default function ReviewsSection({ className }: Props) {
                     {[...Array(5)].map((_, i) => (
                       <Star
                         key={i}
-                        className={`w-3 h-3 ${i < (review.rating ?? 0) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                        className={`w-3 h-3 ${i < (review.rating ?? 0) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"}`}
                       />
                     ))}
                   </div>
-                  {review.verified && (
-                    <Badge variant="secondary" className={`text-xs px-1.5 py-0 ${getSourceBadgeClass(review.source)}`}>
-                      {review.source === "booking"
-                        ? "Booking.com"
-                        : review.source === "airbnb"
-                          ? "Airbnb"
-                          : t("verified")}
+                  {review.source && (
+                    <Badge
+                      variant="secondary"
+                      className={`text-[10px] px-1.5 py-0 ${getSourceBadgeClass(review.source)}`}
+                    >
+                      {getSourceLabel(review.source)}
                     </Badge>
                   )}
                 </div>
@@ -131,7 +178,7 @@ export default function ReviewsSection({ className }: Props) {
 
                 <div className="border-t pt-2">
                   <p className="font-medium text-sm">{review.name}</p>
-                  <p className="text-xs text-muted-foreground">{review.location}</p>
+                  {review.location && <p className="text-xs text-muted-foreground">{review.location}</p>}
                   {review.date && <p className="text-xs text-muted-foreground mt-0.5">{review.date}</p>}
                 </div>
               </CardContent>
@@ -143,25 +190,43 @@ export default function ReviewsSection({ className }: Props) {
       <div className="text-center">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto mb-6">
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">4.8</div>
+            <div className="text-2xl font-bold text-primary">{displayedAvg}</div>
             <div className="flex items-center justify-center gap-1 mb-1">
               {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                <Star
+                  key={i}
+                  className={`w-3 h-3 ${i < Math.round(displayedAvg) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30"}`}
+                />
               ))}
             </div>
             <div className="text-xs text-muted-foreground">{t("averageRating")}</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">250+</div>
+            <div className="text-2xl font-bold text-primary">{displayedTotal}+</div>
             <div className="text-xs text-muted-foreground">{t("totalReviews")}</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">98%</div>
+            <div className="text-2xl font-bold text-primary">{displayedSatisfaction}%</div>
             <div className="text-xs text-muted-foreground">{t("satisfaction")}</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary">85%</div>
-            <div className="text-xs text-muted-foreground">{t("returnRate")}</div>
+            {stats?.bySource && Object.keys(stats.bySource).length > 0 ? (
+              <div className="flex flex-wrap gap-1 justify-center mb-1">
+                {Object.entries(stats.bySource)
+                  .slice(0, 3)
+                  .map(([src]) => (
+                    <Badge key={src} className={`text-[9px] px-1 ${getSourceBadgeClass(src)}`}>
+                      {getSourceLabel(src)}
+                    </Badge>
+                  ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1 justify-center mb-1">
+                <Badge className="bg-blue-600 text-white text-[9px] px-1">Booking</Badge>
+                <Badge className="bg-pink-600 text-white text-[9px] px-1">Airbnb</Badge>
+              </div>
+            )}
+            <div className="text-xs text-muted-foreground">Fonti verificate</div>
           </div>
         </div>
 

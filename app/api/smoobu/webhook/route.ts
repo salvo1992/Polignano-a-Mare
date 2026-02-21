@@ -2,6 +2,11 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/firebase"
 import { collection, doc, setDoc, query, where, getDocs } from "firebase/firestore"
 import { detectSourceFromChannelName } from "@/lib/smoobu-client"
+import {
+  getRoomName as centralGetRoomName,
+  convertSmoobuApartmentIdToLocal as centralConvert,
+  resolveToLocalRoomId,
+} from "@/lib/room-mapping"
 
 /**
  * Webhook endpoint for Smoobu to push real-time booking updates
@@ -76,7 +81,7 @@ async function handleBookingUpdate(reservation: any) {
     status: "confirmed",
     origin: source,
     roomId: convertSmoobuApartmentIdToLocal(reservation.apartment?.id?.toString()),
-    roomName: reservation.apartment?.name || getRoomName(reservation.apartment?.id?.toString()),
+    roomName: getRoomName(convertSmoobuApartmentIdToLocal(reservation.apartment?.id?.toString())),
     smoobuId: smoobuId,
     smoobuApartmentId: reservation.apartment?.id?.toString(),
     channelId: reservation.channel?.id,
@@ -90,6 +95,23 @@ async function handleBookingUpdate(reservation: any) {
     const bookingRef = doc(collection(db, "bookings"))
     await setDoc(bookingRef, firebaseBooking)
     console.log(`[Smoobu] Created new booking from webhook: ${smoobuId}`)
+
+    // Also create a blocked_dates entry so calendar immediately blocks these dates
+    try {
+      const blockRef = doc(collection(db, "blocked_dates"))
+      await setDoc(blockRef, {
+        roomId: firebaseBooking.roomId,
+        from: reservation.arrival,
+        to: reservation.departure,
+        reason: `auto-booking: ${firebaseBooking.guestFirst} ${firebaseBooking.guestLast} (Smoobu: ${smoobuId})`,
+        syncedToSmoobu: true,
+        smoobuReservationId: smoobuId,
+        createdAt: new Date().toISOString(),
+      })
+      console.log(`[Smoobu] blocked_dates entry created from webhook for: ${reservation.arrival} -> ${reservation.departure}`)
+    } catch (blockErr) {
+      console.error(`[Smoobu] Error creating blocked_dates entry:`, blockErr)
+    }
   } else {
     // Update existing booking
     const existingDoc = existingBookings.docs[0]
@@ -121,19 +143,12 @@ async function handleBookingCancellation(reservation: any) {
 
 function getRoomName(roomId: string | undefined): string {
   if (!roomId) return "Camera Sconosciuta"
-  const roomMap: Record<string, string> = {
-    "2": "Camera Familiare con Balcone",
-    "3": "Camera Matrimoniale con Vasca Idromassaggio",
-  }
-  return roomMap[roomId] || "Camera Sconosciuta"
+  return centralGetRoomName(roomId)
 }
 
-// TODO: Update this mapping with your Smoobu apartment IDs
 function convertSmoobuApartmentIdToLocal(smoobuApartmentId: string | undefined): string {
   if (!smoobuApartmentId) return ""
-  const apartmentIdMap: Record<string, string> = {
-    // Add your Smoobu apartment ID mappings here
-  }
-  return apartmentIdMap[smoobuApartmentId] || smoobuApartmentId
+  // Try resolving via apartment name matching (Acies->1, Aquarum->2)
+  return centralConvert(smoobuApartmentId)
 }
 

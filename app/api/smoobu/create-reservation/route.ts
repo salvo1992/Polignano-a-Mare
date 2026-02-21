@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { smoobuClient } from "@/lib/smoobu-client"
-import { getFirestore } from "@/lib/firebase-admin"
+import { db } from "@/lib/firebase"
+import { doc, collection, setDoc, updateDoc } from "firebase/firestore"
+import { setSmoobuApartmentIds, getSmoobuName, ROOM_MAPPINGS } from "@/lib/room-mapping"
 
 /**
  * POST - Create a real reservation on Smoobu after payment
@@ -33,41 +35,40 @@ export async function POST(req: Request) {
     console.log("[Smoobu] Creating reservation for booking:", bookingId)
     console.log("[Smoobu] Room:", roomId, "Dates:", checkIn, "->", checkOut)
 
-    // Try to find the Smoobu apartment ID
+    // Find the Smoobu apartment ID using centralized room mapping
     let apartmentId: number | null = null
 
     try {
-      // First, try to use roomId directly as a Smoobu apartment ID (numeric)
-      const numericId = parseInt(roomId)
-      if (!isNaN(numericId) && numericId > 1000) {
-        apartmentId = numericId
-      } else {
-        // Try to find by name
-        const apartment = await smoobuClient.findApartmentByName(roomId)
-        if (apartment) {
-          apartmentId = apartment.id
-          console.log("[Smoobu] Found apartment by name:", apartment.name, "ID:", apartment.id)
-        } else {
-          // Get all apartments and use the first one if there's only one
-          const apartments = await smoobuClient.getApartmentsCached()
-          if (apartments.length === 1) {
-            apartmentId = apartments[0].id
-            console.log("[Smoobu] Using only apartment:", apartments[0].name, "ID:", apartments[0].id)
-          } else if (apartments.length > 0) {
-            // Try partial match with room name
-            const match = apartments.find(a => 
-              a.name.toLowerCase().includes(roomId.toLowerCase()) ||
-              roomId.toLowerCase().includes(a.name.toLowerCase())
-            )
-            if (match) {
-              apartmentId = match.id
-              console.log("[Smoobu] Partial match apartment:", match.name, "ID:", match.id)
-            } else {
-              apartmentId = apartments[0].id
-              console.log("[Smoobu] No match, using first apartment:", apartments[0].name, "ID:", apartments[0].id)
-            }
-          }
+      const apartments = await smoobuClient.getApartmentsCached()
+      console.log("[v0 CREATE-RES] Smoobu apartments:", apartments.map(a => `${a.id}:${a.name}`))
+      setSmoobuApartmentIds(apartments)
+
+      // Get the Smoobu name for this local room ID (e.g. "1" -> "Acies", "2" -> "Aquarum")
+      const smoobuName = getSmoobuName(roomId)
+      console.log("[v0 CREATE-RES] roomId:", roomId, "-> smoobuName:", smoobuName)
+
+      if (smoobuName) {
+        const match = apartments.find(
+          (a) => a.name.toLowerCase().includes(smoobuName.toLowerCase()),
+        )
+        if (match) {
+          apartmentId = match.id
+          console.log("[Smoobu] Matched room", roomId, "->", smoobuName, "-> apartment ID:", match.id)
         }
+      }
+
+      // Fallback: try numeric ID directly
+      if (!apartmentId) {
+        const numericId = parseInt(roomId)
+        if (!isNaN(numericId) && numericId > 1000) {
+          apartmentId = numericId
+        }
+      }
+
+      // Fallback: use first apartment if only one exists
+      if (!apartmentId && apartments.length === 1) {
+        apartmentId = apartments[0].id
+        console.log("[Smoobu] Fallback to only apartment:", apartments[0].name)
       }
     } catch (error) {
       console.error("[Smoobu] Error finding apartment:", error)
@@ -100,9 +101,9 @@ export async function POST(req: Request) {
     console.log("[Smoobu] Reservation created with ID:", smoobuResult.id)
 
     // Update the Firebase booking with the Smoobu reservation ID
-    const db = getFirestore()
     try {
-      await db.doc(`bookings/${bookingId}`).update({
+      const bookingRef = doc(db, "bookings", bookingId)
+      await updateDoc(bookingRef, {
         smoobuReservationId: smoobuResult.id,
         smoobuSyncedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -110,7 +111,23 @@ export async function POST(req: Request) {
       console.log("[Smoobu] Firebase booking updated with smoobuReservationId:", smoobuResult.id)
     } catch (dbError) {
       console.error("[Smoobu] Error updating Firebase booking:", dbError)
-      // The Smoobu reservation was still created successfully
+    }
+
+    // Also create a blocked_dates entry so the calendar immediately reflects the booking
+    try {
+      const blockRef = doc(collection(db, "blocked_dates"))
+      await setDoc(blockRef, {
+        roomId: roomId,
+        from: checkIn,
+        to: checkOut,
+        reason: `auto-booking: ${firstName || "Guest"} ${lastName || ""} (ID: ${bookingId})`,
+        syncedToSmoobu: true,
+        smoobuReservationId: smoobuResult.id,
+        createdAt: new Date().toISOString(),
+      })
+      console.log("[Smoobu] blocked_dates entry created for dates:", checkIn, "->", checkOut)
+    } catch (blockError) {
+      console.error("[Smoobu] Error creating blocked_dates entry:", blockError)
     }
 
     return NextResponse.json({

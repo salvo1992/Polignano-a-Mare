@@ -5,6 +5,7 @@ const nextConfig = {
   images: { unoptimized: true },
   output: "standalone",
   reactStrictMode: true,
+  generateBuildId: () => `build-${Date.now()}`,
 
   // ⬇️ Aggiunto: header solo per le pagine auth
   async headers() {
