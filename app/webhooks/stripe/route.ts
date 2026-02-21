@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { admin, getFirestore } from "@/lib/firebase-admin"
 import { sendBookingConfirmationEmail, sendModificationEmail } from "@/lib/email"
+import { smoobuClient } from "@/lib/smoobu-client"
 
 export const dynamic = "force-dynamic"
 
@@ -305,9 +306,73 @@ export async function POST(req: NextRequest) {
         console.error("[Webhook] Email error details:", emailError)
       }
 
-      await markProcessed(event.id, { ok: true, bookingId, userCreated: !!newPassword })
-      console.log("[Webhook] ✅ Webhook processing completed successfully")
-      return NextResponse.json({ received: true, bookingId, userCreated: !!newPassword })
+      // Create a REAL Smoobu reservation (not just block dates)
+      // This syncs the booking to Booking.com, Airbnb, etc.
+      let smoobuReservationId: number | null = null
+      try {
+        if (updatedBookingData.roomId && updatedBookingData.checkIn && updatedBookingData.checkOut) {
+          console.log("[Webhook] Creating Smoobu reservation for booking:", bookingId)
+
+          let apartmentId: number | null = null
+          const numericId = parseInt(updatedBookingData.roomId)
+
+          if (!isNaN(numericId) && numericId > 1000) {
+            apartmentId = numericId
+          } else {
+            try {
+              const apartment = await smoobuClient.findApartmentByName(updatedBookingData.roomId)
+              if (apartment) {
+                apartmentId = apartment.id
+              } else {
+                const apartments = await smoobuClient.getApartmentsCached()
+                if (apartments.length > 0) {
+                  const match = apartments.find(a =>
+                    a.name.toLowerCase().includes(updatedBookingData.roomId.toLowerCase()) ||
+                    updatedBookingData.roomId.toLowerCase().includes(a.name.toLowerCase())
+                  )
+                  apartmentId = match ? match.id : apartments[0].id
+                }
+              }
+            } catch (aptError) {
+              console.error("[Webhook] Error finding apartment:", aptError)
+            }
+          }
+
+          if (apartmentId) {
+            const smoobuResult = await smoobuClient.createReservation({
+              apartmentId,
+              arrival: updatedBookingData.checkIn,
+              departure: updatedBookingData.checkOut,
+              firstName: updatedBookingData.firstName || "Guest",
+              lastName: updatedBookingData.lastName || "",
+              email: updatedBookingData.email || "",
+              phone: updatedBookingData.phone || "",
+              adults: updatedBookingData.guests || 1,
+              children: 0,
+              price: updatedBookingData.totalAmount || 0,
+              notice: `Prenotazione diretta dal sito - ID: ${bookingId}`,
+            })
+
+            smoobuReservationId = smoobuResult.id
+            console.log("[Webhook] Smoobu reservation created:", smoobuReservationId)
+
+            // Save Smoobu reservation ID to booking
+            await bookingRef.update({
+              smoobuReservationId,
+              smoobuSyncedAt: new Date().toISOString(),
+            })
+          } else {
+            console.warn("[Webhook] Could not determine Smoobu apartment ID for room:", updatedBookingData.roomId)
+          }
+        }
+      } catch (smoobuError: any) {
+        console.error("[Webhook] Error creating Smoobu reservation:", smoobuError.message)
+        // Don't fail the webhook - the payment was already processed
+      }
+
+      await markProcessed(event.id, { ok: true, bookingId, userCreated: !!newPassword, smoobuReservationId })
+      console.log("[Webhook] Webhook processing completed successfully")
+      return NextResponse.json({ received: true, bookingId, userCreated: !!newPassword, smoobuReservationId })
     }
 
     console.log("[Webhook] Event type not handled:", event.type)

@@ -1,113 +1,155 @@
 import { NextResponse } from "next/server"
-import { smoobuClient } from "@/lib/smoobu-client"
 import { getFirestore } from "@/lib/firebase-admin"
 
 /**
- * Sync reviews from Smoobu (Booking.com and Airbnb) to Firebase
- * Smoobu aggregates reviews from connected channels
+ * POST - Add a manual review to Firebase (from admin panel)
+ * Since Smoobu has no reviews API, reviews are added manually by the admin
+ * (copy-pasted from Booking.com / Airbnb dashboards)
  */
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    const reviews = await smoobuClient.getReviews()
+    const body = await req.json()
+    const { action } = body
 
-    console.log(`[Smoobu] Retrieved ${reviews.length} total reviews`)
+    // Action: add a single manual review
+    if (action === "add-review") {
+      const { name, location, rating, comment, source, date } = body
 
-    if (reviews.length === 0) {
+      if (!name || !comment || !rating) {
+        return NextResponse.json(
+          { success: false, error: "Nome, commento e rating sono obbligatori" },
+          { status: 400 }
+        )
+      }
+
+      const db = getFirestore()
+      const reviewsRef = db.collection("reviews")
+
+      const reviewData = {
+        name: name.trim(),
+        location: (location || "").trim(),
+        rating: Math.min(5, Math.max(1, Number(rating))),
+        comment: comment.trim(),
+        source: source || "manual",
+        date: date || new Date().toLocaleDateString("it-IT", { month: "long", year: "numeric" }),
+        verified: true,
+        synced: true,
+        syncedAt: new Date().toISOString(),
+        createdAt: Date.now(),
+        manualEntry: true,
+      }
+
+      const docRef = await reviewsRef.add(reviewData)
+
+      console.log(`[Reviews] Manual review added: ${docRef.id} by ${name}`)
+
       return NextResponse.json({
         success: true,
-        message: "Nessuna recensione trovata. Le recensioni vengono recuperate dai messaggi degli ospiti delle prenotazioni completate su Booking.com e Airbnb.",
-        synced: 0,
-        skipped: 0,
-        total: 0,
+        message: `Recensione di ${name} aggiunta con successo`,
+        reviewId: docRef.id,
       })
     }
 
-    const db = getFirestore()
-    const reviewsRef = db.collection("reviews")
+    // Action: bulk import reviews
+    if (action === "bulk-import") {
+      const { reviews } = body
 
-    let synced = 0
-    let skipped = 0
-
-    for (const review of reviews) {
-      try {
-        const uniqueId = review.id || `smoobu_${review.bookingId}_${review.guestName}_${review.date}`
-
-        // Check if review already exists
-        const existingQuery = await reviewsRef.where("smoobuId", "==", uniqueId).limit(1).get()
-
-        if (!existingQuery.empty) {
-          console.log(`[Smoobu] Review ${uniqueId} already exists, skipping`)
-          skipped++
-          continue
-        }
-
-        // Also check by old beds24Id in case of migrated reviews
-        const existingBeds24Query = await reviewsRef.where("beds24Id", "==", uniqueId).limit(1).get()
-        if (!existingBeds24Query.empty) {
-          skipped++
-          continue
-        }
-
-        if (!review.comment && !review.rating) {
-          skipped++
-          continue
-        }
-
-        // Add review to Firebase
-        await reviewsRef.add({
-          smoobuId: uniqueId,
-          bookingId: review.bookingId,
-          roomId: review.roomId,
-          name: review.guestName,
-          rating: review.rating,
-          comment: review.comment || "",
-          source: review.source,
-          date: review.date,
-          response: review.response || null,
-          verified: true,
-          synced: true,
-          syncedAt: new Date().toISOString(),
-          createdAt: review.date,
-        })
-
-        console.log(`[Smoobu] Successfully synced review ${uniqueId}`)
-        synced++
-      } catch (error) {
-        console.error(`[Smoobu] Error syncing review ${review.id}:`, error)
-        skipped++
+      if (!Array.isArray(reviews) || reviews.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "Nessuna recensione da importare" },
+          { status: 400 }
+        )
       }
+
+      const db = getFirestore()
+      const reviewsRef = db.collection("reviews")
+      let imported = 0
+      let skipped = 0
+
+      for (const review of reviews) {
+        try {
+          if (!review.name || !review.comment) {
+            skipped++
+            continue
+          }
+
+          // Check for duplicates by name + comment substring
+          const existingQuery = await reviewsRef
+            .where("name", "==", review.name.trim())
+            .limit(5)
+            .get()
+
+          const isDuplicate = existingQuery.docs.some(doc => {
+            const existing = doc.data()
+            return existing.comment?.substring(0, 50) === review.comment.trim().substring(0, 50)
+          })
+
+          if (isDuplicate) {
+            skipped++
+            continue
+          }
+
+          await reviewsRef.add({
+            name: review.name.trim(),
+            location: (review.location || "").trim(),
+            rating: Math.min(5, Math.max(1, Number(review.rating || 5))),
+            comment: review.comment.trim(),
+            source: review.source || "manual",
+            date: review.date || new Date().toLocaleDateString("it-IT", { month: "long", year: "numeric" }),
+            verified: true,
+            synced: true,
+            syncedAt: new Date().toISOString(),
+            createdAt: Date.now(),
+            manualEntry: true,
+          })
+
+          imported++
+        } catch (error) {
+          console.error(`[Reviews] Error importing review from ${review.name}:`, error)
+          skipped++
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Importate ${imported} recensioni, ${skipped} saltate`,
+        imported,
+        skipped,
+        total: reviews.length,
+      })
     }
 
-    return NextResponse.json({
-      success: true,
-      message:
-        synced > 0
-          ? `Sincronizzate ${synced} recensioni da Smoobu (Booking.com e Airbnb)`
-          : "Nessuna nuova recensione da sincronizzare",
-      synced,
-      skipped,
-      total: reviews.length,
-    })
+    return NextResponse.json(
+      { success: false, error: "Azione non valida. Usa 'add-review' o 'bulk-import'" },
+      { status: 400 }
+    )
   } catch (error) {
-    console.error("[Smoobu] Error syncing reviews:", error)
-
+    console.error("[Reviews] Error:", error)
     return NextResponse.json(
       {
         success: false,
-        error: "Errore durante la sincronizzazione delle recensioni",
+        error: "Errore durante l'operazione sulle recensioni",
         details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
 
 /**
- * Get reviews from Smoobu (without syncing)
+ * GET - Fetch all reviews from Firebase
  */
 export async function GET() {
   try {
-    const reviews = await smoobuClient.getReviews()
+    const db = getFirestore()
+    const reviewsRef = db.collection("reviews")
+
+    const snapshot = await reviewsRef.orderBy("createdAt", "desc").limit(100).get()
+
+    const reviews = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }))
 
     return NextResponse.json({
       success: true,
@@ -115,10 +157,10 @@ export async function GET() {
       count: reviews.length,
     })
   } catch (error) {
-    console.error("[Smoobu] Error fetching reviews:", error)
+    console.error("[Reviews] Error fetching reviews:", error)
     return NextResponse.json(
       { error: "Failed to fetch reviews", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }

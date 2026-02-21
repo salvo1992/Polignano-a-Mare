@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarIcon, Loader2 } from "lucide-react"
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, isSameDay } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -47,37 +47,71 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [seasons, setSeasons] = useState<Season[]>([])
   const [specialPeriods, setSpecialPeriods] = useState<SpecialPeriod[]>([])
+  const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+  const [loadingDates, setLoadingDates] = useState(true)
+
+  const loadUnavailableDates = useCallback(async () => {
+    try {
+      setLoadingDates(true)
+      const res = await fetch(`/api/bookings/unavailable-dates?roomId=${encodeURIComponent(roomId)}`)
+      const data = await res.json()
+
+      if (data.dates && Array.isArray(data.dates)) {
+        setUnavailableDates(new Set(data.dates))
+      }
+    } catch (error) {
+      console.error("[BookingCalendar] Error loading unavailable dates:", error)
+    } finally {
+      setLoadingDates(false)
+    }
+  }, [roomId])
 
   useEffect(() => {
-    console.log("[v0] BookingCalendarPicker - Loading data...")
     loadPricingData()
-  }, [])
+    loadUnavailableDates()
+  }, [loadUnavailableDates])
 
   async function loadPricingData() {
     try {
       setLoading(true)
-      console.log("[v0] Loading pricing data...")
 
       const seasonsRes = await fetch("/api/pricing/seasons")
       const seasonsData = await seasonsRes.json()
-      console.log("[v0] Seasons loaded:", seasonsData)
       setSeasons(seasonsData)
 
       const periodsRes = await fetch("/api/pricing/special-periods")
       const periodsData = await periodsRes.json()
-      console.log("[v0] Special periods loaded:", periodsData)
       setSpecialPeriods(periodsData)
     } catch (error) {
-      console.error("[v0] Error loading pricing data:", error)
+      console.error("[BookingCalendar] Error loading pricing data:", error)
     } finally {
       setLoading(false)
     }
   }
 
-  function getSeasonCategory(date: Date): SeasonType {
-    const dateStr = format(date, "yyyy-MM-dd")
+  function isDateUnavailable(day: Date): boolean {
+    const dateStr = format(day, "yyyy-MM-dd")
+    return unavailableDates.has(dateStr)
+  }
 
+  /**
+   * Check if selecting a range would cross over an unavailable date.
+   * Prevents users from booking a range that spans a blocked date.
+   */
+  function wouldCrossBlockedDate(from: Date, to: Date): boolean {
+    const current = new Date(from)
+    current.setDate(current.getDate() + 1) // start checking from the day after check-in
+    while (current < to) {
+      if (isDateUnavailable(current)) {
+        return true
+      }
+      current.setDate(current.getDate() + 1)
+    }
+    return false
+  }
+
+  function getSeasonCategory(date: Date): SeasonType {
     const specialPeriod = specialPeriods.find((p) => {
       const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
       const startParts = p.startDate.split("-")
@@ -90,13 +124,7 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
       )
       const end = new Date(Number.parseInt(endParts[0]), Number.parseInt(endParts[1]) - 1, Number.parseInt(endParts[2]))
 
-      const isInRange = checkDate >= start && checkDate <= end
-
-      if (isInRange) {
-        console.log(`[v0] ${dateStr}: Matched special period "${p.name}" (${p.startDate} to ${p.endDate})`)
-      }
-
-      return isInRange
+      return checkDate >= start && checkDate <= end
     })
 
     if (specialPeriod) {
@@ -110,17 +138,9 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
       const seasonEnd = s.endDate
 
       if (seasonStart <= seasonEnd) {
-        const isInRange = monthDay >= seasonStart && monthDay <= seasonEnd
-        if (isInRange) {
-          console.log(`[v0] ${dateStr}: Matched season "${s.name}" (${seasonStart} to ${seasonEnd})`)
-        }
-        return isInRange
+        return monthDay >= seasonStart && monthDay <= seasonEnd
       } else {
-        const isInRange = monthDay >= seasonStart || monthDay <= seasonEnd
-        if (isInRange) {
-          console.log(`[v0] ${dateStr}: Matched season "${s.name}" (wrap: ${seasonStart} to ${seasonEnd})`)
-        }
-        return isInRange
+        return monthDay >= seasonStart || monthDay <= seasonEnd
       }
     })
 
@@ -128,7 +148,6 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
       return getPriceCategory(season.priceMultiplier)
     }
 
-    console.log(`[v0] ${dateStr}: Base price → media`)
     return "media"
   }
 
@@ -140,33 +159,34 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
     return "bassa"
   }
 
-  function getCategoryColor(category: SeasonType): string {
-    switch (category) {
-      case "super-alta":
-        return "bg-red-500"
-      case "alta":
-        return "bg-orange-500"
-      case "medio-alta":
-        return "bg-yellow-500"
-      case "media":
-        return "bg-green-500"
-      case "bassa":
-        return "bg-blue-500"
-    }
-  }
-
   function handleDayClick(day: Date) {
+    // Don't allow clicking unavailable dates
+    if (isDateUnavailable(day)) return
+
     const from = value?.from
     const to = value?.to
 
     if (!from || (from && to)) {
+      // Starting a new selection
       onChange?.({ from: day, to: undefined })
     } else if (from && !to) {
+      // Completing the range
+      let rangeFrom = from
+      let rangeTo = day
+
       if (day < from) {
-        onChange?.({ from: day, to: from })
-      } else {
-        onChange?.({ from, to: day })
+        rangeFrom = day
+        rangeTo = from
       }
+
+      // Check if the range crosses any blocked dates
+      if (wouldCrossBlockedDate(rangeFrom, rangeTo)) {
+        // Reset selection - can't book across blocked dates
+        onChange?.({ from: day, to: undefined })
+        return
+      }
+
+      onChange?.({ from: rangeFrom, to: rangeTo })
     }
   }
 
@@ -204,9 +224,12 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
           >
             <ChevronLeft className={cn(compact ? "h-3 w-3" : "h-4 w-4")} />
           </Button>
-          <h3 className={cn(compact ? "text-sm" : "text-base", "font-semibold")}>
-            {format(currentMonth, "MMMM yyyy", { locale: it })}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className={cn(compact ? "text-sm" : "text-base", "font-semibold")}>
+              {format(currentMonth, "MMMM yyyy", { locale: it })}
+            </h3>
+            {loadingDates && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+          </div>
           <Button
             variant="outline"
             size={compact ? "icon" : "sm"}
@@ -217,7 +240,7 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
           </Button>
         </div>
 
-        {/* Calendar Grid - USER CALENDAR: NO PRICES DISPLAYED */}
+        {/* Calendar Grid */}
         <div className={cn("grid grid-cols-7", compact ? "gap-0.5" : "gap-1")}>
           {["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"].map((day) => (
             <div key={day} className={cn("text-center font-semibold p-1", compact ? "text-[10px]" : "text-xs")}>
@@ -229,28 +252,56 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
           ))}
           {daysInMonth.map((day) => {
             const isPast = day < today
+            const isUnavailable = isDateUnavailable(day)
+            const isDisabled = isPast || isUnavailable
             const isSelected = isInRange(day)
             const isEdge = isStartOrEnd(day)
 
             return (
               <button
                 key={day.toISOString()}
-                onClick={() => !isPast && handleDayClick(day)}
-                disabled={isPast}
+                onClick={() => !isDisabled && handleDayClick(day)}
+                disabled={isDisabled}
                 className={cn(
-                  "rounded-lg text-white text-center transition-all relative flex flex-col items-center justify-center",
+                  "rounded-lg text-center transition-all relative flex flex-col items-center justify-center",
                   compact ? "p-2 min-h-[36px]" : "p-4 min-h-[52px]",
-                  "bg-primary hover:opacity-80",
-                  isPast && "opacity-30 cursor-not-allowed",
-                  isSelected && !isEdge && "ring-2 ring-white brightness-110",
-                  isEdge && "ring-4 ring-yellow-300 scale-105 brightness-125 shadow-lg shadow-yellow-400/50",
-                  !isPast && "cursor-pointer active:scale-95",
+                  // Unavailable dates: red strikethrough look
+                  isUnavailable && !isPast && "bg-destructive/15 text-destructive/50 cursor-not-allowed line-through",
+                  // Past dates
+                  isPast && "opacity-30 cursor-not-allowed bg-muted text-muted-foreground",
+                  // Available dates
+                  !isDisabled && "bg-primary text-white hover:opacity-80 cursor-pointer active:scale-95",
+                  // Selected range
+                  isSelected && !isEdge && !isDisabled && "ring-2 ring-white brightness-110",
+                  isEdge && !isDisabled && "ring-4 ring-yellow-300 scale-105 brightness-125 shadow-lg shadow-yellow-400/50",
                 )}
+                aria-label={
+                  isUnavailable
+                    ? `${format(day, "d MMMM", { locale: it })} - Non disponibile`
+                    : `${format(day, "d MMMM", { locale: it })}`
+                }
               >
                 <div className={cn(compact ? "text-base" : "text-xl", "font-bold")}>{format(day, "d")}</div>
+                {isUnavailable && !isPast && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-[80%] h-[2px] bg-destructive/40 rotate-[-45deg]" />
+                  </div>
+                )}
               </button>
             )
           })}
+        </div>
+
+        {/* Legend */}
+        <div className={cn("flex items-center gap-4 pt-1", compact ? "text-[9px]" : "text-xs")}>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded bg-primary" />
+            <span className="text-muted-foreground">Disponibile</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded bg-destructive/15 border border-destructive/30" />
+            <span className="text-muted-foreground">Occupato</span>
+          </div>
         </div>
 
         {value?.from && (
