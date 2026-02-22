@@ -30,98 +30,32 @@ export default function CheckoutSuccess() {
   const [emailSent, setEmailSent] = useState(false)
 
   useEffect(() => {
-    if (sessionId) {
-      processStripeSession()
-    } else if (bookingId) {
+    // With the new SetupIntent flow, the webhook handles everything
+    // (user creation, Smoobu sync, email). The success page just loads the booking.
+    if (bookingId) {
       loadBooking()
+    } else if (sessionId) {
+      // Legacy: if only session_id is passed, try to process it
+      processLegacySession()
     } else {
       setLoading(false)
     }
   }, [bookingId, sessionId])
 
-  const processStripeSession = async () => {
+  const processLegacySession = async () => {
     try {
-      console.log("[v0] Processing Stripe session:", sessionId)
       const response = await fetch("/api/checkout/process-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId }),
       })
-
       const data = await response.json()
-
-      if (!response.ok) throw new Error(data.error)
-
-      console.log("[v0] Session processed, booking updated:", data.booking)
-      setBooking(data.booking)
-      setEmailSent(true) // Email already sent by process-session API
-
-      // Create a REAL reservation on Smoobu (not just block dates)
-      // This ensures Booking.com, Airbnb, etc. are updated automatically
-      if (data.booking?.roomId && data.booking?.checkIn && data.booking?.checkOut) {
-        try {
-          console.log("[Smoobu] Creating reservation for booking:", data.booking.id)
-          
-          const smoobuResponse = await fetch("/api/smoobu/create-reservation", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              bookingId: data.booking.id || data.booking.bookingId,
-              roomId: data.booking.roomId,
-              checkIn: data.booking.checkIn,
-              checkOut: data.booking.checkOut,
-              firstName: data.booking.firstName,
-              lastName: data.booking.lastName,
-              email: data.booking.email,
-              phone: data.booking.phone || "",
-              guests: data.booking.guests || 1,
-              totalAmount: data.booking.totalAmount || 0,
-            }),
-          })
-
-          const smoobuResult = await smoobuResponse.json()
-          console.log("[v0] Smoobu response status:", smoobuResponse.status, "body:", JSON.stringify(smoobuResult))
-          
-          if (smoobuResult.success) {
-            console.log("[v0] Smoobu reservation created OK, ID:", smoobuResult.smoobuReservationId)
-          } else {
-            console.error("[v0] Smoobu reservation FAILED:", smoobuResult.error, smoobuResult.details)
-          }
-        } catch (smoobuError) {
-          console.error("[v0] Smoobu create-reservation call FAILED:", smoobuError)
-        }
-      }
-
       if (data.booking) {
-        try {
-          await fetch("/api/bookings/notify-admin", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              bookingId: data.booking.id,
-              roomName: data.booking.roomName,
-              checkIn: data.booking.checkIn,
-              checkOut: data.booking.checkOut,
-              guestName: data.booking.guestName,
-            }),
-          })
-          console.log("[v0] Admin notification sent successfully")
-        } catch (error) {
-          console.error("[v0] Failed to send admin notification:", error)
-        }
+        setBooking(data.booking)
+        setEmailSent(true)
       }
-
-      toast({
-        title: t("success"),
-        description: "Modifica completata con successo!",
-      })
     } catch (error: any) {
-      console.error("[v0] Error processing session:", error)
-      toast({
-        title: t("error"),
-        description: error.message || "Errore nell'elaborazione del pagamento",
-        variant: "destructive",
-      })
+      console.error("[CheckoutSuccess] Legacy session error:", error)
     } finally {
       setLoading(false)
     }

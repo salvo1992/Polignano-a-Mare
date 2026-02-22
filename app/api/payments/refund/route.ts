@@ -1,59 +1,86 @@
 import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
-import { getAdminDb } from "@/lib/firebase-admin"
-import { FieldValue } from "firebase-admin/firestore"
+import { db } from "@/lib/firebase"
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-12-18.acacia",
 })
 
+/**
+ * POST /api/payments/refund
+ *
+ * Processes a partial or full refund via Stripe.
+ * Body: { bookingId, amountCents?, reason? }
+ * If amountCents is omitted, refunds the full payment.
+ */
 export async function POST(request: NextRequest) {
   try {
-    const { bookingId, amount, reason } = await request.json()
+    const { bookingId, amountCents, reason } = await request.json()
 
-    if (!bookingId || !amount) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    if (!bookingId) {
+      return NextResponse.json({ error: "bookingId mancante" }, { status: 400 })
     }
 
-    const db = getAdminDb()
-    const bookingDoc = await db.collection("bookings").doc(bookingId).get()
+    const bookingRef = doc(db, "bookings", bookingId)
+    const bookingSnap = await getDoc(bookingRef)
 
-    if (!bookingDoc.exists) {
-      return NextResponse.json({ error: "Booking not found" }, { status: 404 })
+    if (!bookingSnap.exists()) {
+      return NextResponse.json({ error: "Prenotazione non trovata" }, { status: 404 })
     }
 
-    const booking = bookingDoc.data()
+    const booking = bookingSnap.data()
 
     if (!booking.stripePaymentIntentId) {
-      return NextResponse.json({ error: "No payment intent found for this booking" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Nessun pagamento trovato per questa prenotazione" },
+        { status: 400 },
+      )
     }
 
-    // Create refund in Stripe
-    const refund = await stripe.refunds.create({
+    // Build refund params
+    const refundParams: Stripe.RefundCreateParams = {
       payment_intent: booking.stripePaymentIntentId,
-      amount: Math.round(amount * 100), // Convert to cents
-      reason: reason || "requested_by_customer",
+      reason: (reason as Stripe.RefundCreateParams["reason"]) || "requested_by_customer",
+    }
+
+    // If a specific amount is provided, do partial refund
+    if (amountCents && amountCents > 0) {
+      refundParams.amount = amountCents
+    }
+
+    console.log("[Refund] Creating refund:", {
+      bookingId,
+      paymentIntentId: booking.stripePaymentIntentId,
+      amountCents: amountCents || "full",
     })
 
-    // Update booking in database
-    await db
-      .collection("bookings")
-      .doc(bookingId)
-      .update({
-        refundAmount: FieldValue.increment(amount * 100),
-        stripeRefundId: refund.id,
-        refundStatus: refund.status,
-        updatedAt: FieldValue.serverTimestamp(),
-      })
+    const refund = await stripe.refunds.create(refundParams)
+
+    // Update booking
+    const refundedAmountCents = refund.amount
+    await updateDoc(bookingRef, {
+      refundedAmount: refundedAmountCents,
+      stripeRefundId: refund.id,
+      refundStatus: refund.status,
+      status: refundedAmountCents >= (booking.totalAmountCents || 0) ? "refunded" : "partially_refunded",
+      updatedAt: serverTimestamp(),
+    })
+
+    console.log("[Refund] Refund created:", refund.id, "amount:", refund.amount, "status:", refund.status)
 
     return NextResponse.json({
       success: true,
       refundId: refund.id,
       amount: refund.amount / 100,
+      amountCents: refund.amount,
       status: refund.status,
     })
   } catch (error: any) {
-    console.error("Error processing refund:", error)
-    return NextResponse.json({ error: error.message || "Failed to process refund" }, { status: 500 })
+    console.error("[Refund] Error:", error)
+    return NextResponse.json(
+      { error: error.message || "Errore nell'elaborazione del rimborso" },
+      { status: 500 },
+    )
   }
 }
