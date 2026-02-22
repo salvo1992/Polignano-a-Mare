@@ -82,6 +82,14 @@ export async function POST(request: NextRequest) {
         totalAmountCents: String(amount),
         currency: String(currency).toLowerCase(),
       },
+      setup_intent_data: {
+        usage: "off_session",
+        metadata: {
+          bookingId: String(bookingId),
+          totalAmountCents: String(amount),
+          currency: String(currency).toLowerCase(),
+        },
+      },
       payment_method_types: ["card"],
       locale: "it",
       billing_address_collection: "required",

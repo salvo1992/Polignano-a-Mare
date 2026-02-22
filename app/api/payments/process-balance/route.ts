@@ -52,9 +52,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Importo non valido" }, { status: 400 })
     }
 
+    const currency = (booking.currency || "eur").toLowerCase()
+
     console.log("[ProcessBalance] Charging off-session:", {
       bookingId,
       amount: totalAmountCents,
+      currency,
       customerId: booking.stripeCustomerId,
       paymentMethodId: booking.stripePaymentMethodId,
     })
@@ -63,7 +66,7 @@ export async function POST(request: NextRequest) {
       // Attempt off-session charge
       const paymentIntent = await stripe.paymentIntents.create({
         amount: totalAmountCents,
-        currency: "eur",
+        currency,
         customer: booking.stripeCustomerId,
         payment_method: booking.stripePaymentMethodId,
         off_session: true,
@@ -99,12 +102,13 @@ export async function POST(request: NextRequest) {
 
         const fallbackSession = await stripe.checkout.sessions.create({
           customer: booking.stripeCustomerId,
+          client_reference_id: bookingId,
           payment_method_types: ["card"],
           mode: "payment",
           line_items: [
             {
               price_data: {
-                currency: "eur",
+                currency,
                 product_data: {
                   name: `Saldo Prenotazione ${bookingId}`,
                   description: "Pagamento saldo richiesto - autenticazione necessaria",
@@ -155,12 +159,13 @@ export async function POST(request: NextRequest) {
 
         const fallbackSession = await stripe.checkout.sessions.create({
           customer: booking.stripeCustomerId,
+          client_reference_id: bookingId,
           payment_method_types: ["card"],
           mode: "payment",
           line_items: [
             {
               price_data: {
-                currency: "eur",
+                currency,
                 product_data: {
                   name: `Saldo Prenotazione ${bookingId}`,
                   description: "Pagamento saldo - autenticazione carta richiesta",
