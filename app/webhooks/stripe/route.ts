@@ -1,228 +1,143 @@
 import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
-import { admin, getFirestore } from "@/lib/firebase-admin"
+import { admin, getFirestore, isFirebaseInitialized } from "@/lib/firebase-admin"
 import { sendBookingConfirmationEmail, sendModificationEmail } from "@/lib/email"
 import { smoobuClient } from "@/lib/smoobu-client"
+import { calculateChargeDate } from "@/lib/payment-logic"
 
 export const dynamic = "force-dynamic"
 
-// Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-06-20" })
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2024-12-18.acacia" })
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
+// --- Helpers ---
+
 async function alreadyProcessed(eventId: string) {
+  if (!isFirebaseInitialized()) return false
   const db = getFirestore()
-  const ref = db.doc(`stripe_webhook_events/${eventId}`)
-  const snap = await ref.get()
+  const snap = await db.doc(`stripe_webhook_events/${eventId}`).get()
   return snap.exists
 }
+
 async function markProcessed(eventId: string, payload: any) {
+  if (!isFirebaseInitialized()) return
   const db = getFirestore()
-  const ref = db.doc(`stripe_webhook_events/${eventId}`)
-  await ref.set({ receivedAt: admin.firestore.FieldValue.serverTimestamp(), payload }, { merge: true })
+  await db
+    .doc(`stripe_webhook_events/${eventId}`)
+    .set({ receivedAt: admin.firestore.FieldValue.serverTimestamp(), payload }, { merge: true })
 }
 
-export async function POST(req: NextRequest) {
-  console.log("[v0 WEBHOOK] 🚀 Webhook POST called at:", new Date().toISOString())
-  console.log("[v0 WEBHOOK] Request URL:", req.url)
-  console.log("[v0 WEBHOOK] Request method:", req.method)
+// --- Main handler ---
 
+export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text()
-    console.log("[v0 WEBHOOK] Body length:", rawBody.length)
-
     const signature = req.headers.get("stripe-signature")
-    console.log("[v0 WEBHOOK] Signature present:", !!signature)
 
     if (!signature) {
-      console.error("[Webhook] No signature provided")
       return NextResponse.json({ error: "No signature" }, { status: 400 })
     }
 
-    // Verifica firma
     let event: Stripe.Event
     try {
       event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
-      console.log("[v0 WEBHOOK] ✅ Signature verified successfully")
     } catch (err: any) {
       console.error("[Webhook] Signature verification failed:", err.message)
       return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 })
     }
 
-    console.log("[Webhook] Event received:", event.type, "ID:", event.id)
+    console.log("[Webhook] Event:", event.type, "ID:", event.id)
 
-    // Evita doppi processamenti
     if (await alreadyProcessed(event.id)) {
-      console.log("[Webhook] Event already processed:", event.id)
       return NextResponse.json({ received: true, duplicate: true })
     }
 
-    if (event.type === "checkout.session.completed") {
-      const db = getFirestore()
-      const session = event.data.object as Stripe.Checkout.Session
+    if (!isFirebaseInitialized()) {
+      console.error("[Webhook] Firebase Admin not initialized")
+      return NextResponse.json({ error: "Server not ready" }, { status: 500 })
+    }
 
-      const bookingId = session.metadata?.bookingId || session.client_reference_id || null
-      const customerEmail = session.customer_email || session.customer_details?.email || session.metadata?.email || ""
+    const db = getFirestore()
 
-      console.log("[Webhook] checkout.session.completed", {
-        livemode: event.livemode,
-        bookingId,
-        email: customerEmail,
-        payment_status: session.payment_status,
+    // ============================================================
+    // 1) SETUP INTENT SUCCEEDED
+    //    Saves the card (PaymentMethod) on the booking for future off-session charges
+    // ============================================================
+    if (event.type === "setup_intent.succeeded") {
+      const setupIntent = event.data.object as Stripe.SetupIntent
+
+      // The bookingId comes via the Checkout Session metadata
+      // We need to find the checkout session that created this SetupIntent
+      const sessions = await stripe.checkout.sessions.list({
+        limit: 5,
       })
 
-      if (!bookingId) {
-        console.error("[Webhook] Missing bookingId (metadata/client_reference_id)")
-        await markProcessed(event.id, { error: "no bookingId" })
-        return NextResponse.json({ error: "Missing bookingId" }, { status: 400 })
+      // Find the session linked to this setup intent
+      let bookingId: string | null = null
+      let totalAmountCents = 0
+      let currency = "eur"
+
+      for (const session of sessions.data) {
+        if (session.setup_intent === setupIntent.id) {
+          bookingId = session.metadata?.bookingId || session.client_reference_id || null
+          totalAmountCents = Number.parseInt(session.metadata?.totalAmountCents || "0")
+          currency = session.metadata?.currency || "eur"
+          break
+        }
       }
 
-      if (session.payment_status !== "paid") {
-        console.log("[Webhook] Payment not completed:", session.payment_status)
-        await markProcessed(event.id, { status: session.payment_status })
-        return NextResponse.json({ received: true, status: "payment_not_paid" })
+      if (!bookingId) {
+        console.error("[Webhook] setup_intent.succeeded: no bookingId found")
+        await markProcessed(event.id, { error: "no_bookingId" })
+        return NextResponse.json({ received: true })
       }
+
+      const customerId =
+        typeof setupIntent.customer === "string" ? setupIntent.customer : setupIntent.customer?.id || ""
+      const paymentMethodId =
+        typeof setupIntent.payment_method === "string"
+          ? setupIntent.payment_method
+          : setupIntent.payment_method?.id || ""
+
+      console.log("[Webhook] SetupIntent succeeded:", {
+        bookingId,
+        customerId,
+        paymentMethodId,
+        totalAmountCents,
+      })
 
       const bookingRef = db.doc(`bookings/${bookingId}`)
       const bookingSnap = await bookingRef.get()
+
       if (!bookingSnap.exists) {
-        console.error("[Webhook] Booking not found:", bookingId)
         await markProcessed(event.id, { error: "booking_not_found" })
         return NextResponse.json({ error: "Booking not found" }, { status: 404 })
       }
 
       const bookingData = bookingSnap.data() as any
-      console.log("[Webhook] Booking found:", bookingId, "Email:", bookingData.email)
-
-      const paymentType = session.metadata?.type || session.metadata?.paymentType || "full"
-
-      if (paymentType === "change_dates") {
-        console.log("[Webhook] Processing change_dates payment")
-        console.log("[Webhook] Session metadata:", session.metadata)
-
-        const newTotalAmount = Number.parseFloat(session.metadata?.newTotalAmount || "0")
-        const paymentAmount = Number.parseFloat(session.metadata?.paymentAmount || "0")
-        const checkIn = session.metadata?.checkIn
-        const checkOut = session.metadata?.checkOut
-        const penalty = Number.parseFloat(session.metadata?.penalty || "0")
-
-        console.log("[Webhook] Parsed metadata:", {
-          newTotalAmount: newTotalAmount.toFixed(2),
-          paymentAmount: paymentAmount.toFixed(2),
-          penalty: penalty.toFixed(2),
-          checkIn,
-          checkOut,
-        })
-
-        const currentTotalPaid = bookingData.totalPaid || bookingData.totalAmount || 0
-
-        console.log("[Webhook] Current booking state:", {
-          currentTotalPaid: currentTotalPaid.toFixed(2),
-          currentTotalAmount: bookingData.totalAmount.toFixed(2),
-        })
-
-        const updateData = {
-          checkIn,
-          checkOut,
-          totalAmount: Number.parseFloat(newTotalAmount.toFixed(2)),
-          totalPaid: Number.parseFloat(newTotalAmount.toFixed(2)), // Full amount is paid after this payment
-          status: "paid",
-          lastPayment: {
-            type: "change_dates_payment",
-            amount: Number.parseFloat(paymentAmount.toFixed(2)),
-            paymentId: String(session.payment_intent || session.id),
-            paidAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }
-
-        console.log("[Webhook] Updating booking with:", {
-          newTotalPaid: updateData.totalPaid.toFixed(2),
-          newTotalAmount: updateData.totalAmount.toFixed(2),
-          newCheckIn: updateData.checkIn,
-          newCheckOut: updateData.checkOut,
-        })
-
-        await bookingRef.update(updateData)
-
-        console.log("[Webhook] Database updated successfully")
-
-        try {
-          const nights = Math.ceil(
-            (new Date(checkOut || bookingData.checkOut).getTime() -
-              new Date(checkIn || bookingData.checkIn).getTime()) /
-              (1000 * 60 * 60 * 24),
-          )
-
-          console.log("[Webhook] Sending date change confirmation email")
-          await sendModificationEmail({
-            to: bookingData.email,
-            bookingId: bookingId,
-            firstName: bookingData.firstName,
-            lastName: bookingData.lastName,
-            checkIn: checkIn || bookingData.checkIn,
-            checkOut: checkOut || bookingData.checkOut,
-            roomName: bookingData.roomName,
-            guests: bookingData.guests,
-            nights,
-            originalAmount: bookingData.totalAmount,
-            newAmount: newTotalAmount,
-            penalty: penalty > 0 ? penalty : undefined,
-            dateChangeCost: paymentAmount,
-            modificationType: "dates",
-          })
-          console.log("[Webhook] Date change confirmation email sent successfully")
-        } catch (emailError: any) {
-          console.error("[Webhook] Error sending date change email:", emailError.message)
-        }
-
-        await markProcessed(event.id, { ok: true, bookingId, type: "change_dates" })
-        return NextResponse.json({ received: true, bookingId, type: "change_dates" })
-      }
-
-      // Default: full payment for new booking
-      const paidAmount = session.amount_total || 0
-      const fullAmount = session.metadata?.fullAmount
-        ? Number.parseInt(session.metadata.fullAmount)
-        : bookingData.totalAmount
+      const checkInDate = new Date(bookingData.checkIn)
+      const chargeDate = calculateChargeDate(checkInDate)
 
       await bookingRef.update({
-        status: "paid",
-        paymentId: String(session.payment_intent || session.id),
-        paymentProvider: "stripe",
-        paymentType: "full",
-        totalPaid: Number.parseFloat((paidAmount / 100).toFixed(2)),
-        totalAmount: Number.parseFloat((fullAmount / 100).toFixed(2)),
-        paidAt: admin.firestore.FieldValue.serverTimestamp(),
+        stripeCustomerId: customerId,
+        stripePaymentMethodId: paymentMethodId,
+        stripeSetupIntentId: setupIntent.id,
+        totalAmountCents,
+        chargeDate: chargeDate.toISOString().split("T")[0],
+        status: "payment_scheduled",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       })
-      console.log("[Webhook] Full payment processed:", {
-        totalPaid: (paidAmount / 100).toFixed(2),
-        totalAmount: (fullAmount / 100).toFixed(2),
-      })
 
-      // crea/collega utente
+      // Create/link user account
       let uid = ""
       let newPassword: string | undefined
+
       try {
-        console.log("[Webhook] Checking if user exists:", bookingData.email)
         const user = await admin.auth().getUserByEmail(bookingData.email)
         uid = user.uid
-        console.log("[Webhook] User already exists:", uid)
-      } catch (userError: any) {
-        console.log("[Webhook] User not found, creating new user:", bookingData.email)
-
-        const generatePassword = () => {
-          const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
-          let password = ""
-          for (let i = 0; i < 12; i++) {
-            password += charset.charAt(Math.floor(Math.random() * charset.length))
-          }
-          return password
-        }
-
-        newPassword = generatePassword()
-        console.log("[Webhook] Generated password for new user")
+      } catch {
+        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+        newPassword = Array.from({ length: 12 }, () => charset[Math.floor(Math.random() * charset.length)]).join("")
 
         try {
           const newUser = await admin.auth().createUser({
@@ -231,10 +146,9 @@ export async function POST(req: NextRequest) {
             displayName: `${bookingData.firstName} ${bookingData.lastName}`.trim(),
           })
           uid = newUser.uid
-          console.log("[Webhook] User created in Firebase Auth:", uid)
 
           await db.doc(`users/${uid}`).set({
-            uid: uid,
+            uid,
             email: bookingData.email,
             displayName: `${bookingData.firstName} ${bookingData.lastName}`.trim(),
             firstName: bookingData.firstName,
@@ -242,145 +156,264 @@ export async function POST(req: NextRequest) {
             provider: "password",
             role: "user",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            notifications: {
-              confirmEmails: true,
-              promos: false,
-              checkinReminders: true,
-            },
           })
-          console.log("[Webhook] User data saved in Firestore")
         } catch (createError: any) {
-          console.error("[Webhook] Error creating user:", createError.message, createError.code)
-          throw createError
+          console.error("[Webhook] Error creating user:", createError.message)
         }
       }
 
-      await bookingRef.update({
-        userId: uid,
-        newUserPassword: newPassword || null,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      })
-      console.log("[Webhook] Booking updated with userId:", uid)
-      console.log("[Webhook] New user password saved:", !!newPassword)
-      if (newPassword) {
-        console.log("[Webhook] Password length:", newPassword.length)
+      if (uid) {
+        await bookingRef.update({
+          userId: uid,
+          newUserPassword: newPassword || null,
+        })
       }
 
-      const updatedBookingSnap = await bookingRef.get()
-      const updatedBookingData = updatedBookingSnap.data() as any
-      console.log("[Webhook] Reloaded booking data, has newUserPassword:", !!updatedBookingData.newUserPassword)
-
+      // Send confirmation email
       try {
-        console.log("[Webhook] Attempting to send confirmation email to:", updatedBookingData.email)
-        console.log("[Webhook] Email data:", {
+        await sendBookingConfirmationEmail({
+          to: bookingData.email,
           bookingId,
-          firstName: updatedBookingData.firstName,
-          lastName: updatedBookingData.lastName,
-          hasNewPassword: !!newPassword,
-          passwordLength: newPassword?.length,
-        })
-
-        const emailResult = await sendBookingConfirmationEmail({
-          to: updatedBookingData.email,
-          bookingId: bookingId,
-          firstName: updatedBookingData.firstName,
-          lastName: updatedBookingData.lastName,
-          checkIn: updatedBookingData.checkIn,
-          checkOut: updatedBookingData.checkOut,
-          roomName: updatedBookingData.roomName,
-          guests: updatedBookingData.guests,
-          numberOfChildren: updatedBookingData.numberOfChildren || 0,
-          totalAmount: updatedBookingData.totalAmount,
-          nights: updatedBookingData.nights,
+          firstName: bookingData.firstName,
+          lastName: bookingData.lastName,
+          checkIn: bookingData.checkIn,
+          checkOut: bookingData.checkOut,
+          roomName: bookingData.roomName,
+          guests: bookingData.guests,
+          numberOfChildren: bookingData.numberOfChildren || 0,
+          totalAmount: totalAmountCents / 100,
+          nights: bookingData.nights,
           newUserPassword: newPassword,
         })
-        console.log("[Webhook] Email send result:", emailResult)
-        if (emailResult.success) {
-          console.log("[Webhook] ✅ Confirmation email sent successfully")
-        } else {
-          console.error("[Webhook] ❌ Email send failed:", emailResult.error)
-        }
-      } catch (emailError: any) {
-        console.error("[Webhook] ❌ Email send error:", emailError.message)
-        console.error("[Webhook] Email error details:", emailError)
+      } catch (emailErr: any) {
+        console.error("[Webhook] Email error:", emailErr.message)
       }
 
-      // Create a REAL Smoobu reservation (not just block dates)
-      // This syncs the booking to Booking.com, Airbnb, etc.
-      let smoobuReservationId: number | null = null
+      // Create Smoobu reservation
       try {
-        if (updatedBookingData.roomId && updatedBookingData.checkIn && updatedBookingData.checkOut) {
-          console.log("[Webhook] Creating Smoobu reservation for booking:", bookingId)
-
+        if (bookingData.roomId && bookingData.checkIn && bookingData.checkOut) {
           let apartmentId: number | null = null
-          const numericId = parseInt(updatedBookingData.roomId)
+          const numericId = parseInt(bookingData.roomId)
 
           if (!isNaN(numericId) && numericId > 1000) {
             apartmentId = numericId
           } else {
-            try {
-              const apartment = await smoobuClient.findApartmentByName(updatedBookingData.roomId)
-              if (apartment) {
-                apartmentId = apartment.id
-              } else {
-                const apartments = await smoobuClient.getApartmentsCached()
-                if (apartments.length > 0) {
-                  const match = apartments.find(a =>
-                    a.name.toLowerCase().includes(updatedBookingData.roomId.toLowerCase()) ||
-                    updatedBookingData.roomId.toLowerCase().includes(a.name.toLowerCase())
-                  )
-                  apartmentId = match ? match.id : apartments[0].id
-                }
-              }
-            } catch (aptError) {
-              console.error("[Webhook] Error finding apartment:", aptError)
-            }
+            const apartments = await smoobuClient.getApartmentsCached()
+            const match = apartments.find(
+              (a) =>
+                a.name.toLowerCase().includes(bookingData.roomId.toLowerCase()) ||
+                bookingData.roomId.toLowerCase().includes(a.name.toLowerCase()),
+            )
+            apartmentId = match ? match.id : apartments.length > 0 ? apartments[0].id : null
           }
 
           if (apartmentId) {
             const smoobuResult = await smoobuClient.createReservation({
               apartmentId,
-              arrival: updatedBookingData.checkIn,
-              departure: updatedBookingData.checkOut,
-              firstName: updatedBookingData.firstName || "Guest",
-              lastName: updatedBookingData.lastName || "",
-              email: updatedBookingData.email || "",
-              phone: updatedBookingData.phone || "",
-              adults: updatedBookingData.guests || 1,
+              arrival: bookingData.checkIn,
+              departure: bookingData.checkOut,
+              firstName: bookingData.firstName || "Guest",
+              lastName: bookingData.lastName || "",
+              email: bookingData.email || "",
+              phone: bookingData.phone || "",
+              adults: bookingData.guests || 1,
               children: 0,
-              price: updatedBookingData.totalAmount || 0,
-              notice: `Prenotazione diretta dal sito - ID: ${bookingId}`,
+              price: totalAmountCents / 100,
+              notice: `Prenotazione diretta - ID: ${bookingId}`,
             })
 
-            smoobuReservationId = smoobuResult.id
-            console.log("[Webhook] Smoobu reservation created:", smoobuReservationId)
-
-            // Save Smoobu reservation ID to booking
             await bookingRef.update({
-              smoobuReservationId,
+              smoobuReservationId: smoobuResult.id,
               smoobuSyncedAt: new Date().toISOString(),
             })
-          } else {
-            console.warn("[Webhook] Could not determine Smoobu apartment ID for room:", updatedBookingData.roomId)
           }
         }
       } catch (smoobuError: any) {
-        console.error("[Webhook] Error creating Smoobu reservation:", smoobuError.message)
-        // Don't fail the webhook - the payment was already processed
+        console.error("[Webhook] Smoobu error:", smoobuError.message)
       }
 
-      await markProcessed(event.id, { ok: true, bookingId, userCreated: !!newPassword, smoobuReservationId })
-      console.log("[Webhook] Webhook processing completed successfully")
-      return NextResponse.json({ received: true, bookingId, userCreated: !!newPassword, smoobuReservationId })
+      await markProcessed(event.id, { ok: true, bookingId, type: "setup_intent" })
+      return NextResponse.json({ received: true, bookingId })
     }
 
-    console.log("[Webhook] Event type not handled:", event.type)
+    // ============================================================
+    // 2) PAYMENT INTENT SUCCEEDED
+    //    Marks the booking as paid (balance charge or penalty)
+    // ============================================================
+    if (event.type === "payment_intent.succeeded") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent
+      const bookingId = paymentIntent.metadata?.bookingId
+      const type = paymentIntent.metadata?.type || "unknown"
+
+      if (!bookingId) {
+        await markProcessed(event.id, { ignored: true, reason: "no_bookingId" })
+        return NextResponse.json({ received: true })
+      }
+
+      const bookingRef = db.doc(`bookings/${bookingId}`)
+
+      if (type === "balance_charge" || type === "balance_fallback") {
+        await bookingRef.update({
+          status: "paid",
+          stripePaymentIntentId: paymentIntent.id,
+          paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+        console.log("[Webhook] Balance paid for booking:", bookingId)
+      } else if (type === "penalty" || type === "cancellation_penalty" || type === "change_dates_penalty") {
+        await bookingRef.update({
+          penaltyPaymentIntentId: paymentIntent.id,
+          penaltyStatus: "paid",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+        console.log("[Webhook] Penalty paid for booking:", bookingId)
+      }
+
+      await markProcessed(event.id, { ok: true, bookingId, type })
+      return NextResponse.json({ received: true, bookingId })
+    }
+
+    // ============================================================
+    // 3) PAYMENT INTENT FAILED
+    //    Marks booking as payment_failed
+    // ============================================================
+    if (event.type === "payment_intent.payment_failed") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent
+      const bookingId = paymentIntent.metadata?.bookingId
+
+      if (bookingId) {
+        const bookingRef = db.doc(`bookings/${bookingId}`)
+        await bookingRef.update({
+          status: "payment_failed",
+          paymentError: paymentIntent.last_payment_error?.message || "Payment failed",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+        console.log("[Webhook] Payment failed for booking:", bookingId)
+      }
+
+      await markProcessed(event.id, { bookingId, type: "payment_failed" })
+      return NextResponse.json({ received: true })
+    }
+
+    // ============================================================
+    // 4) CHARGE REFUNDED
+    //    Updates booking status to refunded
+    // ============================================================
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as Stripe.Charge
+      const paymentIntentId =
+        typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id
+
+      if (paymentIntentId) {
+        // Find booking by payment intent
+        const bookingsSnap = await db
+          .collection("bookings")
+          .where("stripePaymentIntentId", "==", paymentIntentId)
+          .limit(1)
+          .get()
+
+        if (!bookingsSnap.empty) {
+          const bookingDoc = bookingsSnap.docs[0]
+          const refundedTotal = charge.amount_refunded || 0
+          const totalPaid = charge.amount || 0
+          const isFullRefund = refundedTotal >= totalPaid
+
+          await bookingDoc.ref.update({
+            status: isFullRefund ? "refunded" : "partially_refunded",
+            refundedAmount: refundedTotal,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          })
+
+          console.log("[Webhook] Refund processed:", {
+            bookingId: bookingDoc.id,
+            refundedTotal,
+            isFullRefund,
+          })
+        }
+      }
+
+      await markProcessed(event.id, { type: "charge_refunded", paymentIntentId })
+      return NextResponse.json({ received: true })
+    }
+
+    // ============================================================
+    // 5) CHECKOUT SESSION COMPLETED (legacy + balance_fallback)
+    // ============================================================
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session
+      const bookingId = session.metadata?.bookingId || session.client_reference_id
+      const type = session.metadata?.type || session.metadata?.paymentType || "full"
+
+      if (!bookingId) {
+        await markProcessed(event.id, { error: "no_bookingId" })
+        return NextResponse.json({ received: true })
+      }
+
+      if (session.payment_status !== "paid" && session.mode !== "setup") {
+        await markProcessed(event.id, { status: session.payment_status })
+        return NextResponse.json({ received: true })
+      }
+
+      const bookingRef = db.doc(`bookings/${bookingId}`)
+
+      if (type === "balance_fallback") {
+        // Manual payment after 3DS required
+        await bookingRef.update({
+          status: "paid",
+          stripePaymentIntentId: String(session.payment_intent || session.id),
+          paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+        console.log("[Webhook] Balance fallback paid:", bookingId)
+      } else if (type === "change_dates") {
+        // Legacy change-dates payment
+        const newTotalAmount = Number.parseFloat(session.metadata?.newTotalAmount || "0")
+        const checkIn = session.metadata?.checkIn
+        const checkOut = session.metadata?.checkOut
+
+        await bookingRef.update({
+          checkIn,
+          checkOut,
+          totalAmount: newTotalAmount,
+          status: "paid",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+
+        const bookingData = (await bookingRef.get()).data() as any
+        try {
+          await sendModificationEmail({
+            to: bookingData.email,
+            bookingId,
+            firstName: bookingData.firstName,
+            lastName: bookingData.lastName,
+            checkIn: checkIn || bookingData.checkIn,
+            checkOut: checkOut || bookingData.checkOut,
+            roomName: bookingData.roomName,
+            guests: bookingData.guests,
+            nights: Math.ceil(
+              (new Date(checkOut || bookingData.checkOut).getTime() -
+                new Date(checkIn || bookingData.checkIn).getTime()) /
+                86400000,
+            ),
+            originalAmount: bookingData.totalAmount,
+            newAmount: newTotalAmount,
+            modificationType: "dates",
+          })
+        } catch (emailErr: any) {
+          console.error("[Webhook] Email error:", emailErr.message)
+        }
+      }
+
+      await markProcessed(event.id, { ok: true, bookingId, type })
+      return NextResponse.json({ received: true, bookingId })
+    }
+
+    // Unhandled event type
+    console.log("[Webhook] Unhandled event:", event.type)
     await markProcessed(event.id, { ignored: event.type })
     return NextResponse.json({ received: true })
   } catch (error: any) {
-    console.error("[Webhook Handler Error]:", error.message)
-    console.error("[Webhook Handler Error Stack]:", error.stack)
+    console.error("[Webhook] Handler error:", error.message)
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 })
   }
 }

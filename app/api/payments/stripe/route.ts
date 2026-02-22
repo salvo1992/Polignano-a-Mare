@@ -4,112 +4,107 @@ import Stripe from "stripe"
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY
 
 if (!stripeSecretKey) {
-  console.error("[v0] STRIPE_SECRET_KEY is not set in environment variables")
-}
-if (stripeSecretKey && !stripeSecretKey.startsWith("sk_")) {
-  console.error("[v0] STRIPE_SECRET_KEY appears to be invalid (should start with sk_test_ or sk_live_)")
+  console.error("[Stripe] STRIPE_SECRET_KEY is not set")
 }
 
 const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, {
-      apiVersion: "2024-12-18.acacia",
-    })
+  ? new Stripe(stripeSecretKey, { apiVersion: "2024-12-18.acacia" })
   : null
 
+/**
+ * POST /api/payments/stripe
+ *
+ * Creates a Stripe Checkout Session in "setup" mode.
+ * This saves the customer's card (SetupIntent with usage: off_session)
+ * so the full amount can be charged automatically 7 days before check-in.
+ *
+ * No money is charged at booking time.
+ */
 export async function POST(request: NextRequest) {
   try {
     if (!stripe) {
       return NextResponse.json(
-        { error: "Stripe non è configurato correttamente. Contatta il supporto." },
+        { error: "Stripe non e' configurato correttamente. Contatta il supporto." },
         { status: 500 },
       )
     }
 
     const body = await request.json()
     const {
-      amount,
+      amount, // total amount in cents (for metadata)
       currency,
       bookingId,
       successUrl,
       cancelUrl,
       customerEmail,
-      paymentType, // Added paymentType to determine if it's deposit or full payment
     } = body
 
     if (!amount || !currency || !bookingId || !successUrl || !cancelUrl) {
       return NextResponse.json({ error: "Parametri mancanti" }, { status: 400 })
     }
 
-    const isDeposit = paymentType === "deposit"
-    const finalAmount = isDeposit ? Math.round(amount * 0.3) : amount
+    // Find or create Stripe customer
+    let customerId: string | undefined
+    if (customerEmail) {
+      const existingCustomers = await stripe.customers.list({
+        email: customerEmail,
+        limit: 1,
+      })
 
-    console.log("[v0] Creating Stripe session:", {
+      if (existingCustomers.data.length > 0) {
+        customerId = existingCustomers.data[0].id
+      } else {
+        const newCustomer = await stripe.customers.create({
+          email: customerEmail,
+          metadata: { bookingId: String(bookingId) },
+        })
+        customerId = newCustomer.id
+      }
+    }
+
+    console.log("[Stripe] Creating SetupIntent checkout session:", {
       amount,
-      finalAmount,
-      isDeposit,
       currency,
       bookingId,
-      hasCustomerEmail: !!customerEmail,
+      customerId,
     })
 
+    // Create a Checkout Session in "setup" mode
+    // This collects card details without charging
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: [
-        "card",
-        "klarna",
-        "paypal",
-        "link",
-        "bancontact",
-        "eps",
-        "ideal",
-        "p24",
-      ],
-      mode: "payment",
+      mode: "setup",
+      customer: customerId,
       success_url: successUrl,
       cancel_url: cancelUrl,
-
       client_reference_id: String(bookingId),
       metadata: {
         bookingId: String(bookingId),
-        paymentType: isDeposit ? "deposit" : "full",
-        fullAmount: String(amount),
+        totalAmountCents: String(amount),
+        currency: String(currency).toLowerCase(),
       },
-
-      customer_email: customerEmail,
+      payment_method_types: ["card"],
       locale: "it",
       billing_address_collection: "required",
       phone_number_collection: { enabled: true },
-
-      payment_method_options: {
-        card: { request_three_d_secure: "automatic" },
-      },
-
-      line_items: [
-        {
-          price_data: {
-            currency: String(currency).toLowerCase(),
-            product_data: {
-              name: isDeposit ? "Acconto Prenotazione Camera (30%)" : "Saldo Prenotazione Camera (70%)",
-              description: isDeposit
-                ? `Acconto per Prenotazione #${bookingId} - Saldo dovuto 7 giorni prima del check-in`
-                : `Saldo finale per Prenotazione #${bookingId}`,
-            },
-            unit_amount: finalAmount,
-          },
-          quantity: 1,
-        },
-      ],
     })
 
-    return NextResponse.json({ url: session.url })
+    return NextResponse.json({
+      url: session.url,
+      sessionId: session.id,
+      customerId,
+    })
   } catch (error: any) {
-    console.error("[v0] Stripe API route error:", error)
+    console.error("[Stripe] API route error:", error)
 
     if (error.type === "StripeAuthenticationError") {
-      return NextResponse.json({ error: "Chiave API Stripe non valida. Verifica la configurazione." }, { status: 401 })
+      return NextResponse.json(
+        { error: "Chiave API Stripe non valida. Verifica la configurazione." },
+        { status: 401 },
+      )
     }
 
     return NextResponse.json(
-      { error: error.message || "Errore durante la creazione del pagamento Stripe" },
+      { error: error.message || "Errore durante la creazione della sessione Stripe" },
       { status: 500 },
     )
   }

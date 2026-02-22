@@ -11,9 +11,7 @@ import { ExtraServicesModal } from "@/components/extra-services-modal"
 import {
   getBookingById,
   createStripeCheckout,
-  createUserFromBooking,
   linkBookingToUser,
-  updateBooking,
 } from "@/lib/firebase"
 import { Loader2, AlertCircle } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
@@ -64,22 +62,15 @@ export default function CheckoutPage() {
     setPaying(true)
     setError("")
     try {
-      console.log("[v0] Checking if user exists for email:", booking.email)
-      const userResult = await createUserFromBooking(booking.email, booking.firstName, booking.lastName)
+      // User creation and Smoobu sync are now handled by the webhook
+      // after setup_intent.succeeded. Here we just redirect to Stripe.
+      console.log("[v0] Redirecting to Stripe SetupIntent session")
 
-      if (userResult.success && userResult.password) {
-        console.log("[v0] New user created, saving password to booking")
-        await updateBooking(bookingId, {
-          newUserPassword: userResult.password,
-        })
-
+      // Link booking to user if user already exists (optional, webhook handles new users)
+      try {
         await linkBookingToUser(bookingId, booking.email)
-        console.log("[v0] Booking linked to user")
-      } else if (userResult.success) {
-        console.log("[v0] User already exists, linking booking")
-        await linkBookingToUser(bookingId, booking.email)
-      } else {
-        console.error("[v0] Failed to create user:", userResult.error)
+      } catch {
+        // User may not exist yet -- webhook will handle creation
       }
 
       const res = await createStripeCheckout({

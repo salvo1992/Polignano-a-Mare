@@ -1,105 +1,111 @@
 export interface PaymentSchedule {
-  depositAmount: number // 30%
-  balanceAmount: number // 70%
-  depositDueDate: Date
+  depositAmount: number // not used in new flow (SetupIntent saves card)
+  balanceAmount: number // full amount charged 7 days before check-in
   balanceDueDate: Date // 7 giorni prima del check-in
   totalAmount: number
 }
 
 export interface CancellationPolicy {
   canCancel: boolean
-  refundPercentage: number
-  penaltyPercentage: number
+  penaltyPercent: number
+  refundPercent: number
+  penaltyAmount: number
   refundAmount: number
+}
+
+export interface ChangeDatesPolicy {
+  canChange: boolean
+  penaltyPercent: number
   penaltyAmount: number
 }
 
 /**
- * Calcola lo schedule di pagamento per una prenotazione
- * 30% alla prenotazione, 70% 7 giorni prima del check-in
+ * Calcola la data di addebito del saldo (7 giorni prima del check-in)
  */
-export function calculatePaymentSchedule(
-  totalAmount: number,
-  checkInDate: Date,
-  bookingDate: Date = new Date(),
-): PaymentSchedule {
-  const depositPercentage = 0.3
-  const balancePercentage = 0.7
-
-  const depositAmount = Math.round(totalAmount * depositPercentage)
-  const balanceAmount = totalAmount - depositAmount
-
-  // Balance due 7 days before check-in
-  const balanceDueDate = new Date(checkInDate)
-  balanceDueDate.setDate(balanceDueDate.getDate() - 7)
-
-  return {
-    depositAmount,
-    balanceAmount,
-    depositDueDate: bookingDate,
-    balanceDueDate,
-    totalAmount,
-  }
+export function calculateChargeDate(checkInDate: Date): Date {
+  const chargeDate = new Date(checkInDate)
+  chargeDate.setDate(chargeDate.getDate() - 7)
+  return chargeDate
 }
 
 /**
- * Calcola la policy di cancellazione basata sulla data di check-in
- * - Più di 7 giorni prima: 100% rimborso
- * - Meno di 7 giorni prima: 50% rimborso (penalità 50%)
- * - Meno di 48 ore prima: 0% rimborso (penalità 100%)
+ * Calcola i giorni rimanenti fino al check-in
+ */
+export function getDaysUntilCheckIn(
+  checkInDate: Date | string,
+  now: Date = new Date(),
+): number {
+  const checkIn = typeof checkInDate === "string" ? new Date(checkInDate) : checkInDate
+  const diffMs = checkIn.getTime() - now.getTime()
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24))
+}
+
+/**
+ * Calcola la penale per CANCELLAZIONE
+ * - Oltre 7 giorni: 0% penale (rimborso 100%)
+ * - Entro 7 giorni: 100% penale (rimborso 0%)
+ */
+export function getCancellationPenaltyPercent(
+  checkInDate: Date | string,
+  now: Date = new Date(),
+): number {
+  const days = getDaysUntilCheckIn(checkInDate, now)
+  if (days <= 7) return 100
+  return 0
+}
+
+/**
+ * Calcola la penale per CAMBIO DATE
+ * - Oltre 7 giorni: 0% penale
+ * - Entro 7 giorni: 50% penale
+ */
+export function getChangeDatesPenaltyPercent(
+  checkInDate: Date | string,
+  now: Date = new Date(),
+): number {
+  const days = getDaysUntilCheckIn(checkInDate, now)
+  if (days <= 7) return 50
+  return 0
+}
+
+/**
+ * Calcola la policy completa di cancellazione
+ * @param totalAmountCents - importo totale in centesimi
  */
 export function calculateCancellationPolicy(
-  checkInDate: Date,
-  amountPaid: number,
-  cancellationDate: Date = new Date(),
+  checkInDate: Date | string,
+  totalAmountCents: number,
+  now: Date = new Date(),
 ): CancellationPolicy {
-  const daysUntilCheckIn = Math.floor((checkInDate.getTime() - cancellationDate.getTime()) / (1000 * 60 * 60 * 24))
-
-  let refundPercentage = 0
-  let penaltyPercentage = 100
-
-  if (daysUntilCheckIn >= 7) {
-    // Più di 7 giorni: rimborso totale
-    refundPercentage = 100
-    penaltyPercentage = 0
-  } else if (daysUntilCheckIn >= 2) {
-    // Tra 2 e 7 giorni: rimborso 50%
-    refundPercentage = 50
-    penaltyPercentage = 50
-  } else {
-    // Meno di 48 ore: nessun rimborso
-    refundPercentage = 0
-    penaltyPercentage = 100
-  }
-
-  const refundAmount = Math.round((amountPaid * refundPercentage) / 100)
-  const penaltyAmount = amountPaid - refundAmount
+  const penaltyPercent = getCancellationPenaltyPercent(checkInDate, now)
+  const refundPercent = 100 - penaltyPercent
+  const penaltyAmount = Math.round(totalAmountCents * (penaltyPercent / 100))
+  const refundAmount = totalAmountCents - penaltyAmount
 
   return {
     canCancel: true,
-    refundPercentage,
-    penaltyPercentage,
-    refundAmount,
+    penaltyPercent,
+    refundPercent,
     penaltyAmount,
+    refundAmount,
   }
 }
 
 /**
- * Calcola la penalità per cambio date
- * - Più di 7 giorni prima: gratis
- * - Meno di 7 giorni prima: €50 di penalità
+ * Calcola la policy completa per cambio date
+ * @param totalAmountCents - importo totale in centesimi
  */
-export function calculateChangeDatesPenalty(
-  checkInDate: Date,
-  changeDate: Date = new Date(),
-): { penalty: number; canChange: boolean } {
-  const daysUntilCheckIn = Math.floor((checkInDate.getTime() - changeDate.getTime()) / (1000 * 60 * 60 * 24))
+export function calculateChangeDatesPolicy(
+  checkInDate: Date | string,
+  totalAmountCents: number,
+  now: Date = new Date(),
+): ChangeDatesPolicy {
+  const penaltyPercent = getChangeDatesPenaltyPercent(checkInDate, now)
+  const penaltyAmount = Math.round(totalAmountCents * (penaltyPercent / 100))
 
-  if (daysUntilCheckIn >= 7) {
-    return { penalty: 0, canChange: true }
-  } else if (daysUntilCheckIn >= 2) {
-    return { penalty: 5000, canChange: true } // €50 in centesimi
-  } else {
-    return { penalty: 0, canChange: false } // Non si può cambiare
+  return {
+    canChange: true,
+    penaltyPercent,
+    penaltyAmount,
   }
 }
