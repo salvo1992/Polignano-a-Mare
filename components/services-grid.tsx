@@ -240,7 +240,7 @@ export function ServicesGrid() {
                     asChild
                   >
                     <a
-                      href={`https://wa.me/393339aborti?text=Ciao! Vorrei prenotare il servizio: ${encodeURIComponent(service.name)}`}
+                      href={`https://wa.me/393757017689?text=Ciao! Vorrei prenotare il servizio: ${encodeURIComponent(service.name)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
