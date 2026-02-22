@@ -49,16 +49,8 @@ export function useDynamicPrice(
 
         const data = await response.json()
 
-        console.log("[v0] Dynamic price calculated:", {
-          roomId,
-          checkIn,
-          checkOut,
-          pricePerNight: data.pricePerNight,
-          totalPrice: data.totalAmount / 100,
-        })
-
         setPricePerNight(data.pricePerNight || 0)
-        setTotalPrice(data.totalAmount ? data.totalAmount / 100 : 0)
+        setTotalPrice(data.newPrice || 0)
       } catch (err) {
         console.error("[v0] Error fetching dynamic price:", err)
         setError(err instanceof Error ? err.message : "Unknown error")
