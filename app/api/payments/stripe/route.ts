@@ -85,7 +85,6 @@ export async function POST(request: NextRequest) {
       payment_method_types: ["card"],
       locale: "it",
       billing_address_collection: "required",
-      phone_number_collection: { enabled: true },
     })
 
     return NextResponse.json({
