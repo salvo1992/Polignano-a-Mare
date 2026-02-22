@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Importo non valido" }, { status: 400 })
     }
 
-    const currency = (booking.currency || "eur").toLowerCase()
+    const currency = String(booking.currency || "eur").toLowerCase()
 
     console.log("[ProcessBalance] Charging off-session:", {
       bookingId,
