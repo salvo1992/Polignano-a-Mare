@@ -83,7 +83,6 @@ export async function POST(request: NextRequest) {
         currency: String(currency).toLowerCase(),
       },
       setup_intent_data: {
-        usage: "off_session",
         metadata: {
           bookingId: String(bookingId),
           totalAmountCents: String(amount),
