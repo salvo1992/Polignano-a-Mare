@@ -37,12 +37,13 @@ const ROOM_NAMES: Record<string, string> = {
 }
 
 const AVAILABLE_SERVICES = [
-  { name: "Massaggio Rilassante", price: 80 },
-  { name: "Cena Romantica", price: 120 },
-  { name: "Tour in Barca Polignano", price: 40 },
-  { name: "Trasferimento Aeroporto", price: 130 },
-  { name: "Berlucchi 61 Pas Dose", price: 75 },
-  { name: "Champagne in Camera", price: 129 },
+  { name: "Massaggio Rilassante - 50 min", price: 80 },
+  { name: "Cena Romantica - Villa degli Aranci", price: 120 },
+  { name: "Tour in Barca a Polignano - 1.30h/2h", price: 40 },
+  { name: "Trasferimento Aeroporto Bari/Brindisi", price: 130 },
+  { name: "Bottiglia Berlucchi 61 Pas Dose", price: 75 },
+  { name: "Bottiglia Berlucchi Rose'", price: 70 },
+  { name: "Bottiglia Champagne", price: 129 },
 ]
 
 export default function PrenotaPage() {

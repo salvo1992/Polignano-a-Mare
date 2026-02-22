@@ -16,14 +16,14 @@ import { Sparkles, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 const AVAILABLE_SERVICES = [
-  { id: "massage", name: "Massaggio Rilassante (60 min)", price: 80 },
-  { id: "romantic-dinner", name: "Cena Romantica in Camera", price: 120 },
-  { id: "wine-tour", name: "Tour Enogastronomico", price: 95 },
-  { id: "private-tour", name: "Tour Privato di Polignano", price: 70 },
-  { id: "cooking-class", name: "Corso di Cucina Pugliese", price: 85 },
-  { id: "boat-tour", name: "Giro in Barca alle Grotte", price: 60 },
-  { id: "breakfast-bed", name: "Colazione in Camera Deluxe", price: 35 },
-  { id: "transfer", name: "Transfer Aeroporto", price: 50 },
+  { id: "massage", name: "Massaggio Rilassante - 50 min", price: 80, detail: "a persona" },
+  { id: "romantic-dinner", name: "Cena Romantica - Villa degli Aranci", price: 120, detail: "a coppia, bevande escluse" },
+  { id: "boat-tour", name: "Tour in Barca a Polignano - 1.30h/2h", price: 40, detail: "a persona (Exclusive da 400 EUR)" },
+  { id: "transfer", name: "Trasferimento Aeroporto Bari/Brindisi", price: 130, detail: "per 2 persone" },
+  { id: "berlucchi", name: "Bottiglia Berlucchi 61 Pas Dose", price: 75, detail: "in camera" },
+  { id: "berlucchi-rose", name: "Bottiglia Berlucchi Rose'", price: 70, detail: "in camera" },
+  { id: "champagne", name: "Bottiglia Champagne", price: 129, detail: "in camera" },
+  { id: "special", name: "Richiesta Speciale (compleanni, anniversari, proposte)", price: 0, detail: "da concordare" },
 ]
 
 type Props = {
@@ -120,8 +120,7 @@ export function ExtraServicesModal({ open, onOpenChange, onComplete, bookingData
             Servizi Extra Disponibili
           </DialogTitle>
           <DialogDescription>
-            Seleziona i servizi extra che desideri richiedere. Il gestore ti contatterà per confermare la disponibilità
-            e fornirti i dettagli di pagamento.
+            Seleziona i servizi extra che desideri aggiungere al tuo soggiorno.
           </DialogDescription>
         </DialogHeader>
 
@@ -142,10 +141,21 @@ export function ExtraServicesModal({ open, onOpenChange, onComplete, bookingData
                   <label htmlFor={service.id} className="text-sm font-medium cursor-pointer">
                     {service.name}
                   </label>
-                  <p className="text-sm text-primary font-semibold">€{service.price}</p>
+                  {service.detail && (
+                    <p className="text-xs text-muted-foreground">{service.detail}</p>
+                  )}
+                  <p className="text-sm text-primary font-semibold">
+                    {service.price > 0 ? `€${service.price}` : "Su richiesta"}
+                  </p>
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <p className="text-sm text-amber-800 dark:text-amber-200 font-medium">
+              I servizi selezionati verranno confermati dalla struttura in base alla disponibilita' prima di essere definitivamente accettati. Riceverai una email di conferma.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -164,7 +174,7 @@ export function ExtraServicesModal({ open, onOpenChange, onComplete, bookingData
                 Totale stimato: <span className="text-primary text-lg">€{totalPrice}</span>
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Il prezzo finale sarà confermato dal gestore in base alla disponibilità
+                Prezzo indicativo. La conferma definitiva e il pagamento avverranno dopo la verifica di disponibilita' da parte della struttura.
               </p>
             </div>
           )}
