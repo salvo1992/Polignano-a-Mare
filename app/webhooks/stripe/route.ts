@@ -66,28 +66,13 @@ export async function POST(req: NextRequest) {
     if (event.type === "setup_intent.succeeded") {
       const setupIntent = event.data.object as Stripe.SetupIntent
 
-      // The bookingId comes via the Checkout Session metadata
-      // We need to find the checkout session that created this SetupIntent
-      const sessions = await stripe.checkout.sessions.list({
-        limit: 5,
-      })
-
-      // Find the session linked to this setup intent
-      let bookingId: string | null = null
-      let totalAmountCents = 0
-      let currency = "eur"
-
-      for (const session of sessions.data) {
-        if (session.setup_intent === setupIntent.id) {
-          bookingId = session.metadata?.bookingId || session.client_reference_id || null
-          totalAmountCents = Number.parseInt(session.metadata?.totalAmountCents || "0")
-          currency = session.metadata?.currency || "eur"
-          break
-        }
-      }
+      // bookingId is now directly in setupIntent.metadata (set via setup_intent_data)
+      const bookingId = setupIntent.metadata?.bookingId || null
+      const totalAmountCents = parseInt(setupIntent.metadata?.totalAmountCents || "0")
+      const currency = (setupIntent.metadata?.currency || "eur").toLowerCase()
 
       if (!bookingId) {
-        console.error("[Webhook] setup_intent.succeeded: no bookingId found")
+        console.error("[Webhook] setup_intent.succeeded: no bookingId in metadata")
         await markProcessed(event.id, { error: "no_bookingId" })
         return NextResponse.json({ received: true })
       }
@@ -296,7 +281,30 @@ export async function POST(req: NextRequest) {
     }
 
     // ============================================================
-    // 4) CHARGE REFUNDED
+    // 4) PAYMENT INTENT REQUIRES ACTION (SCA)
+    //    Marks booking as payment_action_required for telemetry
+    // ============================================================
+    if (event.type === "payment_intent.requires_action") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent
+      const bookingId = paymentIntent.metadata?.bookingId
+
+      if (bookingId) {
+        const bookingRef = db.doc(`bookings/${bookingId}`)
+        await bookingRef.update({
+          status: "payment_action_required",
+          stripePaymentIntentId: paymentIntent.id,
+          paymentError: "SCA required",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+        console.log("[Webhook] Payment requires action (SCA) for booking:", bookingId)
+      }
+
+      await markProcessed(event.id, { bookingId, type: "requires_action" })
+      return NextResponse.json({ received: true })
+    }
+
+    // ============================================================
+    // 6) CHARGE REFUNDED
     //    Updates booking status to refunded
     // ============================================================
     if (event.type === "charge.refunded") {
@@ -337,7 +345,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ============================================================
-    // 5) CHECKOUT SESSION COMPLETED (legacy + balance_fallback)
+    // 7) CHECKOUT SESSION COMPLETED (legacy + balance_fallback)
     // ============================================================
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session
