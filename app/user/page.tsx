@@ -203,8 +203,15 @@ function UserInner() {
     })()
   }, [user])
 
+  const normalizePrice = (amount: number) => {
+    if (!amount || isNaN(amount)) return 0
+    // Legacy fix: if amount > 1000, it was stored in cents
+    return amount > 1000 ? Math.round(amount / 100) : amount
+  }
+
   const formatPrice = (amount: number) => {
-    return Number.parseFloat(amount.toString()).toFixed(2)
+    const normalized = normalizePrice(amount)
+    return normalized.toFixed(2)
   }
 
   const getRoomImage = (roomName: string) => {
