@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/components/language-provider"
 import { useAuth } from "@/components/auth-provider"
-import { Menu, X, User, LogOut, Home, Bed, Calendar, Phone, Crown, Sparkles, Star, Globe } from "lucide-react"
+import { Menu, X, User, LogOut, Home, Bed, Calendar, Phone, Crown, Sparkles, Star, Globe, Compass } from "lucide-react"
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -156,6 +156,17 @@ export function Header() {
                     <Crown className="w-4 h-4 text-yellow-900" />
                   </div>
                   <span className="font-cinzel">{t("services")}</span>
+                </Link>
+
+                <Link
+                  href="/cosa-vedere"
+                  className="group flex items-center gap-3 text-white hover:text-primary transition-all duration-300 text-lg font-bold hover:translate-x-2 hover:scale-105"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:rotate-12 border-2 border-white/50">
+                    <Compass className="w-4 h-4 text-yellow-900" />
+                  </div>
+                  <span className="font-cinzel">{t("whatToSee")}</span>
                 </Link>
 
                 <Link
