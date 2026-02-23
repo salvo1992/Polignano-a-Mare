@@ -147,8 +147,15 @@ export default function BookingDetailPage() {
     setTimeout(() => setCopiedField(null), 2000)
   }
 
+  const normalizePrice = (amount: number) => {
+    if (!amount || isNaN(amount)) return 0
+    // Legacy fix: if amount > 1000, it was stored in cents
+    return amount > 1000 ? Math.round(amount / 100) : amount
+  }
+
   const formatPrice = (price: number) => {
-    return typeof price === "number" ? price.toFixed(2) : "0.00"
+    const normalized = normalizePrice(price)
+    return normalized.toFixed(2)
   }
 
   const getRoomImage = (roomName: string) => {

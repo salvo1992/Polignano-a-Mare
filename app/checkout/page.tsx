@@ -75,7 +75,7 @@ export default function CheckoutPage() {
 
       const res = await createStripeCheckout({
         bookingId,
-        amount: booking.totalAmount,
+        amount: Math.round(booking.totalAmount * 100),
         currency: booking.currency || "EUR",
         successUrl,
         cancelUrl,

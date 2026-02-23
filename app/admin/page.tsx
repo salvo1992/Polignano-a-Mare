@@ -56,6 +56,18 @@ function AdminInner() {
   })
   const [savingSettings, setSavingSettings] = useState(false)
 
+  // Normalize price: if totalAmount looks like cents (>1000 for a nightly stay), divide by 100
+  const getPrice = (b: any): number => {
+    const raw = b.total || b.totalAmount || 0
+    const num = typeof raw === "string" ? parseFloat(raw) : raw
+    if (isNaN(num)) return 0
+    // Smoobu bookings use `total` which is already in euros
+    if (b.total) return num
+    // Site bookings: if totalAmount > 1000, it was stored in cents (legacy bug)
+    if (num > 1000) return Math.round(num / 100)
+    return num
+  }
+
   useEffect(() => {
     let unsubB: (() => void) | null = null
     let unsubR: (() => void) | null = null
@@ -306,7 +318,7 @@ function AdminInner() {
                               >
                                 {b.origin === "direct" ? "Diretta" : b.origin}
                               </Badge>
-                              <p className="text-sm font-medium">€{b.total || (b as any).totalAmount || "0"}</p>
+                              <p className="text-sm font-medium">€{getPrice(b)}</p>
                             </div>
                           </div>
                         ))
@@ -420,7 +432,7 @@ function AdminInner() {
                                 >
                                   {b.origin === "direct" ? "Diretta" : b.origin}
                                 </Badge>
-                                <Badge className="text-xs">€{b.total || (b as any).totalAmount || "0"}</Badge>
+                                <Badge className="text-xs">€{getPrice(b)}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -461,7 +473,7 @@ function AdminInner() {
                               </div>
                               <div className="flex gap-2 flex-shrink-0">
                                 <Badge className="bg-blue-600 text-xs">Booking.com</Badge>
-                                <Badge className="text-xs">€{b.total || b.totalAmount || "0"}</Badge>
+                                <Badge className="text-xs">€{getPrice(b)}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -496,7 +508,7 @@ function AdminInner() {
                               </div>
                               <div className="flex gap-2 flex-shrink-0">
                                 <Badge className="bg-pink-600 text-xs">Airbnb</Badge>
-                                <Badge className="text-xs">€{b.total || b.totalAmount || "0"}</Badge>
+                                <Badge className="text-xs">€{getPrice(b)}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -531,7 +543,7 @@ function AdminInner() {
                               </div>
                               <div className="flex gap-2 flex-shrink-0">
                                 <Badge className="bg-yellow-600 text-white text-xs">Expedia</Badge>
-                                <Badge className="text-xs">€{b.total || (b as any).totalAmount || "0"}</Badge>
+                                <Badge className="text-xs">€{getPrice(b)}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -568,7 +580,7 @@ function AdminInner() {
                                 <Badge className="bg-emerald-600 text-white text-xs">
                                   {b.origin === "direct" ? "Diretta" : "Sito Web"}
                                 </Badge>
-                                <Badge className="text-xs">€{b.total || (b as any).totalAmount || "0"}</Badge>
+                                <Badge className="text-xs">€{getPrice(b)}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
@@ -621,7 +633,7 @@ function AdminInner() {
                                 >
                                   {b.origin === "direct" ? "Diretta" : b.origin}
                                 </Badge>
-                                <Badge className="text-xs line-through">€{(b as any).totalAmount || b.total || "0"}</Badge>
+                                <Badge className="text-xs line-through">€{getPrice(b)}</Badge>
                               </div>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">

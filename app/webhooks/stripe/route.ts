@@ -108,6 +108,8 @@ export async function POST(req: NextRequest) {
         stripePaymentMethodId: paymentMethodId,
         stripeSetupIntentId: setupIntent.id,
         totalAmountCents,
+        totalAmount: totalAmountCents / 100,
+        currency,
         chargeDate: chargeDate.toISOString().split("T")[0],
         status: "payment_scheduled",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),

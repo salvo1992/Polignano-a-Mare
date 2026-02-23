@@ -68,7 +68,10 @@ export function GuestsTracking() {
   const GuestCard = ({ booking, status }: { booking: Booking; status: "current" | "upcoming" | "past" }) => {
     const firstName = booking.guestFirst || (booking as any).firstName || "N/A"
     const lastName = booking.guestLast || (booking as any).lastName || ""
-    const totalAmount = booking.total || (booking as any).totalAmount || 0
+    const rawAmount = booking.total || (booking as any).totalAmount || 0
+    const numAmount = typeof rawAmount === "string" ? parseFloat(rawAmount) : rawAmount
+    // Legacy fix: site bookings stored totalAmount in cents
+    const totalAmount = (booking.total) ? numAmount : (numAmount > 1000 ? Math.round(numAmount / 100) : numAmount)
     
     return (
       <Card className="mb-3">

@@ -10,14 +10,14 @@ import { toast } from "sonner"
 import { Sparkles, Clock, CheckCircle2, XCircle, Send } from "lucide-react"
 
 const AVAILABLE_SERVICES = [
-  { id: "massage", name: "Massaggio Rilassante Romano", price: 80 },
-  { id: "dinner", name: "Cena Romantica Imperiale", price: 120 },
-  { id: "wine-tour", name: "Tour Enogastronomico dei Castelli", price: 95 },
-  { id: "facial", name: "Trattamento Viso alle Terme", price: 65 },
-  { id: "horseback", name: "Passeggiata a Cavallo", price: 75 },
-  { id: "cooking", name: "Corso di Cucina Romana", price: 85 },
-  { id: "photo-tour", name: "Tour Fotografico Roma Antica", price: 110 },
-  { id: "yoga", name: "Yoga al Tramonto", price: 45 },
+  { id: "massage", name: "Massaggio Rilassante - 50 min", price: 80, detail: "a persona" },
+  { id: "romantic-dinner", name: "Cena Romantica - Villa degli Aranci", price: 120, detail: "a coppia, bevande escluse" },
+  { id: "boat-tour", name: "Tour in Barca a Polignano - 1.30h/2h", price: 40, detail: "a persona (Exclusive da 400 EUR)" },
+  { id: "transfer", name: "Trasferimento Aeroporto Bari/Brindisi", price: 130, detail: "per 2 persone" },
+  { id: "berlucchi", name: "Bottiglia Berlucchi 61 Pas Dose", price: 75, detail: "in camera" },
+  { id: "berlucchi-rose", name: "Bottiglia Berlucchi Rose'", price: 70, detail: "in camera" },
+  { id: "champagne", name: "Bottiglia Champagne", price: 129, detail: "in camera" },
+  { id: "special", name: "Richiesta Speciale (compleanni, anniversari, proposte)", price: 0, detail: "da concordare" },
 ]
 
 interface ServicesRequestCardProps {
@@ -88,8 +88,13 @@ export function ServicesRequestCard({ bookingId }: ServicesRequestCardProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          {t("extraServicesDescription")}
+          Seleziona i servizi che desideri aggiungere al tuo soggiorno. Ti contatteremo per confermare la disponibilita'.
         </p>
+        <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <p className="text-xs text-amber-800 dark:text-amber-200">
+            I servizi selezionati verranno confermati dalla struttura in base alla disponibilita' prima di essere definitivamente accettati.
+          </p>
+        </div>
 
         <div className="space-y-2 max-h-64 overflow-y-auto">
           {AVAILABLE_SERVICES.map((service) => (
@@ -104,7 +109,10 @@ export function ServicesRequestCard({ bookingId }: ServicesRequestCardProps) {
               />
               <label htmlFor={service.id} className="flex-1 text-sm cursor-pointer">
                 <div className="font-medium">{service.name}</div>
-                <div className="text-muted-foreground">€{service.price}</div>
+                {service.detail && <div className="text-xs text-muted-foreground">{service.detail}</div>}
+                <div className="text-muted-foreground font-medium">
+                  {service.price > 0 ? `€${service.price}` : "Su richiesta"}
+                </div>
               </label>
             </div>
           ))}

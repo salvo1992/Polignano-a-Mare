@@ -235,7 +235,7 @@ export default function PrenotaPage() {
       phone: formData.phone,
       notes: formData.specialRequests,
       pricePerNight: basePrice,
-      totalAmount: Math.round(total * 100),
+      totalAmount: Math.round(total),
       currency: "EUR",
       status: "pending",
       origin: "site",
