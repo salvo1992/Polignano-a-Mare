@@ -255,8 +255,8 @@ function parseDate(dateString: string | undefined): string | null {
 
 function convertBeds24RoomIdToLocal(beds24RoomId: string): string {
   const roomIdMap: Record<string, string> = {
-    "621530": "2", // Camera Familiare con Balcone (Deluxe)
-    "621531": "3", // Camera Matrimoniale con Vasca Idromassaggio (Suite)
+    "621530": "2", // Suite Acies con Balcone (Deluxe)
+    "621531": "3", // Suite Acquaroom con Idromassaggio (Suite)
   }
   return roomIdMap[beds24RoomId] || beds24RoomId
 }

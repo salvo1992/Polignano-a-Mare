@@ -56,8 +56,8 @@ export default function CamerePage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const roomDescriptions = {
-    "1": "Immergiti nel lusso della nostra Camera Familiare con Balcone, dove l'eleganza incontra il comfort. Perfetta per famiglie o gruppi, questa spaziosa suite di 35m² offre una vista mozzafiato sul mare e sui luoghi storici di Polignano. Rilassati sul tuo balcone privato mentre ammiri il tramonto sulla costa pugliese, o goditi un momento di relax nella piscina panoramica all'ultimo piano. Ogni dettaglio è stato curato per offrirti un'esperienza indimenticabile.",
-    "2": "Scopri il paradiso del relax nella nostra Camera Matrimoniale con Vasca Idromassaggio. Questa elegante suite di 33m² è un'oasi di tranquillità, dotata di una lussuosa vasca idromassaggio privata e sauna per momenti di puro benessere. La vista panoramica sul mare e sulla città vecchia ti lascerà senza fiato, mentre gli arredi raffinati e i servizi premium garantiscono un soggiorno da sogno. Perfetta per coppie in cerca di romanticismo e relax assoluto.",
+    "1": "Immergiti nel lusso della nostra Suite Acies con Balcone, dove l'eleganza incontra il comfort. Perfetta per famiglie o gruppi, questa spaziosa suite di 35m² offre una vista mozzafiato sul mare e sui luoghi storici di Polignano. Rilassati sul tuo balcone privato mentre ammiri il tramonto sulla costa pugliese, o goditi un momento di relax nella piscina panoramica all'ultimo piano. Ogni dettaglio è stato curato per offrirti un'esperienza indimenticabile.",
+    "2": "Scopri il paradiso del relax nella nostra Suite Acquaroom con Idromassaggio. Questa elegante suite di 33m² è un'oasi di tranquillità, dotata di una lussuosa vasca idromassaggio privata e sauna per momenti di puro benessere. La vista panoramica sul mare e sulla città vecchia ti lascerà senza fiato, mentre gli arredi raffinati e i servizi premium garantiscono un soggiorno da sogno. Perfetta per coppie in cerca di romanticismo e relax assoluto.",
   }
 
   const roomPhotoGalleries = {

@@ -67,16 +67,16 @@ export function BookingBlockDates() {
       } else {
         // Fallback to local rooms if Smoobu is not available
         setApartments([
-          { id: 1, name: "Camera Familiare con Balcone" },
-          { id: 2, name: "Camera Matrimoniale con Vasca Idromassaggio" },
+          { id: 1, name: "Suite Acies con Balcone" },
+          { id: 2, name: "Suite Acquaroom con Idromassaggio" },
         ])
       }
     } catch (err) {
       console.error("[BlockDates] Error loading Smoobu apartments:", err)
       // Fallback
       setApartments([
-        { id: 1, name: "Camera Familiare con Balcone" },
-        { id: 2, name: "Camera Matrimoniale con Vasca Idromassaggio" },
+        { id: 1, name: "Suite Acies con Balcone" },
+        { id: 2, name: "Suite Acquaroom con Idromassaggio" },
       ])
     } finally {
       setLoadingApartments(false)

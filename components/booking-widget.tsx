@@ -133,8 +133,8 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
                 onChange={(e) => setSelectedRoomType(e.target.value)}
                 className="w-full px-3 py-2 border border-input rounded-md bg-background"
               >
-                <option value="1">{t("bookingFormPanoramicSuite") || "Camera Familiare con Balcone"}</option>
-                <option value="2">{t("bookingFormjacuziRoom") || "Camera Matrimoniale con Vasca Idromassaggio"}</option>
+                <option value="1">{t("bookingFormPanoramicSuite") || "Suite Acies con Balcone"}</option>
+                <option value="2">{t("bookingFormjacuziRoom") || "Suite Acquaroom con Idromassaggio"}</option>
               </select>
             </div>
 
