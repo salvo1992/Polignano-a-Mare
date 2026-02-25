@@ -62,7 +62,7 @@ export default function CamerePage() {
 
   const roomPhotoGalleries = {
     "1": [
-      { src: "/images/room-1.jpg", alt: "Camera Familiare" },
+      { src: "/images/room-1.jpg", alt: "Suite Acies con Balcone" },
       { src: "/camera/camera4.jpg", alt: "Vista mare dal balcone" },
       { src: "/polignano-old-town-view.jpg", alt: "Vista centro storico" },
       { src: "/camera/camera1.jpg", alt: "Piscina panoramica" },
