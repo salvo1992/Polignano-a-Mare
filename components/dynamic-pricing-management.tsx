@@ -1,19 +1,38 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, CalendarIcon, TrendingUp, Settings, Sparkles, Pencil, Trash2 } from "lucide-react"
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths } from "date-fns"
+import {
+  Plus,
+  CalendarIcon,
+  TrendingUp,
+  Settings,
+  Sparkles,
+  Pencil,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Euro,
+  Info,
+} from "lucide-react"
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, isSameDay } from "date-fns"
 import { it } from "date-fns/locale"
 
 type SeasonType = "bassa" | "media" | "medio-alta" | "alta" | "super-alta"
@@ -52,213 +71,113 @@ type RoomBasePrice = {
   basePrice: number
 }
 
+// Short display names for the calendar grid
+const SHORT_NAMES: Record<string, string> = {
+  "1": "Acies",
+  "2": "Acquaroom",
+}
+
+const SEASON_COLORS: Record<SeasonType, { bg: string; text: string; dot: string }> = {
+  bassa: { bg: "bg-sky-50 dark:bg-sky-950/30", text: "text-sky-700 dark:text-sky-300", dot: "bg-sky-500" },
+  media: { bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
+  "medio-alta": { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-700 dark:text-amber-300", dot: "bg-amber-500" },
+  alta: { bg: "bg-orange-50 dark:bg-orange-950/30", text: "text-orange-700 dark:text-orange-300", dot: "bg-orange-500" },
+  "super-alta": { bg: "bg-rose-50 dark:bg-rose-950/30", text: "text-rose-700 dark:text-rose-300", dot: "bg-rose-500" },
+}
+
 export function DynamicPricingManagement() {
   const [activeTab, setActiveTab] = useState("calendar")
   const [rooms, setRooms] = useState<RoomBasePrice[]>([])
   const [seasons, setSeasons] = useState<Season[]>([])
   const [specialPeriods, setSpecialPeriods] = useState<SpecialPeriod[]>([])
   const [priceOverrides, setPriceOverrides] = useState<PriceOverride[]>([])
-  const [selectedRoom, setSelectedRoom] = useState<string>("2")
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [loading, setLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
   const [initLoading, setInitLoading] = useState(false)
-  const [editingSeason, setEditingSeason] = useState<Season | null>(null)
-  const [editingPeriod, setEditingPeriod] = useState<SpecialPeriod | null>(null)
+
+  // Range selection state
+  const [rangeStart, setRangeStart] = useState<Date | null>(null)
+  const [rangeEnd, setRangeEnd] = useState<Date | null>(null)
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
+  const [cellDialogOpen, setCellDialogOpen] = useState(false)
+  const [selectedCell, setSelectedCell] = useState<{ date: Date; roomId: string } | null>(null)
+
   const { toast } = useToast()
 
   useEffect(() => {
-    console.log("[v0] Pricing Management - Loading data...")
     loadPricingData()
     checkInitialization()
   }, [])
 
   async function checkInitialization() {
     try {
-      console.log("[v0] Checking if pricing is initialized...")
       const res = await fetch("/api/pricing/initialize-defaults")
-
-      if (!res.ok) {
-        console.error("[v0] Failed to check initialization:", res.status)
-        setIsInitialized(false)
-        return
-      }
-
+      if (!res.ok) { setIsInitialized(false); return }
       const data = await res.json()
-      console.log("[v0] Initialization status:", data)
-
-      const initialized = data.seasons > 0 && data.specialPeriods > 0
-      console.log(
-        "[v0] Is initialized?",
-        initialized,
-        "- Seasons:",
-        data.seasons,
-        "Special Periods:",
-        data.specialPeriods,
-      )
-      setIsInitialized(initialized)
-    } catch (error) {
-      console.error("[v0] Error checking initialization:", error)
-      setIsInitialized(false)
-    }
+      setIsInitialized(data.seasons > 0 && data.specialPeriods > 0)
+    } catch { setIsInitialized(false) }
   }
 
   async function handleInitializeDefaults() {
-    console.log("[v0] Starting initialization...")
-
     try {
       setInitLoading(true)
-      console.log("[v0] Calling POST /api/pricing/initialize-defaults...")
-
-      const res = await fetch("/api/pricing/initialize-defaults", {
-        method: "POST",
-      })
-
-      if (!res.ok) {
-        const errorText = await res.text()
-        console.error("[v0] Initialization failed:", res.status, errorText)
-        throw new Error(`Failed to initialize: ${errorText}`)
-      }
-
+      const res = await fetch("/api/pricing/initialize-defaults", { method: "POST" })
+      if (!res.ok) throw new Error("Failed")
       const data = await res.json()
-      console.log("[v0] Initialization complete:", data)
-
-      toast({
-        title: "✅ Inizializzazione Completata!",
-        description: `Creati ${data.seasons} stagioni e ${data.specialPeriods} periodi speciali`,
-      })
-
+      toast({ title: "Inizializzazione Completata", description: `Creati ${data.seasons} stagioni e ${data.specialPeriods} periodi speciali` })
       setIsInitialized(true)
-
-      console.log("[v0] Reloading pricing data after initialization...")
       await loadPricingData()
     } catch (error) {
-      console.error("[v0] Initialization error:", error)
-      toast({
-        title: "❌ Errore",
-        description: `Impossibile inizializzare: ${error}`,
-        variant: "destructive",
-      })
-    } finally {
-      setInitLoading(false)
-    }
+      toast({ title: "Errore", description: `Impossibile inizializzare: ${error}`, variant: "destructive" })
+    } finally { setInitLoading(false) }
   }
 
   async function loadPricingData() {
     try {
       setLoading(true)
-      console.log("[v0] Loading pricing data...")
-
-      const roomsRes = await fetch("/api/pricing/rooms")
-      const roomsData = await roomsRes.json()
-      console.log("[v0] Rooms loaded:", roomsData)
-      setRooms(roomsData)
-
-      const seasonsRes = await fetch("/api/pricing/seasons")
-      const seasonsData = await seasonsRes.json()
-      console.log("[v0] Seasons loaded:", seasonsData)
-      setSeasons(seasonsData)
-
-      const periodsRes = await fetch("/api/pricing/special-periods")
-      const periodsData = await periodsRes.json()
-      console.log("[v0] Special periods loaded:", periodsData)
-      setSpecialPeriods(periodsData)
-
-      const overridesRes = await fetch("/api/pricing/overrides")
-      const overridesData = await overridesRes.json()
-      console.log("[v0] Overrides loaded:", overridesData)
-      setPriceOverrides(overridesData)
-    } catch (error) {
-      console.error("[v0] Error loading pricing data:", error)
-      toast({
-        title: "Errore",
-        description: "Impossibile caricare i dati dei prezzi",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
+      const [roomsRes, seasonsRes, periodsRes, overridesRes] = await Promise.all([
+        fetch("/api/pricing/rooms"),
+        fetch("/api/pricing/seasons"),
+        fetch("/api/pricing/special-periods"),
+        fetch("/api/pricing/overrides"),
+      ])
+      setRooms(await roomsRes.json())
+      setSeasons(await seasonsRes.json())
+      setSpecialPeriods(await periodsRes.json())
+      setPriceOverrides(await overridesRes.json())
+    } catch {
+      toast({ title: "Errore", description: "Impossibile caricare i dati dei prezzi", variant: "destructive" })
+    } finally { setLoading(false) }
   }
 
-  function calculatePriceForDate(date: Date, roomId: string): number {
+  const calculatePriceForDate = useCallback((date: Date, roomId: string): number => {
     const dateStr = format(date, "yyyy-MM-dd")
     const room = rooms.find((r) => r.roomId === roomId)
-
-    if (!room) {
-      console.warn(`[v0] Room ${roomId} not found`)
-      return 0
-    }
+    if (!room) return 0
 
     const override = priceOverrides.find((o) => o.roomId === roomId && o.date === dateStr)
-    if (override) {
-      console.log(`[v0] ${dateStr}: Override → €${override.price}`)
-      return override.price
-    }
+    if (override) return override.price
 
     const specialPeriod = specialPeriods.find((p) => {
-      // Parse dates without time to avoid timezone issues
       const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-      const startParts = p.startDate.split("-")
-      const endParts = p.endDate.split("-")
-
-      const start = new Date(
-        Number.parseInt(startParts[0]),
-        Number.parseInt(startParts[1]) - 1,
-        Number.parseInt(startParts[2]),
-      )
-      const end = new Date(Number.parseInt(endParts[0]), Number.parseInt(endParts[1]) - 1, Number.parseInt(endParts[2]))
-
-      const isInRange = checkDate >= start && checkDate <= end
-
-      if (isInRange) {
-        console.log(`[v0] ${dateStr}: Matched special period "${p.name}" (${p.startDate} to ${p.endDate})`)
-      }
-
-      return isInRange
+      const sp = p.startDate.split("-")
+      const ep = p.endDate.split("-")
+      const start = new Date(+sp[0], +sp[1] - 1, +sp[2])
+      const end = new Date(+ep[0], +ep[1] - 1, +ep[2])
+      return checkDate >= start && checkDate <= end
     })
+    if (specialPeriod) return Math.round(room.basePrice * specialPeriod.priceMultiplier)
 
-    if (specialPeriod) {
-      const price = Math.round(room.basePrice * specialPeriod.priceMultiplier)
-      console.log(
-        `[v0] ${dateStr}: Special Period "${specialPeriod.name}" (${specialPeriod.priceMultiplier}x) → €${price}`,
-      )
-      return price
-    }
-
-    const monthDay = format(date, "MM-dd") // "12-25"
-
+    const monthDay = format(date, "MM-dd")
     const season = seasons.find((s) => {
-      const seasonStart = s.startDate // "11-01"
-      const seasonEnd = s.endDate // "11-30"
-
-      // Handle year-end wrap (e.g., 12-25 to 01-05)
-      if (seasonStart <= seasonEnd) {
-        // Normal range within same year
-        const isInRange = monthDay >= seasonStart && monthDay <= seasonEnd
-        if (isInRange) {
-          console.log(`[v0] ${dateStr}: Matched season "${s.name}" (${seasonStart} to ${seasonEnd})`)
-        }
-        return isInRange
-      } else {
-        // Wrap around year end (e.g., 12-25 to 01-05)
-        const isInRange = monthDay >= seasonStart || monthDay <= seasonEnd
-        if (isInRange) {
-          console.log(`[v0] ${dateStr}: Matched season "${s.name}" (wrap: ${seasonStart} to ${seasonEnd})`)
-        }
-        return isInRange
-      }
+      if (s.startDate <= s.endDate) return monthDay >= s.startDate && monthDay <= s.endDate
+      return monthDay >= s.startDate || monthDay <= s.endDate
     })
+    if (season) return Math.round(room.basePrice * season.priceMultiplier)
 
-    if (season) {
-      const price = Math.round(room.basePrice * season.priceMultiplier)
-      console.log(`[v0] ${dateStr}: Season "${season.name}" (${season.priceMultiplier}x) → €${price}`)
-      return price
-    }
-
-    // Priority 4: Base price
-    console.log(`[v0] ${dateStr}: Base price → €${room.basePrice}`)
     return room.basePrice
-  }
+  }, [rooms, priceOverrides, specialPeriods, seasons])
 
   function getPriceCategory(price: number, basePrice: number): SeasonType {
     const ratio = price / basePrice
@@ -269,18 +188,50 @@ export function DynamicPricingManagement() {
     return "bassa"
   }
 
-  function getCategoryColor(category: SeasonType): string {
-    switch (category) {
-      case "super-alta":
-        return "bg-red-500"
-      case "alta":
-        return "bg-orange-500"
-      case "medio-alta":
-        return "bg-yellow-500"
-      case "media":
-        return "bg-green-500"
-      case "bassa":
-        return "bg-blue-500"
+  function getSourceLabel(date: Date, roomId: string): string {
+    const dateStr = format(date, "yyyy-MM-dd")
+    if (priceOverrides.find((o) => o.roomId === roomId && o.date === dateStr)) return "Override"
+    const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    const sp = specialPeriods.find((p) => {
+      const s = p.startDate.split("-"); const e = p.endDate.split("-")
+      return checkDate >= new Date(+s[0], +s[1]-1, +s[2]) && checkDate <= new Date(+e[0], +e[1]-1, +e[2])
+    })
+    if (sp) return sp.name
+    const monthDay = format(date, "MM-dd")
+    const season = seasons.find((s) => s.startDate <= s.endDate ? monthDay >= s.startDate && monthDay <= s.endDate : monthDay >= s.startDate || monthDay <= s.endDate)
+    if (season) return season.name
+    return "Base"
+  }
+
+  async function handleSingleOverride(roomId: string, date: string, price: number, reason: string) {
+    try {
+      const res = await fetch("/api/pricing/overrides", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId, date, price, reason }),
+      })
+      if (!res.ok) throw new Error("Failed")
+      toast({ title: "Prezzo aggiornato", description: `${format(new Date(date), "dd/MM/yyyy")} - ${SHORT_NAMES[roomId] || roomId}: €${price}` })
+      await loadPricingData()
+    } catch {
+      toast({ title: "Errore", description: "Impossibile salvare il prezzo", variant: "destructive" })
+    }
+  }
+
+  async function handleBulkOverride(roomId: string, startDate: Date, endDate: Date, price: number, reason: string) {
+    const days = eachDayOfInterval({ start: startDate, end: endDate })
+    try {
+      await Promise.all(days.map((d) =>
+        fetch("/api/pricing/overrides", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomId, date: format(d, "yyyy-MM-dd"), price, reason }),
+        })
+      ))
+      toast({ title: "Prezzi aggiornati", description: `${days.length} giorni aggiornati per ${SHORT_NAMES[roomId] || roomId}` })
+      await loadPricingData()
+    } catch {
+      toast({ title: "Errore", description: "Impossibile aggiornare i prezzi", variant: "destructive" })
     }
   }
 
@@ -291,420 +242,470 @@ export function DynamicPricingManagement() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roomId, basePrice: newPrice }),
       })
-
-      if (!res.ok) throw new Error("Failed to update base price")
-
-      toast({
-        title: "Successo",
-        description: "Prezzo base aggiornato con successo",
-      })
-
+      if (!res.ok) throw new Error("Failed")
+      toast({ title: "Successo", description: "Prezzo base aggiornato" })
       await loadPricingData()
-    } catch (error) {
-      toast({
-        title: "Errore",
-        description: "Impossibile aggiornare il prezzo base",
-        variant: "destructive",
-      })
+    } catch {
+      toast({ title: "Errore", description: "Impossibile aggiornare il prezzo base", variant: "destructive" })
     }
   }
 
   async function handleDeleteSeason(seasonId: string) {
-    if (!confirm("Sei sicuro di voler eliminare questa stagione?")) return
-
+    if (!confirm("Eliminare questa stagione?")) return
     try {
-      const res = await fetch(`/api/pricing/seasons?id=${seasonId}`, {
-        method: "DELETE",
-      })
-
-      if (!res.ok) throw new Error("Failed to delete season")
-
-      toast({
-        title: "Successo",
-        description: "Stagione eliminata con successo",
-      })
-
+      await fetch(`/api/pricing/seasons?id=${seasonId}`, { method: "DELETE" })
+      toast({ title: "Stagione eliminata" })
       await loadPricingData()
-    } catch (error) {
-      toast({
-        title: "Errore",
-        description: "Impossibile eliminare la stagione",
-        variant: "destructive",
-      })
-    }
+    } catch { toast({ title: "Errore", variant: "destructive" }) }
   }
 
   async function handleDeletePeriod(periodId: string) {
-    if (!confirm("Sei sicuro di voler eliminare questo periodo?")) return
-
+    if (!confirm("Eliminare questo periodo?")) return
     try {
-      const res = await fetch(`/api/pricing/special-periods?id=${periodId}`, {
-        method: "DELETE",
-      })
-
-      if (!res.ok) throw new Error("Failed to delete period")
-
-      toast({
-        title: "Successo",
-        description: "Periodo eliminato con successo",
-      })
-
+      await fetch(`/api/pricing/special-periods?id=${periodId}`, { method: "DELETE" })
+      toast({ title: "Periodo eliminato" })
       await loadPricingData()
-    } catch (error) {
-      toast({
-        title: "Errore",
-        description: "Impossibile eliminare il periodo",
-        variant: "destructive",
-      })
-    }
+    } catch { toast({ title: "Errore", variant: "destructive" }) }
   }
 
+  // Calendar data
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd })
-  const room = rooms.find((r) => r.roomId === selectedRoom)
+  const firstDayOffset = monthStart.getDay()
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <p>Caricamento sistema prezzi dinamici...</p>
-      </div>
-    )
+  // Range helpers
+  function isInRange(date: Date): boolean {
+    if (!rangeStart) return false
+    if (!rangeEnd) return isSameDay(date, rangeStart)
+    const d = date.getTime()
+    const s = Math.min(rangeStart.getTime(), rangeEnd.getTime())
+    const e = Math.max(rangeStart.getTime(), rangeEnd.getTime())
+    return d >= s && d <= e
   }
 
-  if (rooms.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 space-y-4">
-        <p className="text-red-500 font-semibold">Nessuna camera trovata nel database!</p>
-        <p className="text-sm text-muted-foreground">
-          Assicurati che le camere siano state create nella collezione "rooms" di Firestore con i campi "name" e
-          "price".
-        </p>
-      </div>
-    )
+  function handleDayClick(date: Date) {
+    if (!rangeStart || rangeEnd) {
+      setRangeStart(date)
+      setRangeEnd(null)
+    } else {
+      setRangeEnd(date)
+      setBulkDialogOpen(true)
+    }
+  }
+
+  function handleCellClick(date: Date, roomId: string) {
+    setSelectedCell({ date, roomId })
+    setCellDialogOpen(true)
+  }
+
+  // Stats
+  const thisMonthPrices = rooms.flatMap((room) =>
+    daysInMonth.map((d) => ({ roomId: room.roomId, price: calculatePriceForDate(d, room.roomId), base: room.basePrice }))
+  )
+  const overrideCount = priceOverrides.filter((o) => o.date >= format(monthStart, "yyyy-MM-dd") && o.date <= format(monthEnd, "yyyy-MM-dd")).length
+
+  if (loading) {
+    return <div className="flex items-center justify-center p-8"><p>Caricamento sistema prezzi...</p></div>
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-3xl font-bold">Gestione Prezzi Dinamici</h2>
-          <p className="text-muted-foreground">Configura stagioni, periodi speciali e override manuali</p>
+          <h2 className="text-2xl font-bold tracking-tight">Gestione Prezzi</h2>
+          <p className="text-sm text-muted-foreground">Calendario prezzi stile Smoobu - clicca sulle celle per modificare</p>
         </div>
-        <Button
-          onClick={handleInitializeDefaults}
-          disabled={initLoading}
-          size="lg"
-          className="gap-2"
-          variant={isInitialized ? "outline" : "default"}
-        >
-          <Sparkles className="h-5 w-5" />
-          {initLoading
-            ? "Inizializzazione..."
-            : isInitialized
-              ? "Reinizializza Sistema"
-              : "Inizializza Stagioni Automaticamente"}
+        <Button onClick={handleInitializeDefaults} disabled={initLoading} variant={isInitialized ? "outline" : "default"} className="gap-2">
+          <Sparkles className="h-4 w-4" />
+          {initLoading ? "Caricamento..." : isInitialized ? "Reinizializza" : "Inizializza Stagioni"}
         </Button>
       </div>
 
       {!isInitialized && (
-        <Card className="border-yellow-500 bg-yellow-50">
+        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
           <CardContent className="pt-6">
-            <div className="flex items-start gap-4">
-              <Sparkles className="h-6 w-6 text-yellow-600 mt-1" />
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
               <div>
-                <h3 className="font-semibold text-lg mb-2">⚠️ Sistema non inizializzato</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Clicca sul pulsante "Inizializza Stagioni Automaticamente" per pre-popolare automaticamente tutte le
-                  stagioni e i periodi speciali per Polignano a Mare (Natale, Pasqua, Ferragosto, Red Bull Cliff Diving,
-                  ecc.)
-                </p>
-                <p className="text-sm font-semibold">
-                  Trovate: {seasons.length} stagioni, {specialPeriods.length} periodi speciali
-                </p>
+                <p className="font-medium text-amber-800 dark:text-amber-200">Sistema non inizializzato</p>
+                <p className="text-sm text-amber-700 dark:text-amber-300">Clicca "Inizializza Stagioni" per creare automaticamente le fasce di prezzo per Polignano a Mare.</p>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {isInitialized && (
-        <div className="text-sm text-muted-foreground">
-          📊 Sistema inizializzato: {seasons.length} stagioni, {specialPeriods.length} periodi speciali caricati
-        </div>
-      )}
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {rooms.map((r) => (
+          <Card key={r.roomId} className="p-4">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{SHORT_NAMES[r.roomId] || r.roomName}</p>
+            <p className="text-2xl font-bold mt-1">{"\u20AC"}{r.basePrice}</p>
+            <p className="text-xs text-muted-foreground">prezzo base / notte</p>
+          </Card>
+        ))}
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Stagioni</p>
+          <p className="text-2xl font-bold mt-1">{seasons.length}</p>
+          <p className="text-xs text-muted-foreground">configurate</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Override mese</p>
+          <p className="text-2xl font-bold mt-1">{overrideCount}</p>
+          <p className="text-xs text-muted-foreground">in {format(currentMonth, "MMMM", { locale: it })}</p>
+        </Card>
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="calendar">
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            Calendario Prezzi
-          </TabsTrigger>
-          <TabsTrigger value="base">
-            <TrendingUp className="mr-2 h-4 w-4" />
-            Prezzi Base
-          </TabsTrigger>
-          <TabsTrigger value="seasons">
-            <Settings className="mr-2 h-4 w-4" />
-            Stagioni
-          </TabsTrigger>
-          <TabsTrigger value="special">
-            <Plus className="mr-2 h-4 w-4" />
-            Periodi Speciali
-          </TabsTrigger>
+          <TabsTrigger value="calendar" className="gap-1.5"><CalendarIcon className="h-4 w-4 hidden sm:block" />Calendario</TabsTrigger>
+          <TabsTrigger value="base" className="gap-1.5"><Euro className="h-4 w-4 hidden sm:block" />Prezzi Base</TabsTrigger>
+          <TabsTrigger value="seasons" className="gap-1.5"><Settings className="h-4 w-4 hidden sm:block" />Stagioni</TabsTrigger>
+          <TabsTrigger value="special" className="gap-1.5"><Sparkles className="h-4 w-4 hidden sm:block" />Periodi Speciali</TabsTrigger>
         </TabsList>
 
+        {/* ==================== CALENDAR TAB ==================== */}
         <TabsContent value="calendar" className="space-y-4">
+          {/* Month nav */}
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}><ChevronLeft className="h-4 w-4 mr-1" />Precedente</Button>
+            <h3 className="text-lg font-semibold capitalize">{format(currentMonth, "MMMM yyyy", { locale: it })}</h3>
+            <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>Successivo<ChevronRight className="h-4 w-4 ml-1" /></Button>
+          </div>
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-3">
+            {(Object.entries(SEASON_COLORS) as [SeasonType, typeof SEASON_COLORS["bassa"]][]).map(([key, val]) => (
+              <div key={key} className="flex items-center gap-1.5">
+                <span className={`w-2.5 h-2.5 rounded-full ${val.dot}`} />
+                <span className="text-xs capitalize">{key.replace("-", " ")}</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+              <span className="text-xs">Override manuale</span>
+            </div>
+          </div>
+
+          {/* Range selection hint */}
+          {rangeStart && !rangeEnd && (
+            <div className="p-2 bg-primary/10 rounded text-sm text-center">
+              Seleziona la data di fine per modificare i prezzi in blocco. <Button variant="link" size="sm" className="p-0 h-auto" onClick={() => { setRangeStart(null); setRangeEnd(null) }}>Annulla</Button>
+            </div>
+          )}
+
+          {/* Calendar Grid - Smoobu style */}
           <Card>
-            <CardHeader>
-              <CardTitle>Calendario Prezzi Camera</CardTitle>
-              <CardDescription>Visualizza i prezzi dinamici per ogni giorno del mese</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Label>Camera:</Label>
-                <Select value={selectedRoom} onValueChange={setSelectedRoom}>
-                  <SelectTrigger className="w-[300px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="border-b">
+                    <th className="p-2 text-left text-xs font-medium text-muted-foreground w-24 sticky left-0 bg-background z-10">Giorno</th>
                     {rooms.map((r) => (
-                      <SelectItem key={r.roomId} value={r.roomId}>
-                        {r.roomName} (Base: €{r.basePrice})
-                      </SelectItem>
+                      <th key={r.roomId} className="p-2 text-center text-xs font-medium text-muted-foreground">{SHORT_NAMES[r.roomId] || r.roomName}</th>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    <th className="p-2 text-center text-xs font-medium text-muted-foreground w-20">Azione</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {daysInMonth.map((day) => {
+                    const dayName = format(day, "EEE", { locale: it })
+                    const isWeekend = day.getDay() === 0 || day.getDay() === 6
+                    const inRange = isInRange(day)
 
-              <div className="flex items-center justify-between">
-                <Button variant="outline" onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}>
-                  ← Mese Precedente
-                </Button>
-                <h3 className="text-lg font-semibold">{format(currentMonth, "MMMM yyyy", { locale: it })}</h3>
-                <Button variant="outline" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-                  Mese Successivo →
-                </Button>
-              </div>
+                    return (
+                      <tr key={day.toISOString()} className={`border-b transition-colors ${isWeekend ? "bg-muted/30" : ""} ${inRange ? "bg-primary/5" : ""} hover:bg-muted/20`}>
+                        <td className="p-2 sticky left-0 bg-background z-10">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-semibold ${isWeekend ? "text-primary" : ""}`}>{format(day, "d")}</span>
+                            <span className="text-xs text-muted-foreground capitalize">{dayName}</span>
+                          </div>
+                        </td>
+                        {rooms.map((r) => {
+                          const price = calculatePriceForDate(day, r.roomId)
+                          const cat = getPriceCategory(price, r.basePrice)
+                          const colors = SEASON_COLORS[cat]
+                          const dateStr = format(day, "yyyy-MM-dd")
+                          const hasOverride = priceOverrides.some((o) => o.roomId === r.roomId && o.date === dateStr)
+                          const source = getSourceLabel(day, r.roomId)
 
-              <div className="flex flex-wrap gap-2">
-                <Badge className="bg-blue-500">Bassa</Badge>
-                <Badge className="bg-green-500">Media</Badge>
-                <Badge className="bg-yellow-500">Medio-Alta</Badge>
-                <Badge className="bg-orange-500">Alta</Badge>
-                <Badge className="bg-red-500">Super-Alta</Badge>
-              </div>
-
-              <div className="grid grid-cols-7 gap-2">
-                {["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"].map((day) => (
-                  <div key={day} className="text-center font-semibold text-sm p-2">
-                    {day}
-                  </div>
-                ))}
-                {Array.from({ length: monthStart.getDay() }).map((_, i) => (
-                  <div key={`empty-${i}`} />
-                ))}
-                {daysInMonth.map((day) => {
-                  const price = calculatePriceForDate(day, selectedRoom)
-                  const category = getPriceCategory(price, room?.basePrice || 0)
-                  const colorClass = getCategoryColor(category)
-
-                  return (
-                    <div
-                      key={day.toISOString()}
-                      className={`${colorClass} rounded-lg p-3 text-white text-center space-y-1 cursor-pointer hover:opacity-80 transition-opacity`}
-                    >
-                      <div className="text-sm font-semibold">{format(day, "d")}</div>
-                      <div className="text-xs font-bold">€{price}</div>
-                    </div>
-                  )
-                })}
-              </div>
+                          return (
+                            <td key={r.roomId} className="p-1">
+                              <button
+                                type="button"
+                                onClick={() => handleCellClick(day, r.roomId)}
+                                className={`w-full rounded-md p-2 text-center transition-all hover:ring-2 hover:ring-primary/50 ${hasOverride ? "bg-violet-50 dark:bg-violet-950/30 ring-1 ring-violet-300" : colors.bg}`}
+                              >
+                                <span className={`text-sm font-bold ${hasOverride ? "text-violet-700 dark:text-violet-300" : colors.text}`}>{"\u20AC"}{price}</span>
+                                <span className={`block text-[10px] leading-tight ${hasOverride ? "text-violet-500" : "text-muted-foreground"}`}>{source}</span>
+                              </button>
+                            </td>
+                          )
+                        })}
+                        <td className="p-1 text-center">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleDayClick(day)}><CalendarIcon className="h-3.5 w-3.5" /></Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </CardContent>
           </Card>
         </TabsContent>
 
+        {/* ==================== BASE PRICES TAB ==================== */}
         <TabsContent value="base" className="space-y-4">
           {rooms.map((room) => (
             <Card key={room.roomId}>
               <CardHeader>
                 <CardTitle>{room.roomName}</CardTitle>
-                <CardDescription>Prezzo base per notte (prima dei moltiplicatori stagionali)</CardDescription>
+                <CardDescription>Prezzo base per notte (prima dei moltiplicatori stagionali). Questo prezzo si propaga in tutto il sito.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-end gap-4">
                   <div className="flex-1">
-                    <Label htmlFor={`base-price-${room.roomId}`}>Prezzo Base (€)</Label>
-                    <Input
-                      id={`base-price-${room.roomId}`}
-                      type="number"
-                      min="0"
-                      step="1"
-                      defaultValue={room.basePrice}
-                    />
+                    <Label htmlFor={`base-price-${room.roomId}`}>Prezzo Base ({"\u20AC"})</Label>
+                    <Input id={`base-price-${room.roomId}`} type="number" min="0" step="1" defaultValue={room.basePrice} />
                   </div>
-                  <Button
-                    onClick={(e) => {
-                      const input = e.currentTarget.parentElement?.querySelector("input")
-                      if (input) {
-                        handleBasePriceUpdate(room.roomId, Number.parseFloat(input.value))
-                      }
-                    }}
-                  >
-                    Aggiorna Prezzo Base
-                  </Button>
+                  <Button onClick={(e) => {
+                    const input = e.currentTarget.parentElement?.querySelector("input")
+                    if (input) handleBasePriceUpdate(room.roomId, Number.parseFloat(input.value))
+                  }}>Aggiorna</Button>
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground">Prezzo attuale: €{room.basePrice}/notte</p>
+                <p className="mt-2 text-sm text-muted-foreground">Prezzo attuale: {"\u20AC"}{room.basePrice}/notte</p>
               </CardContent>
             </Card>
           ))}
         </TabsContent>
 
+        {/* ==================== SEASONS TAB ==================== */}
         <TabsContent value="seasons" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Stagioni Ricorrenti</CardTitle>
-                  <CardDescription>
-                    Le stagioni si ripetono automaticamente ogni anno senza bisogno di aggiornamenti
-                  </CardDescription>
+                  <CardDescription>Le stagioni si ripetono automaticamente ogni anno</CardDescription>
                 </div>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Aggiungi Stagione
-                    </Button>
+                    <Button size="sm"><Plus className="mr-2 h-4 w-4" />Aggiungi</Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Nuova Stagione</DialogTitle>
-                    </DialogHeader>
+                    <DialogHeader><DialogTitle>Nuova Stagione</DialogTitle></DialogHeader>
                     <SeasonForm onSave={loadPricingData} />
                   </DialogContent>
                 </Dialog>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {seasons.map((season) => (
-                  <div key={season.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{season.name}</h4>
-                      <p className="text-sm text-muted-foreground">{season.description}</p>
-                      <p className="text-sm">
-                        Dal {season.startDate} al {season.endDate} (ogni anno)
-                      </p>
+              <div className="space-y-2">
+                {seasons.map((season) => {
+                  const colors = SEASON_COLORS[season.type]
+                  return (
+                    <div key={season.id} className={`flex items-center justify-between p-3 rounded-lg border ${colors.bg}`}>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <span className={`w-3 h-3 rounded-full shrink-0 ${colors.dot}`} />
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{season.name}</p>
+                          <p className="text-xs text-muted-foreground">{season.startDate} - {season.endDate} (ogni anno) | x{season.priceMultiplier}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Badge variant="secondary" className="text-xs">{season.priceMultiplier > 1 ? "+" : ""}{Math.round((season.priceMultiplier - 1) * 100)}%</Badge>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7"><Pencil className="h-3.5 w-3.5" /></Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader><DialogTitle>Modifica Stagione</DialogTitle></DialogHeader>
+                            <SeasonForm onSave={loadPricingData} initialData={season} />
+                          </DialogContent>
+                        </Dialog>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteSeason(season.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={getCategoryColor(season.type)}>
-                        {season.priceMultiplier > 1 ? "+" : ""}
-                        {Math.round((season.priceMultiplier - 1) * 100)}%
-                      </Badge>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={() => setEditingSeason(season)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Modifica Stagione</DialogTitle>
-                          </DialogHeader>
-                          <SeasonForm
-                            onSave={() => {
-                              setEditingSeason(null)
-                              loadPricingData()
-                            }}
-                            initialData={season}
-                          />
-                        </DialogContent>
-                      </Dialog>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteSeason(season.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
+                {seasons.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nessuna stagione configurata</p>}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
+        {/* ==================== SPECIAL PERIODS TAB ==================== */}
         <TabsContent value="special" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Periodi Speciali</CardTitle>
-                  <CardDescription>
-                    Feste, eventi e periodi con prezzi speciali (hanno priorità sulle stagioni)
-                  </CardDescription>
+                  <CardDescription>Feste, eventi e periodi con prezzi speciali (priorita sulle stagioni)</CardDescription>
                 </div>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Aggiungi Periodo
-                    </Button>
+                    <Button size="sm"><Plus className="mr-2 h-4 w-4" />Aggiungi</Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Nuovo Periodo Speciale</DialogTitle>
-                    </DialogHeader>
+                    <DialogHeader><DialogTitle>Nuovo Periodo Speciale</DialogTitle></DialogHeader>
                     <SpecialPeriodForm onSave={loadPricingData} />
                   </DialogContent>
                 </Dialog>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {specialPeriods.map((period) => (
-                  <div key={period.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{period.name}</h4>
-                      <p className="text-sm text-muted-foreground">{period.description}</p>
-                      <p className="text-sm">
-                        Dal {format(new Date(period.startDate), "dd/MM/yyyy", { locale: it })} al{" "}
-                        {format(new Date(period.endDate), "dd/MM/yyyy", { locale: it })}
-                      </p>
+                  <div key={period.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{period.name}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(period.startDate), "dd/MM/yyyy", { locale: it })} - {format(new Date(period.endDate), "dd/MM/yyyy", { locale: it })} | x{period.priceMultiplier}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">
-                        {period.priceMultiplier > 1 ? "+" : ""}
-                        {Math.round((period.priceMultiplier - 1) * 100)}%
-                      </Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge variant="secondary" className="text-xs">{period.priceMultiplier > 1 ? "+" : ""}{Math.round((period.priceMultiplier - 1) * 100)}%</Badge>
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button variant="ghost" size="icon" onClick={() => setEditingPeriod(period)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7"><Pencil className="h-3.5 w-3.5" /></Button>
                         </DialogTrigger>
                         <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Modifica Periodo Speciale</DialogTitle>
-                          </DialogHeader>
-                          <SpecialPeriodForm
-                            onSave={() => {
-                              setEditingPeriod(null)
-                              loadPricingData()
-                            }}
-                            initialData={period}
-                          />
+                          <DialogHeader><DialogTitle>Modifica Periodo</DialogTitle></DialogHeader>
+                          <SpecialPeriodForm onSave={loadPricingData} initialData={period} />
                         </DialogContent>
                       </Dialog>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeletePeriod(period.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeletePeriod(period.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                     </div>
                   </div>
                 ))}
+                {specialPeriods.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nessun periodo speciale configurato</p>}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ==================== SINGLE CELL DIALOG ==================== */}
+      <Dialog open={cellDialogOpen} onOpenChange={setCellDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifica Prezzo</DialogTitle>
+          </DialogHeader>
+          {selectedCell && (
+            <CellOverrideForm
+              date={selectedCell.date}
+              roomId={selectedCell.roomId}
+              roomName={SHORT_NAMES[selectedCell.roomId] || selectedCell.roomId}
+              currentPrice={calculatePriceForDate(selectedCell.date, selectedCell.roomId)}
+              source={getSourceLabel(selectedCell.date, selectedCell.roomId)}
+              onSave={(price, reason) => {
+                handleSingleOverride(selectedCell.roomId, format(selectedCell.date, "yyyy-MM-dd"), price, reason)
+                setCellDialogOpen(false)
+              }}
+              onCancel={() => setCellDialogOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ==================== BULK RANGE DIALOG ==================== */}
+      <Dialog open={bulkDialogOpen} onOpenChange={(open) => { setBulkDialogOpen(open); if (!open) { setRangeStart(null); setRangeEnd(null) } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifica Prezzi in Blocco</DialogTitle>
+          </DialogHeader>
+          {rangeStart && rangeEnd && (
+            <BulkOverrideForm
+              startDate={rangeStart < rangeEnd ? rangeStart : rangeEnd}
+              endDate={rangeStart < rangeEnd ? rangeEnd : rangeStart}
+              rooms={rooms}
+              onSave={(roomId, price, reason) => {
+                const s = rangeStart < rangeEnd ? rangeStart : rangeEnd
+                const e = rangeStart < rangeEnd ? rangeEnd : rangeStart
+                handleBulkOverride(roomId, s, e, price, reason)
+                setBulkDialogOpen(false)
+                setRangeStart(null)
+                setRangeEnd(null)
+              }}
+              onCancel={() => { setBulkDialogOpen(false); setRangeStart(null); setRangeEnd(null) }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+/* ===================== SUB-COMPONENTS ===================== */
+
+function CellOverrideForm({ date, roomId, roomName, currentPrice, source, onSave, onCancel }: {
+  date: Date; roomId: string; roomName: string; currentPrice: number; source: string
+  onSave: (price: number, reason: string) => void; onCancel: () => void
+}) {
+  const [price, setPrice] = useState(currentPrice.toString())
+  const [reason, setReason] = useState("")
+
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-muted rounded-lg text-sm">
+        <p><strong>{roomName}</strong> - {format(date, "EEEE d MMMM yyyy", { locale: it })}</p>
+        <p className="text-muted-foreground">Prezzo attuale: {"\u20AC"}{currentPrice} ({source})</p>
+      </div>
+      <div>
+        <Label>Nuovo prezzo ({"\u20AC"})</Label>
+        <Input type="number" min="0" step="1" value={price} onChange={(e) => setPrice(e.target.value)} />
+      </div>
+      <div>
+        <Label>Motivo (opzionale)</Label>
+        <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="es: Sconto last minute" />
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" onClick={onCancel}>Annulla</Button>
+        <Button onClick={() => onSave(Number.parseFloat(price), reason)}>Salva</Button>
+      </div>
+    </div>
+  )
+}
+
+function BulkOverrideForm({ startDate, endDate, rooms, onSave, onCancel }: {
+  startDate: Date; endDate: Date; rooms: RoomBasePrice[]
+  onSave: (roomId: string, price: number, reason: string) => void; onCancel: () => void
+}) {
+  const [roomId, setRoomId] = useState(rooms[0]?.roomId || "")
+  const [price, setPrice] = useState("")
+  const [reason, setReason] = useState("")
+  const days = eachDayOfInterval({ start: startDate, end: endDate })
+
+  return (
+    <div className="space-y-4">
+      <div className="p-3 bg-muted rounded-lg text-sm">
+        <p>Dal <strong>{format(startDate, "dd/MM/yyyy")}</strong> al <strong>{format(endDate, "dd/MM/yyyy")}</strong></p>
+        <p className="text-muted-foreground">{days.length} giorni selezionati</p>
+      </div>
+      <div>
+        <Label>Camera</Label>
+        <Select value={roomId} onValueChange={setRoomId}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {rooms.map((r) => (
+              <SelectItem key={r.roomId} value={r.roomId}>{SHORT_NAMES[r.roomId] || r.roomName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label>Prezzo per notte ({"\u20AC"})</Label>
+        <Input type="number" min="0" step="1" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="es: 200" />
+      </div>
+      <div>
+        <Label>Motivo (opzionale)</Label>
+        <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="es: Promozione settimanale" />
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" onClick={onCancel}>Annulla</Button>
+        <Button onClick={() => onSave(roomId, Number.parseFloat(price), reason)} disabled={!price}>Applica a {days.length} giorni</Button>
+      </div>
     </div>
   )
 }
@@ -716,51 +717,24 @@ function SeasonForm({ onSave, initialData }: { onSave: () => void; initialData?:
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
-
     const formData = new FormData(e.currentTarget)
-
-    const startDateFull = formData.get("startDate") as string // "2025-12-01"
-    const endDateFull = formData.get("endDate") as string // "2025-12-31"
-
-    const startDate = startDateFull.substring(5) // "12-01"
-    const endDate = endDateFull.substring(5) // "12-31"
-
+    const startDateFull = formData.get("startDate") as string
+    const endDateFull = formData.get("endDate") as string
     const data = {
       name: formData.get("name") as string,
       type: formData.get("type") as SeasonType,
-      startDate, // Only MM-DD!
-      endDate, // Only MM-DD!
+      startDate: startDateFull.substring(5),
+      endDate: endDateFull.substring(5),
       priceMultiplier: Number.parseFloat(formData.get("priceMultiplier") as string),
       description: formData.get("description") as string,
     }
-
     try {
       const url = initialData ? `/api/pricing/seasons?id=${initialData.id}` : "/api/pricing/seasons"
-      const method = initialData ? "PUT" : "POST"
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-
-      if (!res.ok) throw new Error("Failed to save season")
-
-      toast({
-        title: "Successo",
-        description: initialData ? "Stagione aggiornata con successo" : "Stagione creata con successo",
-      })
-
+      const res = await fetch(url, { method: initialData ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
+      if (!res.ok) throw new Error("Failed")
+      toast({ title: "Successo", description: initialData ? "Stagione aggiornata" : "Stagione creata" })
       onSave()
-    } catch (error) {
-      toast({
-        title: "Errore",
-        description: "Impossibile salvare la stagione",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
+    } catch { toast({ title: "Errore", description: "Impossibile salvare", variant: "destructive" }) } finally { setLoading(false) }
   }
 
   const displayStartDate = initialData?.startDate ? `2025-${initialData.startDate}` : ""
@@ -768,69 +742,27 @@ function SeasonForm({ onSave, initialData }: { onSave: () => void; initialData?:
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="name">Nome Stagione</Label>
-        <Input id="name" name="name" required placeholder="es: Estate Alta Stagione" defaultValue={initialData?.name} />
-      </div>
-
+      <div><Label htmlFor="name">Nome</Label><Input id="name" name="name" required defaultValue={initialData?.name} placeholder="es: Estate Alta Stagione" /></div>
       <div>
         <Label htmlFor="type">Tipologia</Label>
         <Select name="type" required defaultValue={initialData?.type}>
-          <SelectTrigger>
-            <SelectValue placeholder="Seleziona tipologia" />
-          </SelectTrigger>
+          <SelectTrigger><SelectValue placeholder="Seleziona" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="bassa">Stagione Bassa</SelectItem>
-            <SelectItem value="media">Stagione Media</SelectItem>
-            <SelectItem value="medio-alta">Stagione Medio-Alta</SelectItem>
-            <SelectItem value="alta">Stagione Alta</SelectItem>
-            <SelectItem value="super-alta">Stagione Super-Alta</SelectItem>
+            <SelectItem value="bassa">Bassa</SelectItem>
+            <SelectItem value="media">Media</SelectItem>
+            <SelectItem value="medio-alta">Medio-Alta</SelectItem>
+            <SelectItem value="alta">Alta</SelectItem>
+            <SelectItem value="super-alta">Super-Alta</SelectItem>
           </SelectContent>
         </Select>
       </div>
-
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="startDate">Data Inizio</Label>
-          <Input id="startDate" name="startDate" type="date" required defaultValue={displayStartDate} />
-          <p className="text-xs text-muted-foreground mt-1">Si ripete ogni anno</p>
-        </div>
-        <div>
-          <Label htmlFor="endDate">Data Fine</Label>
-          <Input id="endDate" name="endDate" type="date" required defaultValue={displayEndDate} />
-          <p className="text-xs text-muted-foreground mt-1">Si ripete ogni anno</p>
-        </div>
+        <div><Label htmlFor="startDate">Inizio</Label><Input id="startDate" name="startDate" type="date" required defaultValue={displayStartDate} /><p className="text-xs text-muted-foreground mt-1">Si ripete ogni anno</p></div>
+        <div><Label htmlFor="endDate">Fine</Label><Input id="endDate" name="endDate" type="date" required defaultValue={displayEndDate} /><p className="text-xs text-muted-foreground mt-1">Si ripete ogni anno</p></div>
       </div>
-
-      <div>
-        <Label htmlFor="priceMultiplier">Moltiplicatore Prezzo</Label>
-        <Input
-          id="priceMultiplier"
-          name="priceMultiplier"
-          type="number"
-          step="0.1"
-          min="0.5"
-          max="3"
-          required
-          placeholder="es: 1.5 per +50%"
-          defaultValue={initialData?.priceMultiplier}
-        />
-        <p className="text-xs text-muted-foreground mt-1">1.0 = prezzo base, 1.5 = +50%, 2.0 = +100%</p>
-      </div>
-
-      <div>
-        <Label htmlFor="description">Descrizione</Label>
-        <Input
-          id="description"
-          name="description"
-          placeholder="es: Agosto - Ferragosto"
-          defaultValue={initialData?.description}
-        />
-      </div>
-
-      <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Salvataggio..." : initialData ? "Aggiorna Stagione" : "Crea Stagione"}
-      </Button>
+      <div><Label htmlFor="priceMultiplier">Moltiplicatore</Label><Input id="priceMultiplier" name="priceMultiplier" type="number" step="0.1" min="0.5" max="3" required defaultValue={initialData?.priceMultiplier} placeholder="es: 1.5 per +50%" /><p className="text-xs text-muted-foreground mt-1">1.0 = base, 1.5 = +50%, 2.0 = +100%</p></div>
+      <div><Label htmlFor="description">Descrizione</Label><Input id="description" name="description" defaultValue={initialData?.description} placeholder="es: Agosto Ferragosto" /></div>
+      <Button type="submit" disabled={loading} className="w-full">{loading ? "Salvataggio..." : initialData ? "Aggiorna" : "Crea Stagione"}</Button>
     </form>
   )
 }
@@ -842,7 +774,6 @@ function SpecialPeriodForm({ onSave, initialData }: { onSave: () => void; initia
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
-
     const formData = new FormData(e.currentTarget)
     const data = {
       name: formData.get("name") as string,
@@ -852,83 +783,25 @@ function SpecialPeriodForm({ onSave, initialData }: { onSave: () => void; initia
       description: formData.get("description") as string,
       priority: 1,
     }
-
     try {
       const url = initialData ? `/api/pricing/special-periods?id=${initialData.id}` : "/api/pricing/special-periods"
-      const method = initialData ? "PUT" : "POST"
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-
-      if (!res.ok) throw new Error("Failed to save special period")
-
-      toast({
-        title: "Successo",
-        description: initialData ? "Periodo aggiornato con successo" : "Periodo creato con successo",
-      })
-
+      const res = await fetch(url, { method: initialData ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) })
+      if (!res.ok) throw new Error("Failed")
+      toast({ title: "Successo", description: initialData ? "Periodo aggiornato" : "Periodo creato" })
       onSave()
-    } catch (error) {
-      toast({
-        title: "Errore",
-        description: "Impossibile salvare il periodo",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
+    } catch { toast({ title: "Errore", description: "Impossibile salvare", variant: "destructive" }) } finally { setLoading(false) }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="name">Nome Periodo</Label>
-        <Input id="name" name="name" required placeholder="es: Ferragosto 2025" defaultValue={initialData?.name} />
-      </div>
-
+      <div><Label htmlFor="name">Nome</Label><Input id="name" name="name" required defaultValue={initialData?.name} placeholder="es: Ferragosto 2025" /></div>
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="startDate">Data Inizio</Label>
-          <Input id="startDate" name="startDate" type="date" required defaultValue={initialData?.startDate} />
-        </div>
-        <div>
-          <Label htmlFor="endDate">Data Fine</Label>
-          <Input id="endDate" name="endDate" type="date" required defaultValue={initialData?.endDate} />
-        </div>
+        <div><Label htmlFor="startDate">Inizio</Label><Input id="startDate" name="startDate" type="date" required defaultValue={initialData?.startDate} /></div>
+        <div><Label htmlFor="endDate">Fine</Label><Input id="endDate" name="endDate" type="date" required defaultValue={initialData?.endDate} /></div>
       </div>
-
-      <div>
-        <Label htmlFor="priceMultiplier">Moltiplicatore Prezzo</Label>
-        <Input
-          id="priceMultiplier"
-          name="priceMultiplier"
-          type="number"
-          step="0.1"
-          min="0.5"
-          max="5"
-          required
-          placeholder="es: 2.5 per +150%"
-          defaultValue={initialData?.priceMultiplier}
-        />
-        <p className="text-xs text-muted-foreground mt-1">1.0 = prezzo base, 2.0 = +100%, 2.5 = +150%</p>
-      </div>
-
-      <div>
-        <Label htmlFor="description">Descrizione</Label>
-        <Input
-          id="description"
-          name="description"
-          placeholder="es: Picco di prenotazioni"
-          defaultValue={initialData?.description}
-        />
-      </div>
-
-      <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Salvataggio..." : initialData ? "Aggiorna Periodo" : "Crea Periodo"}
-      </Button>
+      <div><Label htmlFor="priceMultiplier">Moltiplicatore</Label><Input id="priceMultiplier" name="priceMultiplier" type="number" step="0.1" min="0.5" max="5" required defaultValue={initialData?.priceMultiplier} placeholder="es: 2.5 per +150%" /><p className="text-xs text-muted-foreground mt-1">1.0 = base, 2.0 = +100%, 2.5 = +150%</p></div>
+      <div><Label htmlFor="description">Descrizione</Label><Input id="description" name="description" defaultValue={initialData?.description} placeholder="es: Picco prenotazioni" /></div>
+      <Button type="submit" disabled={loading} className="w-full">{loading ? "Salvataggio..." : initialData ? "Aggiorna" : "Crea Periodo"}</Button>
     </form>
   )
 }

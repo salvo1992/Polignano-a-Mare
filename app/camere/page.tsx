@@ -56,13 +56,13 @@ export default function CamerePage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const roomDescriptions = {
-    "1": "Immergiti nel lusso della nostra Camera Familiare con Balcone, dove l'eleganza incontra il comfort. Perfetta per famiglie o gruppi, questa spaziosa suite di 35m² offre una vista mozzafiato sul mare e sui luoghi storici di Polignano. Rilassati sul tuo balcone privato mentre ammiri il tramonto sulla costa pugliese, o goditi un momento di relax nella piscina panoramica all'ultimo piano. Ogni dettaglio è stato curato per offrirti un'esperienza indimenticabile.",
-    "2": "Scopri il paradiso del relax nella nostra Camera Matrimoniale con Vasca Idromassaggio. Questa elegante suite di 33m² è un'oasi di tranquillità, dotata di una lussuosa vasca idromassaggio privata e sauna per momenti di puro benessere. La vista panoramica sul mare e sulla città vecchia ti lascerà senza fiato, mentre gli arredi raffinati e i servizi premium garantiscono un soggiorno da sogno. Perfetta per coppie in cerca di romanticismo e relax assoluto.",
+    "1": "Immergiti nel lusso della nostra Suite Acies con Balcone, dove l'eleganza incontra il comfort. Perfetta per famiglie o gruppi, questa spaziosa suite di 35m² offre una vista mozzafiato sul mare e sui luoghi storici di Polignano. Rilassati sul tuo balcone privato mentre ammiri il tramonto sulla costa pugliese, o goditi un momento di relax nella piscina panoramica all'ultimo piano. Ogni dettaglio è stato curato per offrirti un'esperienza indimenticabile.",
+    "2": "Scopri il paradiso del relax nella nostra Suite Acquaroom con Idromassaggio. Questa elegante suite di 33m² è un'oasi di tranquillità, dotata di una lussuosa vasca idromassaggio privata e sauna per momenti di puro benessere. La vista panoramica sul mare e sulla città vecchia ti lascerà senza fiato, mentre gli arredi raffinati e i servizi premium garantiscono un soggiorno da sogno. Perfetta per coppie in cerca di romanticismo e relax assoluto.",
   }
 
   const roomPhotoGalleries = {
     "1": [
-      { src: "/images/room-1.jpg", alt: "Camera Familiare" },
+      { src: "/images/room-1.jpg", alt: "Suite Acies con Balcone" },
       { src: "/camera/camera4.jpg", alt: "Vista mare dal balcone" },
       { src: "/polignano-old-town-view.jpg", alt: "Vista centro storico" },
       { src: "/camera/camera1.jpg", alt: "Piscina panoramica" },
@@ -77,7 +77,7 @@ export default function CamerePage() {
       { src: "/camera/camera15.jpg", alt: "Camera con vista" },
     ],
     "2": [
-      { src: "/images/room-2.jpg", alt: "Camera con Jacuzzi" },
+      { src: "/images/room-2.jpg", alt: "Suite Acquaroom con Idromassaggio" },
       { src: "/images/spa.jpg", alt: "Vasca idromassaggio" },
       { src: "/camera/camera18.jpg", alt: "Sauna privata" },
       { src: "/camera/camera17.jpg", alt: "Camera romantica" },

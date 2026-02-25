@@ -73,7 +73,7 @@ export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps
         notes: "",
         roomId: bookingData.roomId,
         roomName:
-          bookingData.roomId === "1" ? "Camera Familiare con Balcone" : "Camera Matrimoniale con Vasca Idromassaggio",
+          bookingData.roomId === "1" ? "Suite Acies con Balcone" : "Suite Acquaroom con Idromassaggio",
         pricePerNight: Math.round(bookingData.subtotal / bookingData.nights),
         totalAmount: Math.round(bookingData.total * 100), // Convert to cents
         currency: "EUR",

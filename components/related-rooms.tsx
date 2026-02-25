@@ -12,9 +12,9 @@ const relatedRooms = [
   {
     id: 2,
     roomId: "1",
-    name: "Camera Familiare con Balcone",
+    name: "Suite Acies con Balcone",
     description: "Elegante camera con arredi tradizionali Pugliesi e comfort moderni",
-    image: "/images/room-2.jpg",
+    image: "/images/room-1.jpg",
     guests: 4,
     beds: 2,
     bathrooms: 2,
@@ -26,9 +26,9 @@ const relatedRooms = [
   {
     id: 1,
     roomId: "2",
-    name: "Camera Matrimoniale con Vasca Idromassaggio",
+    name: "Suite Acquaroom con Idromassaggio",
     description: "Camera matrimoniale con Vasca Idromassaggio e sauna privata",
-    image: "/images/room-1.jpg",
+    image: "/images/room-2.jpg",
     guests: 2,
     beds: 1,
     bathrooms: 1,

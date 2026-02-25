@@ -1,10 +1,10 @@
 export const ROOMS = [
   {
     id: "1",
-    name: "Camera Familiare con Balcone",
-    description: "Camera matrimoniale e balcone privato",
+    name: "Suite Acies con Balcone",
+    description: "Suite elegante con balcone privato e vista panoramica",
     images: [
-      "/images/room-1.jpg", // room-1.jpg - main bedroom with stone arch
+      "/images/room-1.jpg", // room-1.jpg - Suite Acies con Balcone
       "/public/images/room-3.jpg", // room-3.jpg - spacious room with dining area
       "/camera/camera14.jpg", // camera14.jpg - living area with sofa
       "/camera/camera15.jpg", // camera15.jpg - modern bathroom
@@ -39,10 +39,10 @@ export const ROOMS = [
   },
   {
     id: "2",
-    name: "Camera Matrimoniale con Vasca Idromassaggio",
-    description: "Elegante camera con vasca idromassaggio e arredi di lusso",
+    name: "Suite Acquaroom con Idromassaggio",
+    description: "Suite di lusso con vasca idromassaggio privata e arredi eleganti",
     images: [
-      "/public/images/room-2.jpg", // room-2.jpg - bedroom with beige stone arch
+      "/images/room-2.jpg", // room-2.jpg - Suite Acquaroom con Idromassaggio
       "/public/images/spa.jpg", // spa.jpg - blue-lit jacuzzi (main feature!)
       "/public/images/camera18.jpg", // camera18.jpg - sauna
       "/public/images/spa1.jpg", // spa1.jpg - spa treatment area

@@ -2,8 +2,8 @@
  * Centralized room mapping between the site and Smoobu.
  * 
  * Site rooms:
- *   ID "1" = "Camera Familiare con Balcone"      -> Smoobu name: "Acies"
- *   ID "2" = "Camera Matrimoniale con Vasca Idromassaggio" -> Smoobu name: "Aquarum"
+ *   ID "1" = "Suite Acies con Balcone"      -> Smoobu name: "Acies"
+ *   ID "2" = "Suite Acquaroom con Idromassaggio" -> Smoobu name: "Aquarum"
  *
  * All files MUST import from here instead of duplicating mappings.
  */
@@ -18,12 +18,12 @@ export interface RoomMapping {
 export const ROOM_MAPPINGS: RoomMapping[] = [
   {
     localId: "1",
-    localName: "Camera Familiare con Balcone",
+    localName: "Suite Acies con Balcone",
     smoobuName: "Acies",
   },
   {
     localId: "2",
-    localName: "Camera Matrimoniale con Vasca Idromassaggio",
+    localName: "Suite Acquaroom con Idromassaggio",
     smoobuName: "Aquarum",
   },
 ]

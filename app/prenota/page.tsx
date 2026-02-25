@@ -32,8 +32,8 @@ import { ROOM_MAPPINGS, getRoomName } from "@/lib/room-mapping"
 // Room IDs map directly: the select value IS the local room ID ("1" or "2")
 const ROOM_IDS: Record<string, string> = { "1": "1", "2": "2" }
 const ROOM_NAMES: Record<string, string> = {
-  "1": "Camera Familiare con Balcone",
-  "2": "Camera Matrimoniale con Vasca Idromassaggio",
+  "1": "Suite Acies con Balcone",
+  "2": "Suite Acquaroom con Idromassaggio",
 }
 
 const AVAILABLE_SERVICES = [
@@ -454,8 +454,8 @@ export default function PrenotaPage() {
                       required
                     >
                       <option value="">{t("bookingFormSelectRoom") || "Seleziona una camera"}</option>
-                      <option value="1">Camera Familiare con Balcone</option>
-                      <option value="2">Camera Matrimoniale con Vasca Idromassaggio</option>
+                      <option value="1">Suite Acies con Balcone</option>
+                      <option value="2">Suite Acquaroom con Idromassaggio</option>
                     </select>
                   </div>
 
@@ -529,7 +529,7 @@ export default function PrenotaPage() {
                           </li>
                           <li className="flex items-center gap-2">
                             <CalendarIcon className="h-4 w-4 text-primary" />
-                            <span className="font-medium">{t("bookingCheckOut") || "Check-out: 08:00 – 11:00"}</span>
+                            <span className="font-medium">{t("bookingCheckOut") || "Check-out: 10:00"}</span>
                           </li>
                           <li className="flex items-center gap-2">
                             <Users className="h-4 w-4 text-primary" />

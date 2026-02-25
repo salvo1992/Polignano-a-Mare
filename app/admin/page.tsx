@@ -51,7 +51,7 @@ function AdminInner() {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const [bnbSettings, setBnbSettings] = useState<BnBSettings>({
     checkInTime: "15:00",
-    checkOutTime: "11:00",
+    checkOutTime: "10:00",
     cancellationPolicy: "free24h",
   })
   const [savingSettings, setSavingSettings] = useState(false)

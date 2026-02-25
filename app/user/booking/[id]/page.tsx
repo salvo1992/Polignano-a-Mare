@@ -162,7 +162,11 @@ export default function BookingDetailPage() {
     if (!roomName) {
       return "/images/room-1.jpg"
     }
-    if (roomName.toLowerCase().includes("familiare") || roomName.toLowerCase().includes("balcone")) {
+    const lowerName = roomName.toLowerCase()
+    if (lowerName.includes("acies") || lowerName.includes("balcone")) {
+      return "/images/room-1.jpg"
+    }
+    if (lowerName.includes("acquaroom") || lowerName.includes("idromassaggio")) {
       return "/images/room-2.jpg"
     }
     return "/images/room-1.jpg"

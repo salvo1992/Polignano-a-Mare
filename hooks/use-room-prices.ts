@@ -5,8 +5,8 @@ import { getAllRooms } from "@/lib/firebase"
 
 export function useRoomPrices() {
   const [prices, setPrices] = useState<Record<string, number>>({
-    "1": 180, // Camera Familiare con Balcone (default)
-    "2": 150, // Camera Matrimoniale con Vasca Idromassaggio (default)
+    "1": 180, // Suite Acies con Balcone (default)
+    "2": 150, // Suite Acquaroom con Idromassaggio (default)
   })
   const [loading, setLoading] = useState(true)
 

@@ -14,9 +14,9 @@ const SITE_URL = "https://22suite.ekobit.it" as const
 const rooms = [
   {
     id: 1,
-    name: "Camera Familiare con Balcone",
+    name: "Suite Acies con Balcone",
     description: "Camera matrimoniale e balcone privato",
-    images: ["/images/room-2.jpg", "/images/room-1.jpg"],
+    images: ["/images/room-1.jpg", "/images/room-2.jpg"],
     originalPrice: 220,
     guests: 4,
     beds: 2,
@@ -38,9 +38,9 @@ const rooms = [
   },
   {
     id: 2,
-    name: "Camera Matrimoniale con Vasca Idromassaggio",
+    name: "Suite Acquaroom con Idromassaggio",
     description: "Elegante camera con vasca idromassaggio e arredi di lusso",
-    images: ["/images/room-1.jpg", "/images/room-2.jpg"],
+    images: ["/images/room-2.jpg", "/images/room-1.jpg"],
     originalPrice: 180,
     guests: 4,
     beds: 2,

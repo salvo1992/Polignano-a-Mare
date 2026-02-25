@@ -220,7 +220,10 @@ function UserInner() {
     }
 
     const lowerName = roomName.toLowerCase()
-    if (lowerName.includes("familiare") || lowerName.includes("balcone")) {
+    if (lowerName.includes("acies") || lowerName.includes("balcone")) {
+      return "/images/room-1.jpg"
+    }
+    if (lowerName.includes("acquaroom") || lowerName.includes("idromassaggio")) {
       return "/images/room-2.jpg"
     }
     return "/images/room-1.jpg"
