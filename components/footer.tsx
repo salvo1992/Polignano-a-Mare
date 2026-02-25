@@ -149,7 +149,7 @@ export function Footer() {
               <div className="flex items-center gap-3">
                 <Clock className="w-4 h-4 text-primary" />
                 <span>
-                  {t("checkIn")}: 15:00 - {t("checkOut")}: 11:00
+                  {t("checkIn")}: 15:00 - {t("checkOut")}: 10:00
                 </span>
               </div>
             </div>

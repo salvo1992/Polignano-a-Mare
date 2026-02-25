@@ -31,7 +31,7 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
 
   const policies = {
     checkIn: "15:00 - 22:00",
-    checkOut: "08:00 - 11:00",
+    checkOut: "10:00",
     cancellation: t("policyCancellation"),
     smoking: t("policyNoSmoking"),
     pets: t("policyNoPets"),

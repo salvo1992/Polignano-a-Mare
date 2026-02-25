@@ -529,7 +529,7 @@ export default function PrenotaPage() {
                           </li>
                           <li className="flex items-center gap-2">
                             <CalendarIcon className="h-4 w-4 text-primary" />
-                            <span className="font-medium">{t("bookingCheckOut") || "Check-out: 08:00 – 11:00"}</span>
+                            <span className="font-medium">{t("bookingCheckOut") || "Check-out: 10:00"}</span>
                           </li>
                           <li className="flex items-center gap-2">
                             <Users className="h-4 w-4 text-primary" />
