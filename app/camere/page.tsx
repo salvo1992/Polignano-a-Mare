@@ -77,7 +77,7 @@ export default function CamerePage() {
       { src: "/camera/camera15.jpg", alt: "Camera con vista" },
     ],
     "2": [
-      { src: "/images/room-2.jpg", alt: "Camera con Jacuzzi" },
+      { src: "/images/room-2.jpg", alt: "Suite Acquaroom con Idromassaggio" },
       { src: "/images/spa.jpg", alt: "Vasca idromassaggio" },
       { src: "/camera/camera18.jpg", alt: "Sauna privata" },
       { src: "/camera/camera17.jpg", alt: "Camera romantica" },
