@@ -4,7 +4,7 @@ export const ROOMS = [
     name: "Suite Acies con Balcone",
     description: "Suite elegante con balcone privato e vista panoramica",
     images: [
-      "/images/room-1.jpg", // room-1.jpg - main bedroom with stone arch
+      "/images/room-2.jpg", // room-2.jpg - bedroom with balcony
       "/public/images/room-3.jpg", // room-3.jpg - spacious room with dining area
       "/camera/camera14.jpg", // camera14.jpg - living area with sofa
       "/camera/camera15.jpg", // camera15.jpg - modern bathroom
