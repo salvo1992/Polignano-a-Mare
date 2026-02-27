@@ -4,19 +4,16 @@ export const ROOMS = [
     name: "Suite Acies con Balcone",
     description: "Suite elegante con balcone privato e vista panoramica",
     images: [
-      "/images/room-1.jpg", // room-1.jpg - Suite Acies con Balcone
-      "/public/images/room-3.jpg", // room-3.jpg - spacious room with dining area
-      "/camera/camera14.jpg", // camera14.jpg - living area with sofa
-      "/camera/camera15.jpg", // camera15.jpg - modern bathroom
-      "/camera/camera13.jpg", // camera13.jpg - rooftop pool terrace
-      "/polignano-room-family-balcony.jpg",
-      "/polignano-sea-view-balcony.jpg",
-      "/polignano-old-town-view.jpg",
-      "/polignano-rooftop-pool.jpg",
-      "/polignano-sunset-terrace.jpg",
-      "/polignano-beach-cliffs.jpg",
-      "/polignano-historic-center.jpg",
-      "/polignano-adriatic-coast.jpg",
+      "/images/room-1.jpg", // camera principale con cementine decorative
+      "/images/room-3.jpg", // camera ampia con zona pranzo e cementine
+      "/camera/camera0.jpg", // camera con letto e cementine
+      "/camera/camera2.jpg", // stessa camera altra angolazione
+      "/camera/camera5.jpg", // zona living con divano verde oliva
+      "/camera/camera11.jpg", // vista generale camera con letto e divano
+      "/camera/camera12.jpg", // dettaglio letto con cuscini
+      "/camera/camera6.jpg", // terrazza con vista mare
+      "/camera/camera1.jpg", // piscina rooftop
+      "/camera/camera4.jpg", // piscina al tramonto
     ],
     price: 180,
     originalPrice: 220,
@@ -42,19 +39,18 @@ export const ROOMS = [
     name: "Suite Acquaroom con Idromassaggio",
     description: "Suite di lusso con vasca idromassaggio privata e arredi eleganti",
     images: [
-      "/images/room-2.jpg", // room-2.jpg - Suite Acquaroom con Idromassaggio
-      "/public/images/spa.jpg", // spa.jpg - blue-lit jacuzzi (main feature!)
-      "/public/images/camera18.jpg", // camera18.jpg - sauna
-      "/public/images/spa1.jpg", // spa1.jpg - spa treatment area
-      "/public/images/camera16.jpg", // camera16.jpg - modern bathroom
-      "/public/images/polignano-room-jacuzzi-suite.jpg",
-      "/polignano-spa-wellness.jpg",
-      "/polignano-luxury-bathroom.jpg",
-      "/polignano-romantic-suite.jpg",
-      "/polignano-wellness-center.jpg",
-      "/polignano-private-jacuzzi.jpg",
-      "/polignano-suite-interior.jpg",
-      "/polignano-relaxation-area.jpg",
+      "/images/room-2.jpg", // camera con soffitto a volta in pietra
+      "/camera/camera3.jpg", // bagno con vasca idromassaggio blu illuminata
+      "/camera/camera7.jpg", // camera con appendiabiti dorato e TV
+      "/camera/camera14.jpg", // divano grigio e zona pranzo
+      "/camera/camera8.jpg", // bagno con doppio lavabo e vasca
+      "/camera/camera9.jpg", // sauna con vetro
+      "/camera/camera18.jpg", // sauna con persona
+      "/camera/camera15.jpg", // bagno moderno con piastrelle verdi
+      "/camera/camera16.jpg", // altro bagno moderno
+      "/camera/camera10.jpg", // dettaglio amenities bagno
+      "/images/spa.jpg", // idromassaggio blu
+      "/camera/camera13.jpg", // piscina rooftop di giorno
     ],
     price: 150,
     originalPrice: 180,
