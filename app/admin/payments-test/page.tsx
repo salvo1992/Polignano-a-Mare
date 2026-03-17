@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, XCircle, Loader2, CreditCard, RefreshCw, Ban, AlertTriangle } from "lucide-react"
+import { CheckCircle2, XCircle, Loader2, CreditCard, RefreshCw, Ban, AlertTriangle, Key, Mail, Phone } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
 
 export default function PaymentsTestPage() {
+  const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
@@ -17,6 +19,12 @@ export default function PaymentsTestPage() {
   const [bookingId, setBookingId] = useState("")
   const [newCheckIn, setNewCheckIn] = useState("")
   const [newCheckOut, setNewCheckOut] = useState("")
+  
+  // Login test state
+  const [testEmail, setTestEmail] = useState("")
+  const [testPassword, setTestPassword] = useState("")
+  const [testPhone, setTestPhone] = useState("")
+  const [otpResult, setOtpResult] = useState<any>(null)
 
   const testBalancePayment = async () => {
     if (!bookingId) {
@@ -230,12 +238,13 @@ export default function PaymentsTestPage() {
       </div>
 
       <Tabs defaultValue="balance" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="balance">Saldo</TabsTrigger>
           <TabsTrigger value="dates">Cambio Date</TabsTrigger>
           <TabsTrigger value="cancel">Cancellazione</TabsTrigger>
           <TabsTrigger value="refund">Rimborso</TabsTrigger>
           <TabsTrigger value="penalty">Penale</TabsTrigger>
+          <TabsTrigger value="credentials">Credenziali</TabsTrigger>
         </TabsList>
 
         <TabsContent value="balance">
@@ -471,6 +480,177 @@ export default function PaymentsTestPage() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="credentials">
+          <div className="grid gap-6 md:grid-cols-3">
+            {/* Test Email OTP */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5" />
+                  Test Cambio Email
+                </CardTitle>
+                <CardDescription>Verifica invio OTP per cambio email</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Email Attuale</Label>
+                  <Input value={user?.email || "N/A"} disabled className="bg-muted" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="test-email">Nuova Email (test)</Label>
+                  <Input
+                    id="test-email"
+                    type="email"
+                    placeholder="test@example.com"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                  />
+                </div>
+                <Button
+                  onClick={async () => {
+                    if (!testEmail) return setError("Inserisci una email")
+                    setLoading(true)
+                    setError(null)
+                    setOtpResult(null)
+                    try {
+                      const res = await fetch("/api/admin/send-otp-email", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ newEmail: testEmail, userId: user?.uid }),
+                      })
+                      const data = await res.json()
+                      if (!res.ok) throw new Error(data.error)
+                      setOtpResult({ type: "email", ...data })
+                    } catch (e: any) {
+                      setError(e.message)
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                  disabled={loading || !testEmail}
+                  className="w-full"
+                >
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                  Invia OTP Email
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Test Password OTP */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  Test Cambio Password
+                </CardTitle>
+                <CardDescription>Verifica invio OTP per cambio password</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="test-password">Nuova Password (test)</Label>
+                  <Input
+                    id="test-password"
+                    type="password"
+                    placeholder="Min 8 char, 1 maiusc, 2 numeri"
+                    value={testPassword}
+                    onChange={(e) => setTestPassword(e.target.value)}
+                  />
+                </div>
+                <Button
+                  onClick={async () => {
+                    if (!testPassword) return setError("Inserisci una password")
+                    setLoading(true)
+                    setError(null)
+                    setOtpResult(null)
+                    try {
+                      const res = await fetch("/api/admin/send-otp-password", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ newPassword: testPassword, userId: user?.uid, method: "email" }),
+                      })
+                      const data = await res.json()
+                      if (!res.ok) throw new Error(data.error)
+                      setOtpResult({ type: "password", ...data })
+                    } catch (e: any) {
+                      setError(e.message)
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                  disabled={loading || !testPassword}
+                  className="w-full"
+                >
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Key className="mr-2 h-4 w-4" />}
+                  Invia OTP Password
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Test Phone OTP */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Phone className="h-5 w-5" />
+                  Test Cambio Telefono
+                </CardTitle>
+                <CardDescription>Verifica invio OTP per cambio telefono</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="test-phone">Nuovo Telefono (test)</Label>
+                  <Input
+                    id="test-phone"
+                    type="tel"
+                    placeholder="+39 123 456 7890"
+                    value={testPhone}
+                    onChange={(e) => setTestPhone(e.target.value)}
+                  />
+                </div>
+                <Button
+                  onClick={async () => {
+                    if (!testPhone) return setError("Inserisci un numero")
+                    setLoading(true)
+                    setError(null)
+                    setOtpResult(null)
+                    try {
+                      const res = await fetch("/api/admin/send-otp-phone", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ newPhone: testPhone, userId: user?.uid, method: "email" }),
+                      })
+                      const data = await res.json()
+                      if (!res.ok) throw new Error(data.error)
+                      setOtpResult({ type: "phone", ...data })
+                    } catch (e: any) {
+                      setError(e.message)
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                  disabled={loading || !testPhone}
+                  className="w-full"
+                >
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4" />}
+                  Invia OTP Telefono
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {otpResult && (
+            <Alert className="mt-6 bg-green-50 border-green-200">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription>
+                <p className="font-semibold text-green-900">
+                  OTP per {otpResult.type === "email" ? "cambio email" : otpResult.type === "password" ? "cambio password" : "cambio telefono"} inviato!
+                </p>
+                <p className="text-sm mt-1">{otpResult.message}</p>
+                <p className="text-xs text-muted-foreground mt-2">Controlla la tua email per il codice OTP a 4 cifre.</p>
+              </AlertDescription>
+            </Alert>
+          )}
         </TabsContent>
       </Tabs>
 
