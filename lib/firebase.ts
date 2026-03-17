@@ -51,7 +51,11 @@ export const db = getFirestore(app)
 export const storage = getStorage(app)
 export const functions = getFunctions(app)
 const IS_BROWSER = typeof window !== "undefined"
-const IS_DEV = IS_BROWSER && window.location.hostname.includes("localhost")
+// Use popup mode for localhost and v0 sandbox (vusercontent.net) due to CSP restrictions
+const IS_DEV = IS_BROWSER && (
+  window.location.hostname.includes("localhost") || 
+  window.location.hostname.includes("vusercontent.net")
+)
 const IS_PROD = !IS_DEV
 
 const googleProvider = new GoogleAuthProvider()

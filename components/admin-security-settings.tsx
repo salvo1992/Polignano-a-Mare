@@ -79,7 +79,7 @@ export function AdminSecuritySettings() {
       const response = await fetch("/api/admin/send-otp-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newEmail, userId: user?.uid, method: "sms" }),
+        body: JSON.stringify({ newEmail, userId: user?.uid, method: "email" }),
       })
       
       const data = await response.json()
@@ -88,7 +88,7 @@ export function AdminSecuritySettings() {
       
       setEmailOtpSent(true)
       setEmailDialogOpen(true)
-      alert(data.message || "Codice OTP inviato via SMS")
+      alert(data.message || "Codice OTP inviato via Email")
     } catch (error: any) {
       console.error("[v0] Error sending email OTP:", error)
       alert(error.message || "Errore nell'invio del codice OTP")
@@ -289,9 +289,9 @@ export function AdminSecuritySettings() {
                 onChange={(e) => setNewEmail(e.target.value)}
               />
             </div>
-            <p className="text-xs text-muted-foreground">Il codice OTP verrà inviato via SMS al tuo numero registrato</p>
+            <p className="text-xs text-muted-foreground">Il codice OTP verrà inviato alla tua email attuale per confermare il cambio</p>
             <Button onClick={handleSendEmailOtp} disabled={loading || !newEmail} className="w-full sm:w-auto">
-              {loading ? "Invio..." : "Invia Codice OTP via SMS"}
+              {loading ? "Invio..." : "Invia Codice OTP via Email"}
             </Button>
           </div>
 
@@ -375,7 +375,7 @@ export function AdminSecuritySettings() {
           <DialogHeader>
             <DialogTitle>Conferma Modifica Email</DialogTitle>
             <DialogDescription>
-              Inserisci il codice OTP di 4 cifre inviato via SMS al tuo numero registrato
+              Inserisci il codice OTP di 4 cifre inviato alla tua email attuale per confermare il cambio
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

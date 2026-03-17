@@ -146,7 +146,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData) {
         
         <div class="detail-row" style="border-bottom: none;">
           <span class="detail-label">Importo Totale Pagato:</span>
-          <span style="color: #059669; font-weight: bold; font-size: 18px;">€${(data.totalAmount / 100).toFixed(2)}</span>
+          <span style="color: #059669; font-weight: bold; font-size: 18px;">€${data.totalAmount.toFixed(2)}</span>
         </div>
       </div>
       
@@ -459,7 +459,7 @@ export async function sendModificationEmail(data: ModificationEmailData) {
         
         <div class="detail-row" style="border-bottom: none;">
           <span class="detail-label">Importo Totale Pagato:</span>
-          <span style="color: #059669; font-weight: bold; font-size: 18px;">€${(data.newAmount / 100).toFixed(2)}</span>
+          <span style="color: #059669; font-weight: bold; font-size: 18px;">€${data.newAmount.toFixed(2)}</span>
         </div>
       </div>
       
@@ -468,7 +468,7 @@ export async function sendModificationEmail(data: ModificationEmailData) {
           ? `
       <div class="refund-box">
         <h3 style="margin-top: 0; color: #059669;">✅ Rimborso in Elaborazione</h3>
-        <p><strong>Importo da Rimborsare:</strong> €${(data.refundAmount / 100).toFixed(2)}</p>
+        <p><strong>Importo da Rimborsare:</strong> €${data.refundAmount.toFixed(2)}</p>
         <p style="font-size: 14px; margin-top: 15px;">
           Il rimborso verrà elaborato manualmente dal nostro team entro <strong>Sono necessari da 5 a 10 giorni affinché i rimborsi vengano visualizzati nell'estratto conto del cliente. Le commissioni Stripe sul pagamento originale non verranno restituite, ma il rimborso non prevede alcun costo aggiuntivo.</strong> sulla carta utilizzata per il pagamento originale.
         </p>
@@ -485,7 +485,7 @@ export async function sendModificationEmail(data: ModificationEmailData) {
         
         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd;">
           <span>Prenotazione Originale:</span>
-          <span>€${(data.originalAmount / 100).toFixed(2)}</span>
+          <span>€${data.originalAmount.toFixed(2)}</span>
         </div>
         
         ${
@@ -493,7 +493,7 @@ export async function sendModificationEmail(data: ModificationEmailData) {
             ? `
         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd; color: #dc2626;">
           <span>Penale Cambio Date:</span>
-          <span>+€${(data.penalty / 100).toFixed(2)}</span>
+          <span>+€${data.penalty.toFixed(2)}</span>
         </div>
         `
             : ""
@@ -504,7 +504,7 @@ export async function sendModificationEmail(data: ModificationEmailData) {
             ? `
         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd;">
           <span>Differenza Prezzo:</span>
-          <span>+€${(data.dateChangeCost / 100).toFixed(2)}</span>
+          <span>+€${data.dateChangeCost.toFixed(2)}</span>
         </div>
         `
             : ""
@@ -515,7 +515,7 @@ export async function sendModificationEmail(data: ModificationEmailData) {
             ? `
         <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #bae6fd; color: #059669;">
           <span>Rimborso da Ricevere:</span>
-          <span>-€${(data.refundAmount / 100).toFixed(2)}</span>
+          <span>-€${data.refundAmount.toFixed(2)}</span>
         </div>
         `
             : ""
@@ -523,7 +523,7 @@ export async function sendModificationEmail(data: ModificationEmailData) {
         
         <div style="display: flex; justify-content: space-between; padding: 15px 0 0 0; margin-top: 10px; border-top: 2px solid #1e40af; font-size: 18px;">
           <span style="font-weight: bold;">Nuovo Importo Totale:</span>
-          <span style="font-weight: bold; color: #1e40af;">€${(data.newAmount / 100).toFixed(2)}</span>
+          <span style="font-weight: bold; color: #1e40af;">€${data.newAmount.toFixed(2)}</span>
         </div>
         
         ${
@@ -531,11 +531,11 @@ export async function sendModificationEmail(data: ModificationEmailData) {
             ? `
         <div style="display: flex; justify-content: space-between; padding: 8px 0; margin-top: 15px; border-top: 1px solid #bae6fd;">
           <span style="color: #dc2626;">Importo Pagato al Cambio Date:</span>
-          <span style="color: #dc2626; font-weight: bold;">€${(difference / 100).toFixed(2)}</span>
+          <span style="color: #dc2626; font-weight: bold;">€${difference.toFixed(2)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; padding: 8px 0;">
           <span style="color: #059669;">Importo Totale Pagato:</span>
-          <span style="color: #059669; font-weight: bold;">€${(data.newAmount / 100).toFixed(2)}</span>
+          <span style="color: #059669; font-weight: bold;">€${data.newAmount.toFixed(2)}</span>
         </div>
         `
             : ""

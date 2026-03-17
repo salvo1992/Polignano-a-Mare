@@ -67,11 +67,8 @@ export default function CheckoutSuccess() {
       const bookingData = await getBookingById(bookingId)
       console.log("[v0] Booking loaded:", bookingData)
       setBooking(bookingData)
-
-      if (bookingData && !emailSent) {
-        await sendConfirmationEmail(bookingId)
-        setEmailSent(true)
-      }
+      // Email is already sent by the Stripe webhook - no need to send again here
+      setEmailSent(true)
     } catch (error) {
       console.error("[v0] Error loading booking:", error)
     } finally {
