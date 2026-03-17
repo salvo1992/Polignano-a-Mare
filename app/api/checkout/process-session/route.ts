@@ -43,25 +43,26 @@ export async function POST(request: NextRequest) {
     console.log("[v0 PROCESS-SESSION] Booking found:", metadata.bookingId)
 
     if (metadata.type === "change_dates") {
-      const depositAmount = Number.parseInt(metadata.depositAmount)
-      const balanceAmount = Number.parseInt(metadata.balanceAmount)
-      const newTotalAmount = Number.parseInt(metadata.newTotalAmount)
-      const penalty = Number.parseInt(metadata.penalty || "0")
-      const priceDifference = Number.parseInt(metadata.priceDifference)
+      const depositAmountCents = Number.parseInt(metadata.depositAmount)
+      const balanceAmountCents = Number.parseInt(metadata.balanceAmount)
+      const newTotalAmountCents = Number.parseInt(metadata.newTotalAmount)
+      const penaltyCents = Number.parseInt(metadata.penalty || "0")
+      const priceDifferenceCents = Number.parseInt(metadata.priceDifference)
 
       console.log("[v0 PROCESS-SESSION] Change dates:", {
         checkIn: metadata.checkIn,
         checkOut: metadata.checkOut,
-        newTotal: newTotalAmount / 100,
+        newTotal: newTotalAmountCents / 100,
       })
 
       await updateDoc(bookingRef, {
         checkIn: metadata.checkIn,
         checkOut: metadata.checkOut,
         nights: calculateNights(metadata.checkIn, metadata.checkOut),
-        totalAmount: newTotalAmount,
-        depositPaid: increment(depositAmount),
-        balanceDue: increment(balanceAmount),
+        totalAmount: newTotalAmountCents / 100, // Store as euros
+        totalAmountCents: newTotalAmountCents,
+        depositPaid: increment(depositAmountCents),
+        balanceDue: increment(balanceAmountCents),
         updatedAt: serverTimestamp(),
       })
 
@@ -76,10 +77,10 @@ export async function POST(request: NextRequest) {
           roomName: booking?.roomName,
           guests: booking?.guests || 2,
           nights: calculateNights(metadata.checkIn, metadata.checkOut),
-          originalAmount: Number.parseInt(metadata.originalAmount),
-          newAmount: newTotalAmount,
-          penalty,
-          dateChangeCost: priceDifference,
+          originalAmount: Number.parseInt(metadata.originalAmount) / 100, // Convert to euros
+          newAmount: newTotalAmountCents / 100, // Convert to euros
+          penalty: penaltyCents / 100, // Convert to euros
+          dateChangeCost: priceDifferenceCents / 100, // Convert to euros
           modificationType: "dates",
         })
       } catch (emailErr) {
@@ -87,13 +88,14 @@ export async function POST(request: NextRequest) {
       }
     } else if (metadata.type === "add_guest") {
       const newGuestsCount = Number.parseInt(metadata.newGuestsCount)
-      const newTotalAmount = Number.parseInt(metadata.newTotalAmount)
-      const originalAmount = Number.parseInt(metadata.originalAmount)
-      const guestAdditionCost = Number.parseInt(metadata.guestAdditionCost)
+      const newTotalAmountCents = Number.parseInt(metadata.newTotalAmount)
+      const originalAmountCents = Number.parseInt(metadata.originalAmount)
+      const guestAdditionCostCents = Number.parseInt(metadata.guestAdditionCost)
 
       await updateDoc(bookingRef, {
         guests: newGuestsCount,
-        totalAmount: newTotalAmount,
+        totalAmount: newTotalAmountCents / 100, // Store as euros
+        totalAmountCents: newTotalAmountCents,
         updatedAt: serverTimestamp(),
       })
 
@@ -109,9 +111,9 @@ export async function POST(request: NextRequest) {
           roomName: booking?.roomName,
           guests: newGuestsCount,
           nights,
-          originalAmount,
-          newAmount: newTotalAmount,
-          guestAdditionCost,
+          originalAmount: originalAmountCents / 100, // Convert to euros
+          newAmount: newTotalAmountCents / 100, // Convert to euros
+          guestAdditionCost: guestAdditionCostCents / 100, // Convert to euros
           modificationType: "guests",
         })
       } catch (emailErr) {
