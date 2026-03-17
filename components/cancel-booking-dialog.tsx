@@ -65,8 +65,9 @@ export function CancelBookingDialog({
 
   const performCancellation = async () => {
     try {
+      // Use POST instead of DELETE to ensure body is sent correctly across all browsers
       const response = await fetch("/api/bookings/cancel", {
-        method: "DELETE",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bookingId }),
       })

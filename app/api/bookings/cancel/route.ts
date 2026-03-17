@@ -11,11 +11,21 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://al22suite.com"
 
-export async function DELETE(request: NextRequest) {
+// Support both DELETE and POST methods
+async function handleCancellation(request: NextRequest) {
   try {
-    const { bookingId, userId } = await request.json()
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error("[Cancel] Body parse error:", parseError)
+      return NextResponse.json({ error: "Dati richiesta non validi" }, { status: 400 })
+    }
+    
+    const { bookingId, userId } = body
 
     if (!bookingId) {
+      console.error("[Cancel] Missing bookingId in request body:", body)
       return NextResponse.json({ error: "ID prenotazione mancante" }, { status: 400 })
     }
 
@@ -218,4 +228,13 @@ export async function DELETE(request: NextRequest) {
     console.error("[Cancel] Error:", error)
     return NextResponse.json({ error: "Errore nella cancellazione" }, { status: 500 })
   }
+}
+
+// Export both DELETE and POST handlers
+export async function DELETE(request: NextRequest) {
+  return handleCancellation(request)
+}
+
+export async function POST(request: NextRequest) {
+  return handleCancellation(request)
 }
