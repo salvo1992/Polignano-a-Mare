@@ -85,7 +85,14 @@ export default function CheckoutPage() {
         customerEmail: booking.email,
         metadata: { source: "site" },
       })
-      window.location.href = res.url
+      // Use window.open for v0 sandbox due to CSP restrictions, otherwise redirect
+      const isV0Sandbox = window.location.hostname.includes("vusercontent.net")
+      if (isV0Sandbox) {
+        window.open(res.url, "_blank")
+        setPaying(false)
+      } else {
+        window.location.href = res.url
+      }
     } catch (e: any) {
       console.error(e)
       if (e.message?.includes("Invalid API Key") || e.message?.includes("authentication")) {
