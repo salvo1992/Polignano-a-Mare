@@ -49,8 +49,9 @@ export default function CheckoutPage() {
   }, [bookingId])
 
   const totalEUR = useMemo(() => {
-    const cents = Number(booking?.totalAmount || 0)
-    return (cents / 100).toFixed(2)
+    // totalAmount is stored in euros, not cents
+    const euros = Number(booking?.totalAmount || 0)
+    return euros.toFixed(2)
   }, [booking])
 
   const handlePay = async () => {
@@ -73,9 +74,11 @@ export default function CheckoutPage() {
         // User may not exist yet -- webhook will handle creation
       }
 
+      // totalAmount is in euros, Stripe needs cents
+      const amountCents = booking.totalAmountCents || Math.round(booking.totalAmount * 100)
       const res = await createStripeCheckout({
         bookingId,
-        amount: Math.round(booking.totalAmount * 100),
+        amount: amountCents,
         currency: booking.currency || "EUR",
         successUrl,
         cancelUrl,

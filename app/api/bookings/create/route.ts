@@ -162,6 +162,7 @@ export async function POST(req: Request) {
     const bookingRef = db.collection("bookings").doc()
     const bookingId = bookingRef.id
 
+    const totalAmountEuros = Number(totalAmount)
     const bookingData = {
       bookingId,
       userId: userId || null,
@@ -180,7 +181,8 @@ export async function POST(req: Request) {
       subtotal: Number(subtotal),
       taxes: Number(taxes),
       serviceFee: Number(serviceFee || 0),
-      totalAmount: Number(totalAmount),
+      totalAmount: totalAmountEuros, // Amount in euros
+      totalAmountCents: Math.round(totalAmountEuros * 100), // Amount in cents for Stripe
       specialRequests: specialRequests || "",
       status: "pending",
       paymentProvider: null,
