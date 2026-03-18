@@ -124,7 +124,7 @@ export default function PaymentsTestPage() {
 
     try {
       const response = await fetch("/api/bookings/cancel", {
-        method: "DELETE",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId,
