@@ -110,6 +110,7 @@ export async function POST(req: Request) {
       totalAmount,
       specialRequests,
       userId,
+      isTestBooking, // Admin test bookings can skip availability check
     } = body
 
     // Validate required fields
@@ -138,25 +139,29 @@ export async function POST(req: Request) {
     const db = getAdminDb()
 
     // SERVER-SIDE ANTI-DOUBLE-BOOKING CHECK
-    // This is critical: check ALL sources of bookings before accepting
-    console.log("[Create Booking] Checking availability for dates:", checkIn, "to", checkOut, "room:", roomId)
+    // Skip for admin test bookings (they use isTestBooking flag)
+    if (!isTestBooking) {
+      console.log("[Create Booking] Checking availability for dates:", checkIn, "to", checkOut, "room:", roomId)
 
-    const unavailableDates = await getUnavailableDatesForRoom(db, roomId || undefined)
-    const conflicts = hasOverlap(checkIn, checkOut, unavailableDates)
+      const unavailableDates = await getUnavailableDatesForRoom(db, roomId || undefined)
+      const conflicts = hasOverlap(checkIn, checkOut, unavailableDates)
 
-    if (conflicts.length > 0) {
-      console.warn("[Create Booking] BLOCKED - Date conflict detected:", conflicts)
-      return NextResponse.json(
-        {
-          error: "Le date selezionate non sono disponibili. Alcune date sono gia' prenotate.",
-          conflictDates: conflicts,
-          code: "DATES_UNAVAILABLE",
-        },
-        { status: 409 }
-      )
+      if (conflicts.length > 0) {
+        console.warn("[Create Booking] BLOCKED - Date conflict detected:", conflicts)
+        return NextResponse.json(
+          {
+            error: "Le date selezionate non sono disponibili. Alcune date sono gia' prenotate.",
+            conflictDates: conflicts,
+            code: "DATES_UNAVAILABLE",
+          },
+          { status: 409 }
+        )
+      }
+
+      console.log("[Create Booking] Availability confirmed, creating booking...")
+    } else {
+      console.log("[Create Booking] Test booking - skipping availability check")
     }
-
-    console.log("[Create Booking] Availability confirmed, creating booking...")
 
     // Create booking document
     const bookingRef = db.collection("bookings").doc()

@@ -148,6 +148,7 @@ export default function PaymentsTestPage() {
         guests: 2,
         roomType: "acies",
         roomName: "Camera Acies (Test)",
+        isTestBooking: true, // Skip availability check for admin tests
         nights: 2,
         pricePerNight: 155,
         subtotal: 310,
