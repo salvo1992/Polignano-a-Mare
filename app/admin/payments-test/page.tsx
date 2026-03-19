@@ -24,11 +24,12 @@ import {
   Euro,
   CalendarCheck,
   Wallet,
-  Trash2
+  Trash2,
+  ArrowRight
 } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { db } from "@/lib/firebase"
-import { doc, getDoc, onSnapshot, deleteDoc } from "firebase/firestore"
+import { doc, getDoc, onSnapshot, deleteDoc, collection, query, where, getDocs, orderBy, limit } from "firebase/firestore"
 
 interface TestBooking {
   id: string
@@ -47,6 +48,7 @@ interface TestBooking {
   stripePaymentMethodId?: string
   cardLast4?: string
   cardBrand?: string
+  paymentStatus?: string
 }
 
 interface TestResult {
@@ -69,14 +71,21 @@ export default function PaymentsTestPage() {
   const [bookingId, setBookingId] = useState("")
   const [newCheckIn, setNewCheckIn] = useState("")
   const [newCheckOut, setNewCheckOut] = useState("")
-  const [testAmount, setTestAmount] = useState("15500")
+  const [testAmount, setTestAmount] = useState("31000") // 310 EUR for 2 nights
 
-  // Set default dates for testing
+  // Calculated dates based on days before check-in
+  const [checkInDate, setCheckInDate] = useState("")
+  const [checkOutDate, setCheckOutDate] = useState("")
+
+  // Update dates when days change
   useEffect(() => {
-    const today = new Date()
     const days = parseInt(daysBeforeCheckIn) || 30
-    const checkIn = new Date(today.getTime() + days * 24 * 60 * 60 * 1000)
-    const checkOut = new Date(checkIn.getTime() + 2 * 24 * 60 * 60 * 1000)
+    const checkIn = new Date()
+    checkIn.setDate(checkIn.getDate() + days)
+    const checkOut = new Date(checkIn)
+    checkOut.setDate(checkOut.getDate() + 2)
+    setCheckInDate(checkIn.toISOString().split('T')[0])
+    setCheckOutDate(checkOut.toISOString().split('T')[0])
     setNewCheckIn(checkIn.toISOString().split('T')[0])
     setNewCheckOut(checkOut.toISOString().split('T')[0])
   }, [daysBeforeCheckIn])
@@ -105,7 +114,21 @@ export default function PaymentsTestPage() {
           stripePaymentMethodId: data.stripePaymentMethodId,
           cardLast4: data.cardLast4,
           cardBrand: data.cardBrand,
+          paymentStatus: data.paymentStatus,
         })
+        
+        // Update results with payment info
+        if (data.stripePaymentMethodId) {
+          addResult({
+            success: true,
+            message: "Carta salvata correttamente!",
+            data: {
+              cardBrand: data.cardBrand,
+              cardLast4: data.cardLast4,
+              paymentStatus: data.paymentStatus,
+            }
+          })
+        }
       }
     })
     
@@ -113,22 +136,30 @@ export default function PaymentsTestPage() {
   }, [bookingId])
 
   const addResult = useCallback((result: TestResult) => {
-    setResults(prev => [{...result, timestamp: new Date().toLocaleTimeString()}, ...prev])
+    setResults(prev => {
+      // Avoid duplicates
+      const isDuplicate = prev.some(r => r.message === result.message)
+      if (isDuplicate) return prev
+      return [{...result, timestamp: new Date().toLocaleTimeString()}, ...prev]
+    })
   }, [])
 
   // Calculate days until check-in
-  const getDaysUntilCheckIn = (checkInDate: string) => {
-    const checkIn = new Date(checkInDate)
+  const getDaysUntilCheckIn = (checkInDateStr: string) => {
+    const checkIn = new Date(checkInDateStr)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     checkIn.setHours(0, 0, 0, 0)
     return Math.ceil((checkIn.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
   }
 
-  // Create a test booking
-  const createTestBooking = async () => {
+  const daysUntil = getDaysUntilCheckIn(checkInDate)
+  const willChargeImmediately = daysUntil <= 7
+
+  // STEP 1: Create booking AND start Stripe checkout together
+  const startBookingWithPayment = async () => {
     setLoading(true)
-    setActiveTest("create")
+    setActiveTest("create-pay")
     setError(null)
 
     try {
@@ -138,17 +169,21 @@ export default function PaymentsTestPage() {
       const checkOut = new Date(checkIn)
       checkOut.setDate(checkOut.getDate() + 2)
 
+      const checkInStr = checkIn.toISOString().split('T')[0]
+      const checkOutStr = checkOut.toISOString().split('T')[0]
+
+      // First create the booking
       const bookingData = {
         email: user?.email || "test@al22suite.com",
         firstName: "Test",
         lastName: "Pagamenti",
         phone: "+39 123 456 7890",
-        checkIn: checkIn.toISOString().split('T')[0],
-        checkOut: checkOut.toISOString().split('T')[0],
+        checkIn: checkInStr,
+        checkOut: checkOutStr,
         guests: 2,
         roomType: "acies",
         roomName: "Camera Acies (Test)",
-        isTestBooking: true, // Skip availability check for admin tests
+        isTestBooking: true,
         nights: 2,
         pricePerNight: 155,
         subtotal: 310,
@@ -158,31 +193,80 @@ export default function PaymentsTestPage() {
         specialRequests: `TEST - Prenotazione ${days} giorni prima del check-in`,
       }
 
-      const response = await fetch("/api/bookings/create", {
+      addResult({
+        success: true,
+        message: "Creazione prenotazione in corso...",
+        data: { checkIn: checkInStr, checkOut: checkOutStr, days }
+      })
+
+      const createResponse = await fetch("/api/bookings/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bookingData),
       })
 
-      const data = await response.json()
+      const createData = await createResponse.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || "Errore nella creazione della prenotazione")
+      if (!createResponse.ok) {
+        throw new Error(createData.error || "Errore nella creazione della prenotazione")
       }
 
-      setBookingId(data.bookingId)
+      const newBookingId = createData.bookingId
+      setBookingId(newBookingId)
 
       addResult({
         success: true,
-        message: `Prenotazione creata! Check-in tra ${days} giorni`,
-        data: { 
-          bookingId: data.bookingId, 
-          checkIn: bookingData.checkIn,
-          checkOut: bookingData.checkOut,
-          daysUntilCheckIn: days,
-          totalAmount: bookingData.totalAmount + " EUR",
+        message: `Prenotazione creata: ${newBookingId}`,
+        data: { bookingId: newBookingId }
+      })
+
+      // Now create Stripe session
+      const amount = 31000 // 310 EUR
+      const successUrl = `${window.location.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}&bookingId=${newBookingId}`
+      const cancelUrl = `${window.location.origin}/admin/payments-test?cancelled=true&bookingId=${newBookingId}`
+
+      const stripeResponse = await fetch("/api/payments/stripe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId: newBookingId,
+          amount,
+          currency: "EUR",
+          successUrl,
+          cancelUrl,
+          customerEmail: user?.email || "test@al22suite.com",
+          checkInDate: checkInStr,
+        }),
+      })
+
+      const stripeData = await stripeResponse.json()
+
+      if (!stripeResponse.ok) {
+        throw new Error(stripeData.error || "Errore nella creazione sessione Stripe")
+      }
+
+      const modeMessage = stripeData.chargedImmediately 
+        ? `ADDEBITO IMMEDIATO (${stripeData.daysUntilCheckIn} giorni al check-in)`
+        : `SALVATAGGIO CARTA (addebito 7 giorni prima del check-in)`
+
+      addResult({
+        success: true,
+        message: `Checkout Stripe aperto - ${modeMessage}`,
+        data: {
+          sessionId: stripeData.sessionId,
+          customerId: stripeData.customerId,
+          mode: stripeData.mode,
+          amount: "310.00 EUR",
+          chargedImmediately: stripeData.chargedImmediately,
+          daysUntilCheckIn: stripeData.daysUntilCheckIn,
+          note: "Usa carta 4242 4242 4242 4242, data futura, CVC qualsiasi"
         },
       })
+
+      if (stripeData.url) {
+        window.open(stripeData.url, "_blank", "width=500,height=700")
+      }
+
     } catch (err: any) {
       setError(err.message)
       addResult({ success: false, message: `Errore: ${err.message}` })
@@ -192,76 +276,10 @@ export default function PaymentsTestPage() {
     }
   }
 
-  // Test Stripe Checkout Session
-  const testStripeCheckout = async () => {
+  // Check payment status
+  const checkPaymentStatus = async () => {
     if (!bookingId) {
-      setError("Crea prima una prenotazione di test o inserisci un ID")
-      return
-    }
-
-    setLoading(true)
-    setActiveTest("stripe")
-    setError(null)
-
-    try {
-      const amount = parseInt(testAmount) || 15500
-      const successUrl = `${window.location.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}&bookingId=${bookingId}`
-      const cancelUrl = `${window.location.origin}/admin/payments-test?cancelled=true`
-
-      const response = await fetch("/api/payments/stripe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bookingId,
-          amount,
-          currency: "EUR",
-          successUrl,
-          cancelUrl,
-          customerEmail: testBooking?.email || user?.email || "test@al22suite.com",
-          checkInDate: testBooking?.checkIn, // Pass check-in date to determine immediate charge vs setup
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Errore nella creazione della sessione Stripe")
-      }
-
-      const modeMessage = data.chargedImmediately 
-        ? `ADDEBITO IMMEDIATO (${data.daysUntilCheckIn} giorni al check-in)`
-        : `SOLO SALVATAGGIO CARTA (${data.daysUntilCheckIn} giorni al check-in - addebito 7gg prima)`
-
-      addResult({
-        success: true,
-        message: `Sessione Stripe creata! ${modeMessage}`,
-        data: {
-          sessionId: data.sessionId,
-          customerId: data.customerId,
-          amount: `${(amount / 100).toFixed(2)} EUR`,
-          mode: data.mode,
-          daysUntilCheckIn: data.daysUntilCheckIn,
-          chargedImmediately: data.chargedImmediately,
-          note: "Usa carta 4242 4242 4242 4242, data futura, CVC 123"
-        },
-      })
-
-      if (data.url) {
-        window.open(data.url, "_blank", "width=500,height=700")
-      }
-    } catch (err: any) {
-      setError(err.message)
-      addResult({ success: false, message: `Errore Stripe: ${err.message}` })
-    } finally {
-      setLoading(false)
-      setActiveTest(null)
-    }
-  }
-
-  // Check if payment method is attached
-  const checkPaymentMethod = async () => {
-    if (!bookingId) {
-      setError("Inserisci un ID prenotazione")
+      setError("Crea prima una prenotazione")
       return
     }
 
@@ -279,18 +297,21 @@ export default function PaymentsTestPage() {
 
       const data = snap.data()
       const hasPaymentMethod = !!(data.stripePaymentMethodId && data.stripeCustomerId)
+      const isPaid = data.paymentStatus === "paid"
 
       addResult({
-        success: hasPaymentMethod,
-        message: hasPaymentMethod 
-          ? "Metodo di pagamento salvato correttamente!"
+        success: hasPaymentMethod || isPaid,
+        message: isPaid 
+          ? "Pagamento completato!"
+          : hasPaymentMethod 
+          ? "Carta salvata, pagamento programmato 7gg prima"
           : "Nessun metodo di pagamento salvato",
         data: {
-          stripeCustomerId: data.stripeCustomerId || "Non presente",
-          stripePaymentMethodId: data.stripePaymentMethodId || "Non presente",
-          cardLast4: data.cardLast4 || "-",
-          cardBrand: data.cardBrand || "-",
           status: data.status,
+          paymentStatus: data.paymentStatus || "pending",
+          stripeCustomerId: data.stripeCustomerId || "-",
+          cardBrand: data.cardBrand || "-",
+          cardLast4: data.cardLast4 || "-",
         },
       })
     } catch (err: any) {
@@ -302,10 +323,15 @@ export default function PaymentsTestPage() {
     }
   }
 
-  // Test balance payment (7 days before check-in)
+  // Test balance payment (simulate 7 days before)
   const testBalancePayment = async () => {
     if (!bookingId) {
-      setError("Inserisci un ID prenotazione")
+      setError("Crea prima una prenotazione")
+      return
+    }
+
+    if (!testBooking?.stripePaymentMethodId) {
+      setError("Prima devi salvare una carta tramite Stripe checkout")
       return
     }
 
@@ -314,6 +340,11 @@ export default function PaymentsTestPage() {
     setError(null)
 
     try {
+      addResult({
+        success: true,
+        message: "Simulazione addebito saldo (come 7 giorni prima)...",
+      })
+
       const response = await fetch("/api/payments/process-balance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -329,19 +360,21 @@ export default function PaymentsTestPage() {
       addResult({
         success: data.success,
         message: data.status === "paid" 
-          ? "Pagamento saldo completato con successo!"
+          ? "Addebito saldo completato!"
+          : data.status === "already_paid"
+          ? "Gia pagato (prenotazione entro 7gg)"
           : data.status === "payment_action_required"
-          ? "Richiesta autenticazione 3D Secure. Link inviato al cliente."
+          ? "Richiesta 3D Secure - Link inviato"
           : `Stato: ${data.status}`,
         data: {
           status: data.status,
           paymentIntentId: data.paymentIntentId,
-          paymentUrl: data.paymentUrl,
+          amount: data.amountCharged ? `${(data.amountCharged / 100).toFixed(2)} EUR` : "-",
         },
       })
     } catch (err: any) {
       setError(err.message)
-      addResult({ success: false, message: `Errore pagamento saldo: ${err.message}` })
+      addResult({ success: false, message: `Errore saldo: ${err.message}` })
     } finally {
       setLoading(false)
       setActiveTest(null)
@@ -351,7 +384,7 @@ export default function PaymentsTestPage() {
   // Test cancellation
   const testCancellation = async () => {
     if (!bookingId) {
-      setError("Inserisci un ID prenotazione")
+      setError("Crea prima una prenotazione")
       return
     }
 
@@ -360,6 +393,14 @@ export default function PaymentsTestPage() {
     setError(null)
 
     try {
+      const daysLeft = testBooking?.checkIn ? getDaysUntilCheckIn(testBooking.checkIn) : 30
+      const willHavePenalty = daysLeft <= 7
+
+      addResult({
+        success: true,
+        message: `Test cancellazione (${daysLeft} giorni al check-in)${willHavePenalty ? " - PENALE 100%" : " - Rimborso completo"}`,
+      })
+
       const response = await fetch("/api/bookings/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -381,8 +422,8 @@ export default function PaymentsTestPage() {
         data: {
           penaltyPercent: data.penaltyPercent + "%",
           refundPercent: data.refundPercent + "%",
-          refundAmount: data.refundAmount + " EUR",
-          penaltyAmount: data.penaltyAmount + " EUR",
+          refundAmount: data.refundAmount ? data.refundAmount + " EUR" : "N/A",
+          penaltyAmount: data.penaltyAmount ? data.penaltyAmount + " EUR" : "N/A",
         },
       })
     } catch (err: any) {
@@ -397,7 +438,7 @@ export default function PaymentsTestPage() {
   // Test refund
   const testRefund = async () => {
     if (!bookingId) {
-      setError("Inserisci un ID prenotazione")
+      setError("Crea prima una prenotazione")
       return
     }
 
@@ -423,7 +464,7 @@ export default function PaymentsTestPage() {
 
       addResult({
         success: true,
-        message: "Rimborso elaborato con successo!",
+        message: "Rimborso elaborato!",
         data,
       })
     } catch (err: any) {
@@ -466,17 +507,14 @@ export default function PaymentsTestPage() {
       if (data.paymentRequired && data.paymentUrl) {
         addResult({
           success: true,
-          message: "Cambio date richiede pagamento differenza. Apertura checkout...",
-          data: {
-            priceDifference: data.priceDifference + " EUR",
-            paymentRequired: true,
-          },
+          message: "Cambio date richiede pagamento differenza",
+          data: { priceDifference: data.priceDifference + " EUR" },
         })
         window.open(data.paymentUrl, "_blank", "width=500,height=700")
       } else {
         addResult({
           success: true,
-          message: "Date modificate con successo!",
+          message: "Date modificate!",
           data,
         })
       }
@@ -493,19 +531,16 @@ export default function PaymentsTestPage() {
   const deleteTestBooking = async () => {
     if (!bookingId) return
     
-    if (!confirm("Sei sicuro di voler eliminare questa prenotazione di test?")) return
+    if (!confirm("Eliminare questa prenotazione di test?")) return
 
     setLoading(true)
     try {
       await deleteDoc(doc(db, "bookings", bookingId))
       setTestBooking(null)
       setBookingId("")
-      addResult({
-        success: true,
-        message: "Prenotazione di test eliminata",
-      })
+      addResult({ success: true, message: "Prenotazione eliminata" })
     } catch (err: any) {
-      addResult({ success: false, message: `Errore eliminazione: ${err.message}` })
+      addResult({ success: false, message: `Errore: ${err.message}` })
     } finally {
       setLoading(false)
     }
@@ -516,60 +551,61 @@ export default function PaymentsTestPage() {
     setError(null)
   }
 
-  const daysUntil = testBooking?.checkIn ? getDaysUntilCheckIn(testBooking.checkIn) : null
-
   return (
     <div className="container mx-auto p-6 max-w-7xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Test Sistema Pagamenti Stripe</h1>
         <p className="text-muted-foreground">
-          Crea prenotazioni di test e verifica tutti i flussi di pagamento, cancellazione e rimborso
+          Testa prenotazione + pagamento, cancellazioni, rimborsi e addebito saldo
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Test Controls */}
+        {/* Left Column - Main Test Flow */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Step 1: Create Test Booking */}
-          <Card>
-            <CardHeader>
+          
+          {/* STEP 1: Create & Pay */}
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="bg-primary/5">
               <CardTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Step 1: Crea Prenotazione di Test
+                <div className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">1</div>
+                Crea Prenotazione + Pagamento
               </CardTitle>
               <CardDescription>
-                Scegli quanti giorni prima del check-in per testare diversi scenari
+                Scegli i giorni al check-in, crea la prenotazione e procedi al pagamento Stripe
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="pt-6 space-y-4">
+              {/* Quick Select */}
               <div className="grid grid-cols-3 gap-2">
                 <Button 
                   variant={daysBeforeCheckIn === "3" ? "default" : "outline"}
                   onClick={() => setDaysBeforeCheckIn("3")}
-                  className="text-sm"
+                  size="sm"
                 >
                   <AlertTriangle className="h-4 w-4 mr-1" />
-                  3 giorni (penale 100%)
+                  3gg (Addebito subito)
                 </Button>
                 <Button 
                   variant={daysBeforeCheckIn === "7" ? "default" : "outline"}
                   onClick={() => setDaysBeforeCheckIn("7")}
-                  className="text-sm"
+                  size="sm"
                 >
                   <Clock className="h-4 w-4 mr-1" />
-                  7 giorni (limite)
+                  7gg (Limite)
                 </Button>
                 <Button 
                   variant={daysBeforeCheckIn === "30" ? "default" : "outline"}
                   onClick={() => setDaysBeforeCheckIn("30")}
-                  className="text-sm"
+                  size="sm"
                 >
                   <CalendarCheck className="h-4 w-4 mr-1" />
-                  30 giorni (no penale)
+                  30gg (Solo carta)
                 </Button>
               </div>
 
-              <div className="flex gap-2 items-end">
+              {/* Custom Days Input */}
+              <div className="flex gap-4 items-end">
                 <div className="flex-1">
                   <Label>Giorni prima del check-in</Label>
                   <Input 
@@ -580,311 +616,258 @@ export default function PaymentsTestPage() {
                     max="365"
                   />
                 </div>
+                <div className="flex-1">
+                  <Label>Check-in</Label>
+                  <Input value={checkInDate} readOnly className="bg-muted" />
+                </div>
+                <div className="flex-1">
+                  <Label>Check-out</Label>
+                  <Input value={checkOutDate} readOnly className="bg-muted" />
+                </div>
+              </div>
+
+              {/* Info Box */}
+              <Alert className={willChargeImmediately ? "border-amber-500 bg-amber-50" : "border-green-500 bg-green-50"}>
+                <AlertDescription className="flex items-center gap-2">
+                  {willChargeImmediately ? (
+                    <>
+                      <AlertTriangle className="h-5 w-5 text-amber-600" />
+                      <span className="text-amber-800">
+                        <strong>Addebito immediato 310 EUR</strong> - Check-in entro 7 giorni
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="h-5 w-5 text-green-600" />
+                      <span className="text-green-800">
+                        <strong>Solo salvataggio carta</strong> - Addebito automatico 7 giorni prima
+                      </span>
+                    </>
+                  )}
+                </AlertDescription>
+              </Alert>
+
+              {/* Main Action Button */}
+              <Button 
+                onClick={startBookingWithPayment} 
+                disabled={loading}
+                size="lg"
+                className="w-full"
+              >
+                {loading && activeTest === "create-pay" ? (
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                ) : (
+                  <CreditCard className="mr-2 h-5 w-5" />
+                )}
+                Crea Prenotazione e Apri Stripe Checkout
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+
+              <p className="text-xs text-muted-foreground text-center">
+                Carta test: 4242 4242 4242 4242 | Data: qualsiasi futura | CVC: qualsiasi
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Current Booking Status */}
+          {testBooking && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    Prenotazione Attiva
+                  </span>
+                  <div className="flex gap-2">
+                    <Badge variant={testBooking.paymentStatus === "paid" ? "default" : "secondary"}>
+                      {testBooking.paymentStatus || "pending"}
+                    </Badge>
+                    <Button size="sm" variant="ghost" onClick={deleteTestBooking}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">ID:</span>
+                    <code className="ml-2 bg-muted px-2 py-1 rounded text-xs">{testBooking.id}</code>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Totale:</span>
+                    <strong className="ml-2">{testBooking.totalAmount} EUR</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Check-in:</span>
+                    <span className="ml-2">{testBooking.checkIn}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Check-out:</span>
+                    <span className="ml-2">{testBooking.checkOut}</span>
+                  </div>
+                </div>
+
+                {/* Payment Method */}
+                <div className={`rounded-lg p-4 ${testBooking.stripePaymentMethodId ? "bg-green-100" : "bg-amber-100"}`}>
+                  {testBooking.stripePaymentMethodId ? (
+                    <div className="flex items-center gap-3">
+                      <CreditCard className="h-6 w-6 text-green-700" />
+                      <div>
+                        <p className="font-medium text-green-800">Carta Salvata</p>
+                        <p className="text-sm text-green-700">
+                          {testBooking.cardBrand} **** {testBooking.cardLast4}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="h-6 w-6 text-amber-700" />
+                      <div>
+                        <p className="font-medium text-amber-800">Carta Non Salvata</p>
+                        <p className="text-sm text-amber-700">Completa il checkout Stripe</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* STEP 2: Additional Tests */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <div className="bg-secondary text-secondary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">2</div>
+                Test Aggiuntivi
+              </CardTitle>
+              <CardDescription>
+                Verifica stato pagamento, simula addebito saldo, cancellazione e rimborsi
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
                 <Button 
-                  onClick={createTestBooking} 
-                  disabled={loading} 
-                  className="flex-1"
+                  onClick={checkPaymentStatus} 
+                  disabled={loading || !bookingId}
+                  variant="outline"
                 >
-                  {loading && activeTest === "create" ? (
+                  {loading && activeTest === "check" ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <Plus className="mr-2 h-4 w-4" />
+                    <RefreshCw className="mr-2 h-4 w-4" />
                   )}
-                  Crea Prenotazione
+                  Verifica Stato Pagamento
+                </Button>
+
+                <Button 
+                  onClick={testBalancePayment} 
+                  disabled={loading || !bookingId || !testBooking?.stripePaymentMethodId}
+                  variant="outline"
+                >
+                  {loading && activeTest === "balance" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Euro className="mr-2 h-4 w-4" />
+                  )}
+                  Simula Addebito Saldo
+                </Button>
+
+                <Button 
+                  onClick={testCancellation} 
+                  disabled={loading || !bookingId}
+                  variant="outline"
+                  className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                >
+                  {loading && activeTest === "cancel" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Ban className="mr-2 h-4 w-4" />
+                  )}
+                  Test Cancellazione
+                </Button>
+
+                <Button 
+                  onClick={testRefund} 
+                  disabled={loading || !bookingId}
+                  variant="outline"
+                  className="text-red-600 border-red-300 hover:bg-red-50"
+                >
+                  {loading && activeTest === "refund" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wallet className="mr-2 h-4 w-4" />
+                  )}
+                  Test Rimborso
                 </Button>
               </div>
 
-              {testBooking && (
-                <>
-                  <Separator />
-                  <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        <span className="font-semibold">Prenotazione Attiva</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <Badge variant={daysUntil && daysUntil <= 7 ? "destructive" : "secondary"}>
-                          {daysUntil} giorni al check-in
-                        </Badge>
-                        <Badge variant="outline">{testBooking.status}</Badge>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div><span className="text-muted-foreground">ID:</span> <code className="bg-background px-1 rounded text-xs">{testBooking.id}</code></div>
-                      <div><span className="text-muted-foreground">Totale:</span> {testBooking.totalAmount} EUR</div>
-                      <div><span className="text-muted-foreground">Check-in:</span> {testBooking.checkIn}</div>
-                      <div><span className="text-muted-foreground">Check-out:</span> {testBooking.checkOut}</div>
-                    </div>
-
-                    {/* Payment Method Status */}
-                    <div className={`rounded-md p-3 ${testBooking.stripePaymentMethodId ? "bg-green-100 dark:bg-green-900/30" : "bg-amber-100 dark:bg-amber-900/30"}`}>
-                      <div className="flex items-center gap-2">
-                        {testBooking.stripePaymentMethodId ? (
-                          <>
-                            <CreditCard className="h-4 w-4 text-green-700 dark:text-green-400" />
-                            <span className="text-sm font-medium text-green-900 dark:text-green-100">
-                              Carta salvata: {testBooking.cardBrand || "Card"} **** {testBooking.cardLast4 || "****"}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-400" />
-                            <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                              Nessuna carta salvata - completa lo Step 2
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <Button variant="outline" size="sm" onClick={deleteTestBooking} className="w-full">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Elimina Prenotazione Test
-                    </Button>
-                  </div>
-                </>
-              )}
-
               <Separator />
-              <div className="space-y-2">
-                <Label>Oppure usa un ID esistente:</Label>
+
+              {/* Change Dates */}
+              <div className="space-y-3">
+                <Label>Test Cambio Date</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input 
+                    type="date" 
+                    value={newCheckIn} 
+                    onChange={(e) => setNewCheckIn(e.target.value)}
+                    disabled={!bookingId}
+                  />
+                  <Input 
+                    type="date" 
+                    value={newCheckOut} 
+                    onChange={(e) => setNewCheckOut(e.target.value)}
+                    disabled={!bookingId}
+                  />
+                </div>
+                <Button 
+                  onClick={testChangeDates} 
+                  disabled={loading || !bookingId}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {loading && activeTest === "dates" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <CalendarCheck className="mr-2 h-4 w-4" />
+                  )}
+                  Cambia Date
+                </Button>
+              </div>
+
+              {/* Manual Booking ID Input */}
+              <Separator />
+              <div className="space-y-3">
+                <Label>Oppure usa un Booking ID esistente</Label>
                 <div className="flex gap-2">
-                  <Input
-                    placeholder="es: ABC123XYZ"
+                  <Input 
+                    placeholder="Inserisci Booking ID..." 
                     value={bookingId}
                     onChange={(e) => setBookingId(e.target.value)}
                   />
-                  <Button variant="outline" onClick={checkPaymentMethod} disabled={loading || !bookingId}>
-                    {loading && activeTest === "check" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
+                  <Button 
+                    onClick={checkPaymentStatus}
+                    disabled={loading || !bookingId}
+                    variant="secondary"
+                  >
+                    Carica
                   </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
-
-          {/* Step 2: Stripe Checkout */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                Step 2: Salva Carta (Stripe Checkout)
-              </CardTitle>
-              <CardDescription>
-                Apre Stripe Checkout per salvare la carta del cliente (SetupIntent)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert>
-                <CreditCard className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Carta di test:</strong> 4242 4242 4242 4242 | Data: qualsiasi futura | CVC: 123
-                </AlertDescription>
-              </Alert>
-
-              <Button 
-                onClick={testStripeCheckout} 
-                disabled={loading || !bookingId}
-                className="w-full"
-              >
-                {loading && activeTest === "stripe" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                )}
-                Apri Stripe Checkout
-              </Button>
-
-              <p className="text-xs text-muted-foreground text-center">
-                Dopo aver completato il checkout, la carta sara' salvata e visibile sopra
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Step 3: Payment Tests */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Wallet className="h-5 w-5" />
-                Step 3: Test Pagamenti e Cancellazioni
-              </CardTitle>
-              <CardDescription>
-                Testa addebito saldo, cancellazione con penale/rimborso
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="balance" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="balance">Saldo</TabsTrigger>
-                  <TabsTrigger value="cancel">Cancella</TabsTrigger>
-                  <TabsTrigger value="refund">Rimborso</TabsTrigger>
-                  <TabsTrigger value="dates">Date</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="balance" className="space-y-4 mt-4">
-                  <Alert>
-                    <Euro className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>Logica 7 giorni:</strong> Se mancano meno di 7 giorni al check-in, 
-                      addebita l'intero importo sulla carta salvata.
-                    </AlertDescription>
-                  </Alert>
-
-                  {testBooking && daysUntil !== null && (
-                    <div className={`rounded-md p-3 ${daysUntil <= 7 ? "bg-amber-100 dark:bg-amber-900/30" : "bg-blue-100 dark:bg-blue-900/30"}`}>
-                      <p className="text-sm">
-                        {daysUntil <= 7 ? (
-                          <>
-                            <AlertTriangle className="h-4 w-4 inline mr-1" />
-                            <strong>Attenzione:</strong> Mancano solo {daysUntil} giorni. 
-                            Il pagamento completo ({testBooking.totalAmount} EUR) sara' addebitato immediatamente.
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="h-4 w-4 inline mr-1" />
-                            Mancano {daysUntil} giorni. Il pagamento verra' addebitato automaticamente 7 giorni prima del check-in.
-                          </>
-                        )}
-                      </p>
-                    </div>
-                  )}
-
-                  <Button 
-                    onClick={testBalancePayment} 
-                    disabled={loading || !bookingId || !testBooking?.stripePaymentMethodId}
-                    className="w-full"
-                  >
-                    {loading && activeTest === "balance" ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Euro className="mr-2 h-4 w-4" />
-                    )}
-                    Addebita Saldo ({testBooking?.totalAmount || 0} EUR)
-                  </Button>
-
-                  {!testBooking?.stripePaymentMethodId && (
-                    <p className="text-xs text-destructive text-center">
-                      Completa prima lo Step 2 per salvare una carta
-                    </p>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="cancel" className="space-y-4 mt-4">
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>Policy Cancellazione:</strong><br />
-                      - Oltre 7 giorni: rimborso 100%<br />
-                      - Entro 7 giorni: penale 100% (nessun rimborso)
-                    </AlertDescription>
-                  </Alert>
-
-                  {testBooking && daysUntil !== null && (
-                    <div className={`rounded-md p-3 ${daysUntil <= 7 ? "bg-red-100 dark:bg-red-900/30" : "bg-green-100 dark:bg-green-900/30"}`}>
-                      <p className="text-sm">
-                        {daysUntil <= 7 ? (
-                          <>
-                            <XCircle className="h-4 w-4 inline mr-1 text-red-600" />
-                            <strong>Penale 100%:</strong> Cancellando ora, verra' addebitato l'intero importo ({testBooking.totalAmount} EUR)
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 className="h-4 w-4 inline mr-1 text-green-600" />
-                            <strong>Rimborso 100%:</strong> Cancellando ora, il cliente ricevera' un rimborso completo
-                          </>
-                        )}
-                      </p>
-                    </div>
-                  )}
-
-                  <Button 
-                    onClick={testCancellation} 
-                    disabled={loading || !bookingId}
-                    variant="destructive"
-                    className="w-full"
-                  >
-                    {loading && activeTest === "cancel" ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Ban className="mr-2 h-4 w-4" />
-                    )}
-                    Cancella Prenotazione
-                  </Button>
-                </TabsContent>
-
-                <TabsContent value="refund" className="space-y-4 mt-4">
-                  <Alert>
-                    <Euro className="h-4 w-4" />
-                    <AlertDescription>
-                      Rimborso manuale completo tramite Stripe. Usare solo per casi speciali.
-                    </AlertDescription>
-                  </Alert>
-                  <Button 
-                    onClick={testRefund} 
-                    disabled={loading || !bookingId}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {loading && activeTest === "refund" ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                    )}
-                    Elabora Rimborso
-                  </Button>
-                </TabsContent>
-
-                <TabsContent value="dates" className="space-y-4 mt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Nuovo Check-in</Label>
-                      <Input
-                        type="date"
-                        value={newCheckIn}
-                        onChange={(e) => setNewCheckIn(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Nuovo Check-out</Label>
-                      <Input
-                        type="date"
-                        value={newCheckOut}
-                        onChange={(e) => setNewCheckOut(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <Button 
-                    onClick={testChangeDates} 
-                    disabled={loading || !bookingId}
-                    className="w-full"
-                  >
-                    {loading && activeTest === "dates" ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                    )}
-                    Cambia Date
-                  </Button>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Right Column - Results */}
+        {/* Right Column - Results Log */}
         <div className="space-y-6">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
                 Log Risultati
               </CardTitle>
-              <Button variant="ghost" size="sm" onClick={clearResults}>
+              <Button size="sm" variant="ghost" onClick={clearResults}>
                 Pulisci
               </Button>
             </CardHeader>
@@ -898,17 +881,17 @@ export default function PaymentsTestPage() {
 
               <div className="space-y-3 max-h-[600px] overflow-y-auto">
                 {results.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8 text-sm">
+                  <p className="text-muted-foreground text-sm text-center py-8">
                     I risultati dei test appariranno qui
                   </p>
                 ) : (
-                  results.map((result, index) => (
+                  results.map((result, idx) => (
                     <div 
-                      key={index} 
-                      className={`rounded-lg p-3 text-sm ${
+                      key={idx}
+                      className={`rounded-lg border p-3 text-sm ${
                         result.success 
-                          ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800" 
-                          : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                          ? "bg-green-50 border-green-200" 
+                          : "bg-red-50 border-red-200"
                       }`}
                     >
                       <div className="flex items-start gap-2">
@@ -918,10 +901,16 @@ export default function PaymentsTestPage() {
                           <XCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium">{result.message}</p>
-                          <p className="text-xs text-muted-foreground">{result.timestamp}</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={result.success ? "text-green-800" : "text-red-800"}>
+                              {result.message}
+                            </span>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {result.timestamp}
+                            </span>
+                          </div>
                           {result.data && (
-                            <pre className="mt-2 text-xs bg-background/50 p-2 rounded overflow-x-auto">
+                            <pre className="mt-2 text-xs bg-white/50 p-2 rounded overflow-x-auto">
                               {JSON.stringify(result.data, null, 2)}
                             </pre>
                           )}
@@ -934,33 +923,17 @@ export default function PaymentsTestPage() {
             </CardContent>
           </Card>
 
-          {/* Quick Reference */}
+          {/* Info Card */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Riferimento Rapido</CardTitle>
+              <CardTitle className="text-sm">Logica Pagamenti</CardTitle>
             </CardHeader>
-            <CardContent className="text-xs space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Carta Test:</span>
-                <code>4242 4242 4242 4242</code>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">3D Secure:</span>
-                <code>4000 0027 6000 3184</code>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Rifiutata:</span>
-                <code>4000 0000 0000 0002</code>
-              </div>
+            <CardContent className="text-xs text-muted-foreground space-y-2">
+              <p><strong>Check-in entro 7 giorni:</strong> Addebito immediato 100%</p>
+              <p><strong>Check-in oltre 7 giorni:</strong> Solo salvataggio carta, addebito automatico 7gg prima</p>
               <Separator className="my-2" />
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Limite penale:</span>
-                <span>7 giorni</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Penale tardiva:</span>
-                <span>100%</span>
-              </div>
+              <p><strong>Cancellazione entro 7gg:</strong> Penale 100%</p>
+              <p><strong>Cancellazione oltre 7gg:</strong> Rimborso completo</p>
             </CardContent>
           </Card>
         </div>
