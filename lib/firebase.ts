@@ -380,16 +380,22 @@ type CreateCheckoutArgs = {
   successUrl: string
   cancelUrl: string
   customerEmail?: string
+  checkInDate?: string // ISO date (YYYY-MM-DD) - if <= 7 days from today, charges immediately
   metadata?: Record<string, string>
 }
 
-export async function createStripeCheckout(args: CreateCheckoutArgs): Promise<{ url: string }> {
+export async function createStripeCheckout(args: CreateCheckoutArgs): Promise<{ 
+  url: string
+  mode?: "payment" | "setup"
+  chargedImmediately?: boolean
+  daysUntilCheckIn?: number
+}> {
   const response = await fetch("/api/payments/stripe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       ...args,
-      paymentType: "full", // Changed from "deposit" to "full" - now paying 100% upfront instead of 30%
+      paymentType: "full",
     }),
   })
 

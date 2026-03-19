@@ -218,6 +218,7 @@ export default function PaymentsTestPage() {
           successUrl,
           cancelUrl,
           customerEmail: testBooking?.email || user?.email || "test@al22suite.com",
+          checkInDate: testBooking?.checkIn, // Pass check-in date to determine immediate charge vs setup
         }),
       })
 
@@ -227,13 +228,20 @@ export default function PaymentsTestPage() {
         throw new Error(data.error || "Errore nella creazione della sessione Stripe")
       }
 
+      const modeMessage = data.chargedImmediately 
+        ? `ADDEBITO IMMEDIATO (${data.daysUntilCheckIn} giorni al check-in)`
+        : `SOLO SALVATAGGIO CARTA (${data.daysUntilCheckIn} giorni al check-in - addebito 7gg prima)`
+
       addResult({
         success: true,
-        message: "Sessione Stripe creata! Completa il checkout nella nuova finestra.",
+        message: `Sessione Stripe creata! ${modeMessage}`,
         data: {
           sessionId: data.sessionId,
           customerId: data.customerId,
           amount: `${(amount / 100).toFixed(2)} EUR`,
+          mode: data.mode,
+          daysUntilCheckIn: data.daysUntilCheckIn,
+          chargedImmediately: data.chargedImmediately,
           note: "Usa carta 4242 4242 4242 4242, data futura, CVC 123"
         },
       })
