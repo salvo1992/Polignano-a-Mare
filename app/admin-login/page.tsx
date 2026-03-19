@@ -34,8 +34,8 @@ export default function AdminLoginPage() {
       return
     }
 
-    // I cookie httpOnly sono già stati impostati dal login → vai subito
-    router.replace(next)
+    // Redirect immediately without waiting for state update
+    window.location.href = next
   }
 
   return (

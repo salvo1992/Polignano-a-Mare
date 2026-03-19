@@ -1,18 +1,16 @@
 "use client"
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
-import { onIdTokenChanged, type User as FirebaseUser } from "firebase/auth"
+import { onIdTokenChanged } from "firebase/auth"
 import {
   auth,
   db,
   registerWithEmail,
   loginWithEmail,
   loginWithGoogle,
-  handleGoogleRedirect, // Import new redirect handler
   logout as fbLogout,
 } from "@/lib/firebase"
 import { doc, getDoc } from "firebase/firestore"
-import { useRef } from "react"
 
 export type AppRole = "user" | "admin"
 
@@ -83,35 +81,7 @@ function firebaseToAppUser(fbUser: FirebaseUser, idToken: string, role: AppRole)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isCheckingRedirect, setIsCheckingRedirect] = useState(true) // Track redirect check
-  const hasCheckedRedirectRef = useRef(false)
-  useEffect(() => {
-    if (hasCheckedRedirectRef.current) return
-    hasCheckedRedirectRef.current = true
-
-    const checkRedirect = async () => {
-      console.log("[v0] Checking for Google redirect result...")
-      try {
-        const fbUser = await handleGoogleRedirect()
-        if (fbUser) {
-          console.log("[v0] Google redirect successful, user:", fbUser.email)
-          const [idToken, role] = await Promise.all([fbUser.getIdToken(true), readUserRole(fbUser.uid)])
-          setUser(firebaseToAppUser(fbUser, idToken, role))
-          setRoleCookie(role)
-          sessionStorage.removeItem("google_auth_error")
-        } else {
-          console.log("[v0] No redirect result found")
-        }
-      } catch (error: any) {
-        console.error("[v0] Google redirect error:", error)
-        if (error?.code) sessionStorage.setItem("google_auth_error", error.code)
-      } finally {
-        setIsCheckingRedirect(false)
-      }
-    }
-
-    checkRedirect()
-  }, [])
+  const [isCheckingRedirect, setIsCheckingRedirect] = useState(false) // No longer using redirects
 
   // Sottoscrizione token/utente
   useEffect(() => {
@@ -180,13 +150,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (name: string, email: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true)
-      const fbUser = await registerWithEmail(email, password)
+      const fbUser = await registerWithEmail(email, password, name) // Pass displayName
       const [idToken, role] = await Promise.all([fbUser.getIdToken(true), readUserRole(fbUser.uid)])
       setUser(firebaseToAppUser(fbUser, idToken, role))
       setRoleCookie(role) // <--- cookie aggiornato
       return true
-    } catch (e) {
-      console.error("register error", e)
+    } catch (e: any) {
+      console.error("[v0] Register error:", e?.code, e?.message)
       return false
     } finally {
       setIsLoading(false)

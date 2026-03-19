@@ -52,7 +52,8 @@ export default function LoginPage() {
     setError("")
     const ok = await login(formData.email, formData.password)
     if (ok) {
-      router.push(next)
+      // Redirect immediately without waiting for state update
+      window.location.href = next
     } else {
       setError(t("invalidCredentials"))
     }
