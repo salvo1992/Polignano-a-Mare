@@ -147,19 +147,14 @@ export async function loginWithEmail(email: string, password: string) {
 
 export async function loginWithGoogle() {
   try {
-    if (IS_DEV) {
-      // in dev usa popup: più affidabile con Next fast-refresh
-      const { signInWithPopup } = await import("firebase/auth")
-      const cred = await signInWithPopup(auth, googleProvider)
-      await ensureUserDoc(cred.user)
-      return cred.user
-    } else {
-      // in prod usa redirect
-      await signInWithRedirect(auth, googleProvider)
-      return null // si prosegue al redirect
-    }
+    // Always use popup - more reliable and better UX across all environments
+    const { signInWithPopup } = await import("firebase/auth")
+    const cred = await signInWithPopup(auth, googleProvider)
+    await ensureUserDoc(cred.user)
+    return cred.user
   } catch (e: any) {
     // propaga l'errore al caller (AuthProvider salva in sessionStorage)
+    console.error("[v0] Google login error:", e?.code, e?.message)
     throw e
   }
 }
