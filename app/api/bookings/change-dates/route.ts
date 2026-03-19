@@ -31,10 +31,23 @@ function isDateInRecurringSeason(date: Date, startMMDD: string, endMMDD: string)
 
 export async function PUT(request: NextRequest) {
   try {
-    const { bookingId, checkIn, checkOut, userId } = await request.json()
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error("[ChangeDates] Body parse error:", parseError)
+      return NextResponse.json({ error: "Dati richiesta non validi" }, { status: 400 })
+    }
+    
+    const { bookingId, checkIn, checkOut, userId } = body
 
-    if (!bookingId || !checkIn || !checkOut) {
-      return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
+    if (!bookingId || typeof bookingId !== "string" || bookingId.trim() === "") {
+      console.error("[ChangeDates] Invalid bookingId:", bookingId)
+      return NextResponse.json({ error: "ID prenotazione mancante o non valido" }, { status: 400 })
+    }
+
+    if (!checkIn || !checkOut) {
+      return NextResponse.json({ error: "Date mancanti" }, { status: 400 })
     }
 
     const checkInDate = new Date(checkIn)
