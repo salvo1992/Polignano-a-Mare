@@ -511,11 +511,11 @@ export function DynamicPricingManagement() {
                         <span className={`w-3 h-3 rounded-full shrink-0 ${colors.dot}`} />
                         <div className="min-w-0">
                           <p className="font-medium text-sm truncate">{season.name}</p>
-                          <p className="text-xs text-muted-foreground">{season.startDate} - {season.endDate} (ogni anno) | x{season.priceMultiplier}</p>
+                          <p className="text-xs text-muted-foreground">{season.startDate} - {season.endDate} (ogni anno)</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <Badge variant="secondary" className="text-xs">{season.priceMultiplier > 1 ? "+" : ""}{Math.round((season.priceMultiplier - 1) * 100)}%</Badge>
+                        <Badge variant="secondary" className="text-xs">{"\u20AC"}{Math.round(155 * season.priceMultiplier)}/notte</Badge>
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-7 w-7"><Pencil className="h-3.5 w-3.5" /></Button>
@@ -562,10 +562,10 @@ export function DynamicPricingManagement() {
                   <div key={period.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm">{period.name}</p>
-                      <p className="text-xs text-muted-foreground">{format(new Date(period.startDate), "dd/MM/yyyy", { locale: it })} - {format(new Date(period.endDate), "dd/MM/yyyy", { locale: it })} | x{period.priceMultiplier}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(period.startDate), "dd/MM/yyyy", { locale: it })} - {format(new Date(period.endDate), "dd/MM/yyyy", { locale: it })}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <Badge variant="secondary" className="text-xs">{period.priceMultiplier > 1 ? "+" : ""}{Math.round((period.priceMultiplier - 1) * 100)}%</Badge>
+                      <Badge variant="secondary" className="text-xs">{"\u20AC"}{Math.round(155 * period.priceMultiplier)}/notte</Badge>
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-7 w-7"><Pencil className="h-3.5 w-3.5" /></Button>
@@ -720,12 +720,17 @@ function SeasonForm({ onSave, initialData }: { onSave: () => void; initialData?:
     const formData = new FormData(e.currentTarget)
     const startDateFull = formData.get("startDate") as string
     const endDateFull = formData.get("endDate") as string
+    const fixedPrice = Number.parseFloat(formData.get("fixedPrice") as string)
+    // Calculate multiplier from fixed price (assuming base price of 155 for Acies as reference)
+    const basePrice = 155
+    const priceMultiplier = fixedPrice / basePrice
     const data = {
       name: formData.get("name") as string,
       type: formData.get("type") as SeasonType,
       startDate: startDateFull.substring(5),
       endDate: endDateFull.substring(5),
-      priceMultiplier: Number.parseFloat(formData.get("priceMultiplier") as string),
+      priceMultiplier: Math.round(priceMultiplier * 100) / 100,
+      fixedPrice: fixedPrice,
       description: formData.get("description") as string,
     }
     try {
@@ -739,6 +744,8 @@ function SeasonForm({ onSave, initialData }: { onSave: () => void; initialData?:
 
   const displayStartDate = initialData?.startDate ? `2025-${initialData.startDate}` : ""
   const displayEndDate = initialData?.endDate ? `2025-${initialData.endDate}` : ""
+  // Calculate display price from multiplier (base 155)
+  const displayPrice = initialData?.priceMultiplier ? Math.round(155 * initialData.priceMultiplier) : ""
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -760,7 +767,7 @@ function SeasonForm({ onSave, initialData }: { onSave: () => void; initialData?:
         <div><Label htmlFor="startDate">Inizio</Label><Input id="startDate" name="startDate" type="date" required defaultValue={displayStartDate} /><p className="text-xs text-muted-foreground mt-1">Si ripete ogni anno</p></div>
         <div><Label htmlFor="endDate">Fine</Label><Input id="endDate" name="endDate" type="date" required defaultValue={displayEndDate} /><p className="text-xs text-muted-foreground mt-1">Si ripete ogni anno</p></div>
       </div>
-      <div><Label htmlFor="priceMultiplier">Moltiplicatore</Label><Input id="priceMultiplier" name="priceMultiplier" type="number" step="0.1" min="0.5" max="3" required defaultValue={initialData?.priceMultiplier} placeholder="es: 1.5 per +50%" /><p className="text-xs text-muted-foreground mt-1">1.0 = base, 1.5 = +50%, 2.0 = +100%</p></div>
+      <div><Label htmlFor="fixedPrice">Prezzo per Notte ({"\u20AC"})</Label><Input id="fixedPrice" name="fixedPrice" type="number" step="1" min="50" max="500" required defaultValue={displayPrice} placeholder="es: 200" /><p className="text-xs text-muted-foreground mt-1">Prezzo fisso per notte in questa stagione (camera Acies)</p></div>
       <div><Label htmlFor="description">Descrizione</Label><Input id="description" name="description" defaultValue={initialData?.description} placeholder="es: Agosto Ferragosto" /></div>
       <Button type="submit" disabled={loading} className="w-full">{loading ? "Salvataggio..." : initialData ? "Aggiorna" : "Crea Stagione"}</Button>
     </form>
@@ -775,11 +782,16 @@ function SpecialPeriodForm({ onSave, initialData }: { onSave: () => void; initia
     e.preventDefault()
     setLoading(true)
     const formData = new FormData(e.currentTarget)
+    const fixedPrice = Number.parseFloat(formData.get("fixedPrice") as string)
+    // Calculate multiplier from fixed price (assuming base price of 155 for Acies as reference)
+    const basePrice = 155
+    const priceMultiplier = fixedPrice / basePrice
     const data = {
       name: formData.get("name") as string,
       startDate: formData.get("startDate") as string,
       endDate: formData.get("endDate") as string,
-      priceMultiplier: Number.parseFloat(formData.get("priceMultiplier") as string),
+      priceMultiplier: Math.round(priceMultiplier * 100) / 100,
+      fixedPrice: fixedPrice,
       description: formData.get("description") as string,
       priority: 1,
     }
@@ -792,6 +804,9 @@ function SpecialPeriodForm({ onSave, initialData }: { onSave: () => void; initia
     } catch { toast({ title: "Errore", description: "Impossibile salvare", variant: "destructive" }) } finally { setLoading(false) }
   }
 
+  // Calculate display price from multiplier (base 155)
+  const displayPrice = initialData?.priceMultiplier ? Math.round(155 * initialData.priceMultiplier) : ""
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div><Label htmlFor="name">Nome</Label><Input id="name" name="name" required defaultValue={initialData?.name} placeholder="es: Ferragosto 2025" /></div>
@@ -799,7 +814,7 @@ function SpecialPeriodForm({ onSave, initialData }: { onSave: () => void; initia
         <div><Label htmlFor="startDate">Inizio</Label><Input id="startDate" name="startDate" type="date" required defaultValue={initialData?.startDate} /></div>
         <div><Label htmlFor="endDate">Fine</Label><Input id="endDate" name="endDate" type="date" required defaultValue={initialData?.endDate} /></div>
       </div>
-      <div><Label htmlFor="priceMultiplier">Moltiplicatore</Label><Input id="priceMultiplier" name="priceMultiplier" type="number" step="0.1" min="0.5" max="5" required defaultValue={initialData?.priceMultiplier} placeholder="es: 2.5 per +150%" /><p className="text-xs text-muted-foreground mt-1">1.0 = base, 2.0 = +100%, 2.5 = +150%</p></div>
+      <div><Label htmlFor="fixedPrice">Prezzo per Notte ({"\u20AC"})</Label><Input id="fixedPrice" name="fixedPrice" type="number" step="1" min="50" max="600" required defaultValue={displayPrice} placeholder="es: 250" /><p className="text-xs text-muted-foreground mt-1">Prezzo fisso per notte in questo periodo (camera Acies)</p></div>
       <div><Label htmlFor="description">Descrizione</Label><Input id="description" name="description" defaultValue={initialData?.description} placeholder="es: Picco prenotazioni" /></div>
       <Button type="submit" disabled={loading} className="w-full">{loading ? "Salvataggio..." : initialData ? "Aggiorna" : "Crea Periodo"}</Button>
     </form>
