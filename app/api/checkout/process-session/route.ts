@@ -20,11 +20,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Session ID mancante" }, { status: 400 })
     }
 
-    const session = await stripe.checkout.sessions.retrieve(sessionId)
-    console.log("[v0 PROCESS-SESSION] Stripe status:", session.payment_status)
+    // Retrieve session with expanded setup_intent and payment_intent
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['setup_intent', 'payment_intent', 'setup_intent.payment_method', 'payment_intent.payment_method'],
+    })
+    
+    const sessionMode = session.mode // "payment" or "setup"
+    console.log("[v0 PROCESS-SESSION] Session mode:", sessionMode)
+    console.log("[v0 PROCESS-SESSION] Stripe payment_status:", session.payment_status)
 
-    if (session.payment_status !== "paid") {
-      return NextResponse.json({ error: "Pagamento non completato" }, { status: 400 })
+    // For "payment" mode: status should be "paid"
+    // For "setup" mode: status should be "no_payment_required" (card saved successfully)
+    const isPaymentComplete = session.payment_status === "paid"
+    const isSetupComplete = session.payment_status === "no_payment_required" && sessionMode === "setup"
+    
+    if (!isPaymentComplete && !isSetupComplete) {
+      console.log("[v0 PROCESS-SESSION] Payment/setup not complete:", session.payment_status)
+      return NextResponse.json({ error: "Pagamento/setup non completato" }, { status: 400 })
     }
 
     const metadata = session.metadata
@@ -120,16 +132,105 @@ export async function POST(request: NextRequest) {
         console.error("[v0 PROCESS-SESSION] Email error:", emailErr)
       }
     } else {
-      // New booking confirmation
-      console.log("[v0 PROCESS-SESSION] Confirming new booking")
-      await updateDoc(bookingRef, {
-        status: "confirmed",
-        paymentProvider: "stripe",
-        paymentId: session.payment_intent as string,
-        paidAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-      console.log("[v0 PROCESS-SESSION] Booking confirmed successfully")
+      // New booking confirmation - handle both payment and setup modes
+      console.log("[v0 PROCESS-SESSION] Confirming new booking, mode:", sessionMode)
+      
+      // Get payment method details
+      let paymentMethodId: string | null = null
+      let cardBrand: string | null = null
+      let cardLast4: string | null = null
+      
+      if (sessionMode === "payment" && session.payment_intent) {
+        // Payment mode - get payment method from payment_intent
+        const paymentIntent = session.payment_intent as Stripe.PaymentIntent
+        paymentMethodId = paymentIntent.payment_method as string
+        
+        if (paymentIntent.payment_method && typeof paymentIntent.payment_method === 'object') {
+          const pm = paymentIntent.payment_method as Stripe.PaymentMethod
+          cardBrand = pm.card?.brand || null
+          cardLast4 = pm.card?.last4 || null
+        } else if (paymentMethodId) {
+          // Fetch payment method details
+          try {
+            const pm = await stripe.paymentMethods.retrieve(paymentMethodId)
+            cardBrand = pm.card?.brand || null
+            cardLast4 = pm.card?.last4 || null
+          } catch (e) {
+            console.log("[v0 PROCESS-SESSION] Could not fetch payment method:", e)
+          }
+        }
+        
+        // Update booking as PAID (immediate charge)
+        const totalAmountCents = booking.totalAmountCents || Math.round((booking.totalAmount || 0) * 100)
+        await updateDoc(bookingRef, {
+          status: "confirmed",
+          paymentStatus: "paid",
+          paymentProvider: "stripe",
+          paymentId: paymentIntent.id,
+          paymentMethodId,
+          stripeCustomerId: session.customer as string,
+          cardBrand,
+          cardLast4,
+          depositPaid: totalAmountCents,
+          balanceDue: 0,
+          paidAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+        console.log("[v0 PROCESS-SESSION] Booking PAID immediately:", {
+          paymentIntentId: paymentIntent.id,
+          amount: totalAmountCents / 100,
+          cardLast4,
+        })
+        
+      } else if (sessionMode === "setup" && session.setup_intent) {
+        // Setup mode - card saved for later charge
+        const setupIntent = session.setup_intent as Stripe.SetupIntent
+        paymentMethodId = setupIntent.payment_method as string
+        
+        if (setupIntent.payment_method && typeof setupIntent.payment_method === 'object') {
+          const pm = setupIntent.payment_method as Stripe.PaymentMethod
+          cardBrand = pm.card?.brand || null
+          cardLast4 = pm.card?.last4 || null
+        } else if (paymentMethodId) {
+          try {
+            const pm = await stripe.paymentMethods.retrieve(paymentMethodId)
+            cardBrand = pm.card?.brand || null
+            cardLast4 = pm.card?.last4 || null
+          } catch (e) {
+            console.log("[v0 PROCESS-SESSION] Could not fetch payment method:", e)
+          }
+        }
+        
+        // Update booking with card saved (will be charged 7 days before check-in)
+        await updateDoc(bookingRef, {
+          status: "confirmed",
+          paymentStatus: "card_saved",
+          paymentProvider: "stripe",
+          setupIntentId: setupIntent.id,
+          paymentMethodId,
+          stripeCustomerId: session.customer as string,
+          cardBrand,
+          cardLast4,
+          depositPaid: 0,
+          balanceDue: booking.totalAmountCents || Math.round((booking.totalAmount || 0) * 100),
+          updatedAt: serverTimestamp(),
+        })
+        console.log("[v0 PROCESS-SESSION] Card SAVED for later charge:", {
+          setupIntentId: setupIntent.id,
+          cardLast4,
+          balanceDue: booking.totalAmountCents || Math.round((booking.totalAmount || 0) * 100),
+        })
+        
+      } else {
+        // Fallback - just confirm
+        await updateDoc(bookingRef, {
+          status: "confirmed",
+          paymentProvider: "stripe",
+          stripeCustomerId: session.customer as string,
+          updatedAt: serverTimestamp(),
+        })
+        console.log("[v0 PROCESS-SESSION] Booking confirmed (fallback)")
+      }
     }
 
     // Re-read updated booking

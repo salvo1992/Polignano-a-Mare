@@ -90,6 +90,87 @@ export default function PaymentsTestPage() {
     setNewCheckOut(checkOut.toISOString().split('T')[0])
   }, [daysBeforeCheckIn])
 
+  // Check URL params for returning from Stripe checkout
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const sessionId = urlParams.get('session_id')
+    const returnedBookingId = urlParams.get('bookingId')
+    const cancelled = urlParams.get('cancelled')
+    
+    if (returnedBookingId) {
+      setBookingId(returnedBookingId)
+    }
+    
+    if (cancelled === 'true' && returnedBookingId) {
+      addResult({
+        success: false,
+        message: "Checkout Stripe annullato dall'utente",
+        data: { bookingId: returnedBookingId }
+      })
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname)
+      return
+    }
+    
+    if (sessionId && returnedBookingId) {
+      // Process the Stripe session
+      processStripeSession(sessionId, returnedBookingId)
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Process Stripe session after return from checkout
+  const processStripeSession = async (sessionId: string, bId: string) => {
+    setLoading(true)
+    setActiveTest("processing")
+    
+    try {
+      addResult({
+        success: true,
+        message: "Elaborazione sessione Stripe in corso...",
+        data: { sessionId }
+      })
+      
+      const response = await fetch("/api/checkout/process-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Errore nell'elaborazione della sessione")
+      }
+      
+      const booking = data.booking
+      addResult({
+        success: true,
+        message: booking.paymentStatus === "paid" 
+          ? "PAGAMENTO COMPLETATO! Importo addebitato."
+          : "CARTA SALVATA! Addebito programmato 7 giorni prima.",
+        data: {
+          bookingId: bId,
+          status: booking.status,
+          paymentStatus: booking.paymentStatus,
+          cardBrand: booking.cardBrand,
+          cardLast4: booking.cardLast4,
+          depositPaid: booking.depositPaid ? `${(booking.depositPaid / 100).toFixed(2)} EUR` : "0 EUR",
+          balanceDue: booking.balanceDue ? `${(booking.balanceDue / 100).toFixed(2)} EUR` : "0 EUR",
+        }
+      })
+      
+    } catch (err: any) {
+      setError(err.message)
+      addResult({ success: false, message: `Errore elaborazione: ${err.message}` })
+    } finally {
+      setLoading(false)
+      setActiveTest(null)
+    }
+  }
+
   // Listen for booking updates in real-time
   useEffect(() => {
     if (!bookingId) return
@@ -222,7 +303,8 @@ export default function PaymentsTestPage() {
 
       // Now create Stripe session
       const amount = 31000 // 310 EUR
-      const successUrl = `${window.location.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}&bookingId=${newBookingId}`
+      // Return to this test page with session_id so we can process and show results
+      const successUrl = `${window.location.origin}/admin/payments-test?session_id={CHECKOUT_SESSION_ID}&bookingId=${newBookingId}`
       const cancelUrl = `${window.location.origin}/admin/payments-test?cancelled=true&bookingId=${newBookingId}`
 
       const stripeResponse = await fetch("/api/payments/stripe", {
