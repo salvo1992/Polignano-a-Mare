@@ -477,10 +477,19 @@ export default function PaymentsTestPage() {
     try {
       const daysLeft = testBooking?.checkIn ? getDaysUntilCheckIn(testBooking.checkIn) : 30
       const willHavePenalty = daysLeft <= 7
+      const isPaid = testBooking?.paymentStatus === "paid"
+      const hasCard = !!testBooking?.stripePaymentMethodId
 
       addResult({
         success: true,
-        message: `Test cancellazione (${daysLeft} giorni al check-in)${willHavePenalty ? " - PENALE 100%" : " - Rimborso completo"}`,
+        message: `Test cancellazione (${daysLeft} giorni al check-in)`,
+        data: {
+          penaltyPrevista: willHavePenalty ? "100%" : "0%",
+          statoAttuale: isPaid ? "PAGATO" : hasCard ? "Carta salvata" : "Non pagato",
+          azione: willHavePenalty 
+            ? (isPaid ? "Nessun rimborso" : hasCard ? "Addebito penale 100%" : "Penale da incassare manualmente")
+            : (isPaid ? "Rimborso completo" : "Cancellazione senza addebiti")
+        }
       })
 
       const response = await fetch("/api/bookings/cancel", {
@@ -508,6 +517,10 @@ export default function PaymentsTestPage() {
           penaltyAmount: data.penaltyAmount ? data.penaltyAmount + " EUR" : "N/A",
         },
       })
+      
+      // Clear booking state after cancellation
+      setTestBooking(null)
+      setBookingId("")
     } catch (err: any) {
       setError(err.message)
       addResult({ success: false, message: `Errore cancellazione: ${err.message}` })
@@ -524,11 +537,30 @@ export default function PaymentsTestPage() {
       return
     }
 
+    // Check if there's a payment to refund
+    const isPaid = testBooking?.paymentStatus === "paid"
+    if (!isPaid) {
+      addResult({
+        success: false,
+        message: "Rimborso non possibile: la prenotazione non e' stata pagata",
+        data: {
+          paymentStatus: testBooking?.paymentStatus || "pending",
+          nota: "Per testare il rimborso, crea una prenotazione entro 7 giorni (addebito immediato)"
+        }
+      })
+      return
+    }
+
     setLoading(true)
     setActiveTest("refund")
     setError(null)
 
     try {
+      addResult({
+        success: true,
+        message: "Elaborazione rimborso in corso...",
+      })
+
       const response = await fetch("/api/payments/refund", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -546,8 +578,12 @@ export default function PaymentsTestPage() {
 
       addResult({
         success: true,
-        message: "Rimborso elaborato!",
-        data,
+        message: "Rimborso completato!",
+        data: {
+          refundId: data.refundId,
+          amount: data.amount + " EUR",
+          status: data.status,
+        },
       })
     } catch (err: any) {
       setError(err.message)

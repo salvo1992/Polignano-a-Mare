@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
-import { db } from "@/lib/firebase"
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { getAdminDb } from "@/lib/firebase-admin"
+import { FieldValue } from "firebase-admin/firestore"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-12-18.acacia",
 })
 
@@ -22,14 +22,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "bookingId mancante" }, { status: 400 })
     }
 
-    const bookingRef = doc(db, "bookings", bookingId)
-    const bookingSnap = await getDoc(bookingRef)
+    const db = getAdminDb()
+    const bookingRef = db.collection("bookings").doc(bookingId)
+    const bookingSnap = await bookingRef.get()
 
-    if (!bookingSnap.exists()) {
+    if (!bookingSnap.exists) {
       return NextResponse.json({ error: "Prenotazione non trovata" }, { status: 404 })
     }
 
-    const booking = bookingSnap.data()
+    const booking = bookingSnap.data()!
 
     if (!booking.stripePaymentIntentId) {
       return NextResponse.json(
@@ -38,10 +39,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build refund params
+    // Build refund params - Stripe only accepts: duplicate, fraudulent, requested_by_customer
+    const validReasons = ["duplicate", "fraudulent", "requested_by_customer"] as const
+    const stripeReason = validReasons.includes(reason) ? reason : "requested_by_customer"
+    
     const refundParams: Stripe.RefundCreateParams = {
       payment_intent: booking.stripePaymentIntentId,
-      reason: (reason as Stripe.RefundCreateParams["reason"]) || "requested_by_customer",
+      reason: stripeReason as Stripe.RefundCreateParams["reason"],
     }
 
     // If a specific amount is provided, do partial refund
@@ -59,12 +63,12 @@ export async function POST(request: NextRequest) {
 
     // Update booking
     const refundedAmountCents = refund.amount
-    await updateDoc(bookingRef, {
+    await bookingRef.update({
       refundedAmount: refundedAmountCents,
       stripeRefundId: refund.id,
       refundStatus: refund.status,
       status: refundedAmountCents >= (booking.totalAmountCents || 0) ? "refunded" : "partially_refunded",
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     })
 
     console.log("[Refund] Refund created:", refund.id, "amount:", refund.amount, "status:", refund.status)
