@@ -1,11 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/firebase"
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { getAdminDb } from "@/lib/firebase-admin"
+import { FieldValue } from "firebase-admin/firestore"
 import Stripe from "stripe"
 import { sendCancellationEmail } from "@/lib/email"
 import { calculateCancellationPolicy } from "@/lib/payment-logic"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-12-18.acacia",
 })
 
@@ -29,14 +29,15 @@ async function handleCancellation(request: NextRequest) {
       return NextResponse.json({ error: "ID prenotazione mancante" }, { status: 400 })
     }
 
-    const bookingRef = doc(db, "bookings", bookingId)
-    const bookingSnap = await getDoc(bookingRef)
+    const db = getAdminDb()
+    const bookingRef = db.collection("bookings").doc(bookingId)
+    const bookingSnap = await bookingRef.get()
 
-    if (!bookingSnap.exists()) {
+    if (!bookingSnap.exists) {
       return NextResponse.json({ error: "Prenotazione non trovata" }, { status: 404 })
     }
 
-    const booking = bookingSnap.data()
+    const booking = bookingSnap.data()!
 
     // Verify ownership
     if (userId && booking.userId !== userId) {
@@ -79,39 +80,39 @@ async function handleCancellation(request: NextRequest) {
 
           console.log("[Cancel] Full refund created:", refund.id)
 
-          await updateDoc(bookingRef, {
+          await bookingRef.update({
             status: "cancelled",
-            cancelledAt: serverTimestamp(),
+            cancelledAt: FieldValue.serverTimestamp(),
             penaltyApplied: 0,
             refundAmount: totalAmountCents,
             stripeRefundId: refund.id,
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           })
         } catch (refundError: any) {
           console.error("[Cancel] Refund error:", refundError.message)
           // Still cancel but mark refund as pending
-          await updateDoc(bookingRef, {
+          await bookingRef.update({
             status: "cancelled",
-            cancelledAt: serverTimestamp(),
+            cancelledAt: FieldValue.serverTimestamp(),
             penaltyApplied: 0,
             pendingRefund: {
               amount: totalAmountCents,
               reason: "refund_api_failed",
               error: refundError.message,
             },
-            updatedAt: serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           })
         }
       } else {
         // <=7 days: no refund (100% penalty)
         console.log("[Cancel] Late cancellation - no refund, 100% penalty")
 
-        await updateDoc(bookingRef, {
+        await bookingRef.update({
           status: "cancelled",
-          cancelledAt: serverTimestamp(),
+          cancelledAt: FieldValue.serverTimestamp(),
           penaltyApplied: 100,
           refundAmount: 0,
-          updatedAt: serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         })
       }
     }
@@ -135,35 +136,35 @@ async function handleCancellation(request: NextRequest) {
           description: `Penale cancellazione tardiva - Prenotazione ${bookingId}`,
         })
 
-        await updateDoc(bookingRef, {
+        await bookingRef.update({
           status: "cancelled",
-          cancelledAt: serverTimestamp(),
+          cancelledAt: FieldValue.serverTimestamp(),
           penaltyApplied: 100,
           penaltyPaymentIntentId: penaltyIntent.id,
           penaltyAmount: totalAmountCents,
-          updatedAt: serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         })
 
         console.log("[Cancel] Penalty charged:", penaltyIntent.id)
       } catch (penaltyError: any) {
         console.error("[Cancel] Penalty charge failed:", penaltyError.message)
         // Cancel anyway, mark penalty as failed
-        await updateDoc(bookingRef, {
+        await bookingRef.update({
           status: "cancelled",
-          cancelledAt: serverTimestamp(),
+          cancelledAt: FieldValue.serverTimestamp(),
           penaltyApplied: 100,
           penaltyFailed: true,
           penaltyError: penaltyError.message,
-          updatedAt: serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         })
       }
     } else {
       // >7 days, not paid: just cancel, no penalty
-      await updateDoc(bookingRef, {
+      await bookingRef.update({
         status: "cancelled",
-        cancelledAt: serverTimestamp(),
+        cancelledAt: FieldValue.serverTimestamp(),
         penaltyApplied: 0,
-        updatedAt: serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       })
     }
 

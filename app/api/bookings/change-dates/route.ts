@@ -1,21 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/firebase"
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  collection,
-  getDocs,
-  query,
-  where,
-  serverTimestamp,
-} from "firebase/firestore"
+import { getAdminDb } from "@/lib/firebase-admin"
+import { FieldValue } from "firebase-admin/firestore"
 import Stripe from "stripe"
 import { sendModificationEmail } from "@/lib/email"
-import { calculateNights, calculateDaysUntilCheckIn } from "@/lib/pricing"
+import { calculateNights } from "@/lib/pricing"
 import { calculateChangeDatesPolicy, calculateChargeDate } from "@/lib/payment-logic"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-12-18.acacia",
 })
 
@@ -31,10 +22,23 @@ function isDateInRecurringSeason(date: Date, startMMDD: string, endMMDD: string)
 
 export async function PUT(request: NextRequest) {
   try {
-    const { bookingId, checkIn, checkOut, userId } = await request.json()
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      console.error("[ChangeDates] Body parse error:", parseError)
+      return NextResponse.json({ error: "Dati richiesta non validi" }, { status: 400 })
+    }
+    
+    const { bookingId, checkIn, checkOut, userId } = body
 
-    if (!bookingId || !checkIn || !checkOut) {
-      return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
+    if (!bookingId || typeof bookingId !== "string" || bookingId.trim() === "") {
+      console.error("[ChangeDates] Invalid bookingId:", bookingId)
+      return NextResponse.json({ error: "ID prenotazione mancante o non valido" }, { status: 400 })
+    }
+
+    if (!checkIn || !checkOut) {
+      return NextResponse.json({ error: "Date mancanti" }, { status: 400 })
     }
 
     const checkInDate = new Date(checkIn)
@@ -50,14 +54,15 @@ export async function PUT(request: NextRequest) {
     }
 
     // Get booking
-    const bookingRef = doc(db, "bookings", bookingId)
-    const bookingSnap = await getDoc(bookingRef)
+    const db = getAdminDb()
+    const bookingRef = db.collection("bookings").doc(bookingId)
+    const bookingSnap = await bookingRef.get()
 
-    if (!bookingSnap.exists()) {
+    if (!bookingSnap.exists) {
       return NextResponse.json({ error: "Prenotazione non trovata" }, { status: 404 })
     }
 
-    const booking = bookingSnap.data()
+    const booking = bookingSnap.data()!
 
     if (userId && booking.userId !== userId) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
@@ -67,9 +72,9 @@ export async function PUT(request: NextRequest) {
     const roomId = booking.roomId
     const nights = calculateNights(checkIn, checkOut)
 
-    const roomRef = doc(db, "rooms", roomId)
-    const roomSnap = await getDoc(roomRef)
-    if (!roomSnap.exists()) {
+    const roomRef = db.collection("rooms").doc(roomId)
+    const roomSnap = await roomRef.get()
+    if (!roomSnap.exists) {
       return NextResponse.json({ error: "Camera non trovata" }, { status: 404 })
     }
 
@@ -77,9 +82,9 @@ export async function PUT(request: NextRequest) {
 
     // Fetch pricing rules
     const [seasonsSnap, periodsSnap, overridesSnap] = await Promise.all([
-      getDocs(collection(db, "pricing_seasons")),
-      getDocs(collection(db, "pricing_special_periods")),
-      getDocs(query(collection(db, "pricing_overrides"), where("roomId", "==", roomId))),
+      db.collection("pricing_seasons").get(),
+      db.collection("pricing_special_periods").get(),
+      db.collection("pricing_overrides").where("roomId", "==", roomId).get(),
     ])
 
     const seasons = seasonsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
@@ -199,7 +204,7 @@ export async function PUT(request: NextRequest) {
     // Update booking with new dates and recalculated charge date
     const newChargeDate = calculateChargeDate(checkInDate)
 
-    await updateDoc(bookingRef, {
+    await bookingRef.update({
       checkIn,
       checkOut,
       nights,
@@ -208,7 +213,7 @@ export async function PUT(request: NextRequest) {
       penaltyApplied: policy.penaltyPercent,
       chargeDate: newChargeDate.toISOString().split("T")[0],
       status: booking.status === "paid" ? "paid" : "payment_scheduled",
-      updatedAt: serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     })
 
     // Send notification email

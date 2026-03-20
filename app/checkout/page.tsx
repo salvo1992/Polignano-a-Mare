@@ -83,8 +83,16 @@ export default function CheckoutPage() {
         successUrl,
         cancelUrl,
         customerEmail: booking.email,
+        checkInDate: booking.checkIn, // If <= 7 days, Stripe will charge immediately
         metadata: { source: "site" },
       })
+      
+      // Log if payment was charged immediately
+      if (res.chargedImmediately) {
+        console.log(`[v0] Payment charged immediately (${res.daysUntilCheckIn} days until check-in)`)
+      } else {
+        console.log(`[v0] Card saved for later charge (${res.daysUntilCheckIn} days until check-in)`)
+      }
       // Use window.open for v0 sandbox due to CSP restrictions, otherwise redirect
       const isV0Sandbox = window.location.hostname.includes("vusercontent.net")
       if (isV0Sandbox) {
