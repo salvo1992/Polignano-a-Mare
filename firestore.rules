@@ -1,29 +1,145 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() { return request.auth != null }
-    function isUser(uid) { return isSignedIn() && request.auth.uid == uid }
-    function isAdmin() { return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' }
-
-    match /users/{uid} {
-      allow read: if isUser(uid) || isAdmin();
-      allow write: if isUser(uid) || isAdmin(); // client validates immutable email
+    
+    // ============ HELPER FUNCTIONS ============
+    function isSignedIn() { 
+      return request.auth != null; 
+    }
+    
+    function isUser(uid) { 
+      return isSignedIn() && request.auth.uid == uid; 
+    }
+    
+    function isAdmin() { 
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; 
+    }
+    
+    function isOwnerOrAdmin(userId) {
+      return isAdmin() || (isSignedIn() && request.auth.uid == userId);
     }
 
+    // ============ USERS ============
+    match /users/{uid} {
+      // Users can read/write their own profile, admins can read/write all
+      allow read: if isUser(uid) || isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isUser(uid) || isAdmin();
+      allow delete: if isAdmin(); // Only admin can delete users
+    }
+
+    // ============ BOOKINGS ============
     match /bookings/{id} {
+      // Anyone signed in can read their own bookings, admin can read all
       allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      // Anyone signed in can create a booking
       allow create: if isSignedIn();
+      // Owner or admin can update/delete
       allow update, delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
+    // ============ ROOMS ============
     match /rooms/{id} {
+      // Public read for room listings
+      allow read: if true;
+      // Only admin can modify rooms
+      allow write: if isAdmin();
+    }
+
+    // ============ BLOCKED DATES ============
+    match /blocked_dates/{id} {
+      // Public read (needed for availability calendar)
+      allow read: if true;
+      // Only admin can create/modify blocked dates
+      allow write: if isAdmin();
+    }
+
+    // ============ REVIEWS ============
+    match /reviews/{id} {
+      // Public read for displaying reviews
+      allow read: if true;
+      // Signed in users can create reviews (for their bookings)
+      allow create: if isSignedIn();
+      // Only owner or admin can update/delete
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    // ============ PRICING (Dynamic Pricing) ============
+    match /pricing_seasons/{id} {
+      // Public read (needed for price calculation)
+      allow read: if true;
+      // Only admin can modify pricing
+      allow write: if isAdmin();
+    }
+    
+    match /pricing_special_periods/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /pricing_overrides/{id} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    match /settings/{doc} {
+    // ============ EXTRA SERVICES ============
+    match /extra_services/{id} {
+      // Public read for service listings
       allow read: if true;
+      // Only admin can modify services
       allow write: if isAdmin();
     }
+    
+    match /extra_services_requests/{id} {
+      // Owner can read their requests, admin can read all
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      // Signed in users can create requests
+      allow create: if isSignedIn();
+      // Only admin can update status, owner can cancel
+      allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ============ SETTINGS ============
+    match /settings/{doc} {
+      // Public read for app settings (contact info, etc.)
+      allow read: if true;
+      // Only admin can modify
+      allow write: if isAdmin();
+    }
+
+    // ============ ADMIN ONLY COLLECTIONS ============
+    // These are sensitive and only accessible by admin
+    
+    match /admin_otp/{id} {
+      // Only admin can read/write OTP documents
+      allow read, write: if isAdmin();
+    }
+    
+    match /smoobu_bookings/{id} {
+      // Only admin can access external booking data
+      allow read, write: if isAdmin();
+    }
+    
+    match /beds24_bookings/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // ============ ANALYTICS & LOGS ============
+    match /analytics/{id} {
+      allow read: if isAdmin();
+      // Allow creates from signed in users (for tracking)
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+    
+    match /email_logs/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // ============ CATCH-ALL (Deny by default) ============
+    // Any collection not explicitly defined above is denied
+    // This is a security best practice
   }
 }
