@@ -602,6 +602,8 @@ bookingErrorOkButton: "Ok",
   
 
     // Google authentication error messages
+    googleAuthUnauthorizedDomain:
+      "Questo dominio non è autorizzato per l'accesso con Google. Deve essere aggiunto nella Firebase Console.",
     googleAuthNotEnabled:
       "L'autenticazione Google non è abilitata. Contatta l'amministratore per abilitarla nella Firebase Console.",
     googleAuthCancelled: "Accesso con Google annullato.",
@@ -1293,6 +1295,8 @@ bookingErrorOkButton: "Ok",
     manageCookies: "Manage your cookie preferences",
 
     // Google authentication error messages
+    googleAuthUnauthorizedDomain:
+      "This domain is not authorized for Google sign-in. It must be added in the Firebase Console.",
     googleAuthNotEnabled:
       "Google authentication is not enabled. Contact the administrator to enable it in the Firebase Console.",
     googleAuthCancelled: "Google sign-in cancelled.",
@@ -1985,7 +1989,9 @@ bookingFormPanoramicSuite: "Suite Acies con Balcone",
   cookieSettings: "Paramètres des cookies",
   manageCookies: "Gérez vos pr��férences de cookies",
     
-     // Google authentication error messages
+    // Google authentication error messages
+    googleAuthUnauthorizedDomain:
+      "Ce domaine n'est pas autorisé pour la connexion Google. Il doit être ajouté dans la console Firebase.",
     googleAuthNotEnabled:
       "L'authentification Google n'est pas activée. Contactez l'administrateur pour l'activer dans la Firebase Console.",
     googleAuthCancelled: "Connexion Google annulée.",
@@ -2677,7 +2683,9 @@ bookingFormPanoramicSuite: "Suite Acies con Balcone",
   cookieSettings: "Configuración de cookies",
   manageCookies: "Gestiona tus preferencias de cookies",
 
-      // Google authentication error messages
+    // Google authentication error messages
+    googleAuthUnauthorizedDomain:
+      "Este dominio no está autorizado para iniciar sesión con Google. Debe añadirse en Firebase Console.",
     googleAuthNotEnabled:
       "La autenticación de Google no está habilitada. Contacta al administrador para habilitarla en la Firebase Console.",
     googleAuthCancelled: "Inicio de sesión con Google cancelado.",
@@ -3373,7 +3381,9 @@ bookingErrorOkButton: "Ok",
   cookieSettings: "Cookie-Einstellungen",
   manageCookies: "Verwalten Sie Ihre Cookie-Präferenzen",
 
-      // Google authentication error messages
+    // Google authentication error messages
+    googleAuthUnauthorizedDomain:
+      "Diese Domain ist nicht für die Google-Anmeldung autorisiert. Sie muss in der Firebase Console hinzugefügt werden.",
     googleAuthNotEnabled:
       "Google-Authentifizierung ist nicht aktiviert. Kontaktieren Sie den Administrator, um sie in der Firebase Console zu aktivieren.",
     googleAuthCancelled: "Google-Anmeldung abgebrochen.",

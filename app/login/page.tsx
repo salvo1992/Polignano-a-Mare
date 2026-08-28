@@ -50,8 +50,8 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    const ok = await login(formData.email, formData.password)
-    if (ok) {
+    const result = await login(formData.email, formData.password)
+    if (result.success) {
       // Redirect immediately without waiting for state update
       window.location.href = next
     } else {
@@ -61,7 +61,19 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setError("")
-    await loginWithGoogleProvider()
+    const result = await loginWithGoogleProvider()
+    if (result.success) return
+
+    const code = result.error?.code as string | undefined
+    if (code === "auth/unauthorized-domain") {
+      setError(t("googleAuthUnauthorizedDomain"))
+    } else if (code === "auth/operation-not-allowed") {
+      setError(t("googleAuthNotEnabled"))
+    } else if (code === "auth/popup-closed-by-user") {
+      setError(t("googleAuthCancelled"))
+    } else {
+      setError(t("googleAuthError"))
+    }
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

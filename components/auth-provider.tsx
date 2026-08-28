@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
-import { onIdTokenChanged } from "firebase/auth"
+import { onIdTokenChanged, type User as FirebaseUser } from "firebase/auth"
 import {
   auth,
   db,
@@ -13,6 +13,12 @@ import {
 import { doc, getDoc } from "firebase/firestore"
 
 export type AppRole = "user" | "admin"
+
+export interface LoginResult {
+  success: boolean
+  role?: AppRole
+  error?: unknown
+}
 
 export interface AppUser {
   uid: string
@@ -26,7 +32,7 @@ export interface AppUser {
 interface AuthContextType {
   user: AppUser | null
   isLoading: boolean
-  login: (email: string, password: string) => Promise<boolean>
+  login: (email: string, password: string) => Promise<LoginResult>
   loginWithGoogleProvider: () => Promise<{ success: boolean; error?: any }>
   register: (name: string, email: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
@@ -35,6 +41,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const RECOVERY_ADMIN_EMAIL = "al22suite@gmail.com"
 
 // ---------- COOKIE HELPERS ----------
 function setRoleCookie(role: "user" | "admin" | "") {
@@ -77,6 +84,23 @@ function firebaseToAppUser(fbUser: FirebaseUser, idToken: string, role: AppRole)
   }
 }
 
+async function recoverAdminAccessIfAllowed(email: string | null, idToken: string): Promise<void> {
+  if (email?.trim().toLowerCase() !== RECOVERY_ADMIN_EMAIL) return
+
+  const response = await fetch("/api/admin/recover-access", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+    },
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.error || "Recupero accesso amministratore non riuscito")
+  }
+}
+
 // ---------- PROVIDER ----------
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null)
@@ -93,7 +117,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsLoading(false)
           return
         }
-        const [idToken, role] = await Promise.all([fbUser.getIdToken(false), readUserRole(fbUser.uid)])
+        const idToken = await fbUser.getIdToken(false)
+        await recoverAdminAccessIfAllowed(fbUser.email, idToken)
+        const role = await readUserRole(fbUser.uid)
         setUser(firebaseToAppUser(fbUser, idToken, role))
         setRoleCookie(role)
       } catch (e) {
@@ -114,17 +140,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoleCookie(role) // <--- cookie aggiornato
   }
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<LoginResult> => {
     try {
       setIsLoading(true)
       const fbUser = await loginWithEmail(email, password)
-      const [idToken, role] = await Promise.all([fbUser.getIdToken(true), readUserRole(fbUser.uid)])
+      const idToken = await fbUser.getIdToken(true)
+      await recoverAdminAccessIfAllowed(fbUser.email, idToken)
+      const role = await readUserRole(fbUser.uid)
       setUser(firebaseToAppUser(fbUser, idToken, role))
       setRoleCookie(role) // <--- cookie aggiornato
-      return true
+      return { success: true, role }
     } catch (e) {
       console.error("login error", e)
-      return false
+      return { success: false, error: e }
     } finally {
       setIsLoading(false)
     }

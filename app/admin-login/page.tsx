@@ -28,9 +28,14 @@ export default function AdminLoginPage() {
     e.preventDefault()
     setErr("")
 
-    const ok = await login(form.email, form.password)
-    if (!ok) {
+    const result = await login(form.email, form.password)
+    if (!result.success) {
       setErr(t("invalidOrInsufficient"))
+      return
+    }
+
+    if (result.role !== "admin") {
+      setErr("Credenziali valide, ma questo account non dispone dei privilegi amministratore")
       return
     }
 
