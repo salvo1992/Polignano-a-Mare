@@ -1,13 +1,15 @@
 /**
  * Smoobu API Client
  * Centralized client for all Smoobu API interactions
- * Smoobu uses a single API Key for authentication (simpler than Beds24)
+ * Supports both legacy API Key authentication and HMAC-SHA256 signed requests.
  * 
  * API Documentation: https://docs.smoobu.com
  */
 
+import { getSmoobuCredentials } from "@/lib/smoobu-credentials"
+import { createSmoobuHmacHeaders } from "@/lib/smoobu-hmac"
+
 const SMOOBU_API_URL = "https://login.smoobu.com/api"
-const SMOOBU_API_KEY = process.env.SMOOBU_API_KEY
 
 // Channel IDs in Smoobu
 // NOTE: In Smoobu, channel IDs are DYNAMIC per user (e.g. 465614 = Booking.com for one user).
@@ -169,30 +171,41 @@ class SmoobuClient {
   }
 
   /**
-   * Get the API key, lazily validated at request time (not at module load / build time)
-   */
-  private getApiKey(): string {
-    const key = process.env.SMOOBU_API_KEY
-    if (!key) {
-      throw new Error("SMOOBU_API_KEY environment variable is required")
-    }
-    return key
-  }
-
-  /**
    * Make an authenticated request to Smoobu API
    */
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
+    const method = (options.method || "GET").toUpperCase()
+    const body = options.body == null ? "" : options.body
+
+    if (typeof body !== "string") {
+      throw new Error("Smoobu request bodies must be serialized strings")
+    }
+
+    const credentials = await getSmoobuCredentials()
+    const headers = new Headers(options.headers)
+    headers.set("Content-Type", "application/json")
+    headers.set("Cache-Control", "no-cache")
+
+    if (credentials.apiSecret) {
+      const hmacHeaders = createSmoobuHmacHeaders({
+        url,
+        method,
+        body,
+        apiKey: credentials.apiKey,
+        apiSecret: credentials.apiSecret,
+      })
+      for (const [name, value] of Object.entries(hmacHeaders)) {
+        headers.set(name, value)
+      }
+    } else {
+      // Keep the current integration working during Smoobu's migration window.
+      headers.set("Api-Key", credentials.apiKey)
+    }
 
     const response = await fetch(url, {
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        "Api-Key": this.getApiKey(),
-        "Cache-Control": "no-cache",
-        ...options.headers,
-      },
+      headers,
     })
 
     if (!response.ok) {

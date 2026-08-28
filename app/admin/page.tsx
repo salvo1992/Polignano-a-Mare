@@ -18,6 +18,7 @@ import { RoomStatusToggle } from "@/components/room-status-toggle"
 import { GuestsTracking } from "@/components/guests-tracking"
 import { SmoobuSyncPanel } from "@/components/smoobu-sync-panel"
 import { SmoobuReviewsSync } from "@/components/smoobu-reviews-sync"
+import { SmoobuCredentialsSettings } from "@/components/smoobu-credentials-settings"
 import { BookingBlockDates } from "@/components/booking-block-dates"
 import { BookingCalendarFiltered } from "@/components/booking-calendar-filtered"
 import { AdminSecuritySettings } from "@/components/admin-security-settings"
@@ -726,6 +727,8 @@ function AdminInner() {
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-4 sm:space-y-6">
+              <SmoobuCredentialsSettings />
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <SmoobuSyncPanel />
                 <SmoobuReviewsSync />
