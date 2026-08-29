@@ -41,7 +41,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-const RECOVERY_ADMIN_EMAIL = "al22suite@gmail.com"
 
 // ---------- COOKIE HELPERS ----------
 function setRoleCookie(role: "user" | "admin" | "") {
@@ -84,23 +83,6 @@ function firebaseToAppUser(fbUser: FirebaseUser, idToken: string, role: AppRole)
   }
 }
 
-async function recoverAdminAccessIfAllowed(email: string | null, idToken: string): Promise<void> {
-  if (email?.trim().toLowerCase() !== RECOVERY_ADMIN_EMAIL) return
-
-  const response = await fetch("/api/admin/recover-access", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${idToken}`,
-    },
-    cache: "no-store",
-  })
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}))
-    throw new Error(data.error || "Recupero accesso amministratore non riuscito")
-  }
-}
-
 // ---------- PROVIDER ----------
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null)
@@ -117,9 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsLoading(false)
           return
         }
-        const idToken = await fbUser.getIdToken(false)
-        await recoverAdminAccessIfAllowed(fbUser.email, idToken)
-        const role = await readUserRole(fbUser.uid)
+        const [idToken, role] = await Promise.all([fbUser.getIdToken(false), readUserRole(fbUser.uid)])
         setUser(firebaseToAppUser(fbUser, idToken, role))
         setRoleCookie(role)
       } catch (e) {
@@ -144,9 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true)
       const fbUser = await loginWithEmail(email, password)
-      const idToken = await fbUser.getIdToken(true)
-      await recoverAdminAccessIfAllowed(fbUser.email, idToken)
-      const role = await readUserRole(fbUser.uid)
+      const [idToken, role] = await Promise.all([fbUser.getIdToken(true), readUserRole(fbUser.uid)])
       setUser(firebaseToAppUser(fbUser, idToken, role))
       setRoleCookie(role) // <--- cookie aggiornato
       return { success: true, role }
