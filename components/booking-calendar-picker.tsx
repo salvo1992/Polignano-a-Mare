@@ -50,18 +50,24 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
   const [unavailableDates, setUnavailableDates] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [loadingDates, setLoadingDates] = useState(true)
+  const [availabilityError, setAvailabilityError] = useState(false)
 
   const loadUnavailableDates = useCallback(async () => {
     try {
       setLoadingDates(true)
+      setAvailabilityError(false)
       const res = await fetch(`/api/bookings/unavailable-dates?roomId=${encodeURIComponent(roomId)}`)
       const data = await res.json()
+
+      if (!res.ok) throw new Error(data.error || "Availability request failed")
 
       if (data.dates && Array.isArray(data.dates)) {
         setUnavailableDates(new Set(data.dates))
       }
     } catch (error) {
       console.error("[BookingCalendar] Error loading unavailable dates:", error)
+      setAvailabilityError(true)
+      setUnavailableDates(new Set())
     } finally {
       setLoadingDates(false)
     }
@@ -91,6 +97,7 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
   }
 
   function isDateUnavailable(day: Date): boolean {
+    if (availabilityError) return true
     const dateStr = format(day, "yyyy-MM-dd")
     return unavailableDates.has(dateStr)
   }
@@ -217,10 +224,12 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
         {/* Month navigation */}
         <div className="flex items-center justify-between">
           <Button
+            type="button"
             variant="outline"
             size={compact ? "icon" : "sm"}
             onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
             className={compact ? "h-7 w-7" : ""}
+            aria-label="Mese precedente"
           >
             <ChevronLeft className={cn(compact ? "h-3 w-3" : "h-4 w-4")} />
           </Button>
@@ -231,16 +240,23 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
             {loadingDates && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
           </div>
           <Button
+            type="button"
             variant="outline"
             size={compact ? "icon" : "sm"}
             onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
             className={compact ? "h-7 w-7" : ""}
+            aria-label="Mese successivo"
           >
             <ChevronRight className={cn(compact ? "h-3 w-3" : "h-4 w-4")} />
           </Button>
         </div>
 
         {/* Calendar Grid */}
+        {availabilityError && (
+          <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+            Disponibilita temporaneamente non verificabile. Riprova tra poco.
+          </div>
+        )}
         <div className={cn("grid grid-cols-7", compact ? "gap-0.5" : "gap-1")}>
           {["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"].map((day) => (
             <div key={day} className={cn("text-center font-semibold p-1", compact ? "text-[10px]" : "text-xs")}>
@@ -259,6 +275,7 @@ export function BookingCalendarPicker({ value, onChange, roomId, className, comp
 
             return (
               <button
+                type="button"
                 key={day.toISOString()}
                 onClick={() => !isDisabled && handleDayClick(day)}
                 disabled={isDisabled}

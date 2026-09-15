@@ -27,6 +27,46 @@ async function markProcessed(eventId: string, payload: any) {
     .set({ receivedAt: admin.firestore.FieldValue.serverTimestamp(), payload }, { merge: true })
 }
 
+async function ensureSmoobuReservation(bookingRef: any, bookingId: string, bookingData: any, price: number) {
+  const latestSnapshot = await bookingRef.get()
+  const latestBooking = latestSnapshot.data() || bookingData
+  if (latestBooking.smoobuReservationId || latestBooking.smoobuId) return
+
+  const apartmentId = Number(latestBooking.smoobuApartmentId) ||
+    await smoobuClient.resolveApartmentId(
+      String(latestBooking.roomId || ""),
+      String(latestBooking.roomName || ""),
+    )
+  if (!apartmentId) throw new Error(`No Smoobu apartment mapping for booking ${bookingId}`)
+
+  const available = await smoobuClient.checkAvailability(
+    String(apartmentId),
+    String(latestBooking.checkIn).slice(0, 10),
+    String(latestBooking.checkOut).slice(0, 10),
+  )
+  if (!available) throw new Error(`Smoobu reports a date conflict for booking ${bookingId}`)
+
+  const result = await smoobuClient.createReservation({
+    apartmentId,
+    arrival: String(latestBooking.checkIn).slice(0, 10),
+    departure: String(latestBooking.checkOut).slice(0, 10),
+    firstName: latestBooking.firstName || "Guest",
+    lastName: latestBooking.lastName || "",
+    email: latestBooking.email || "",
+    phone: latestBooking.phone || "",
+    adults: latestBooking.guests || 1,
+    children: latestBooking.numberOfChildren || 0,
+    price,
+    notice: `Prenotazione diretta - ID: ${bookingId}`,
+  })
+
+  await bookingRef.update({
+    smoobuReservationId: result.id,
+    smoobuApartmentId: apartmentId,
+    smoobuSyncedAt: new Date().toISOString(),
+  })
+}
+
 // --- Main handler ---
 
 export async function POST(req: NextRequest) {
@@ -103,6 +143,10 @@ export async function POST(req: NextRequest) {
       const checkInDate = new Date(bookingData.checkIn)
       const chargeDate = calculateChargeDate(checkInDate)
 
+      // Reserve on the channel manager before confirming the website booking.
+      // Throwing here makes Stripe retry the webhook instead of silently losing the sync.
+      await ensureSmoobuReservation(bookingRef, bookingId, bookingData, totalAmountCents / 100)
+
       await bookingRef.update({
         stripeCustomerId: customerId,
         stripePaymentMethodId: paymentMethodId,
@@ -176,49 +220,6 @@ export async function POST(req: NextRequest) {
         console.error("[Webhook] Email error:", emailErr.message)
       }
 
-      // Create Smoobu reservation
-      try {
-        if (bookingData.roomId && bookingData.checkIn && bookingData.checkOut) {
-          let apartmentId: number | null = null
-          const numericId = parseInt(bookingData.roomId)
-
-          if (!isNaN(numericId) && numericId > 1000) {
-            apartmentId = numericId
-          } else {
-            const apartments = await smoobuClient.getApartmentsCached()
-            const match = apartments.find(
-              (a) =>
-                a.name.toLowerCase().includes(bookingData.roomId.toLowerCase()) ||
-                bookingData.roomId.toLowerCase().includes(a.name.toLowerCase()),
-            )
-            apartmentId = match ? match.id : apartments.length > 0 ? apartments[0].id : null
-          }
-
-          if (apartmentId) {
-            const smoobuResult = await smoobuClient.createReservation({
-              apartmentId,
-              arrival: bookingData.checkIn,
-              departure: bookingData.checkOut,
-              firstName: bookingData.firstName || "Guest",
-              lastName: bookingData.lastName || "",
-              email: bookingData.email || "",
-              phone: bookingData.phone || "",
-              adults: bookingData.guests || 1,
-              children: 0,
-              price: totalAmountCents / 100,
-              notice: `Prenotazione diretta - ID: ${bookingId}`,
-            })
-
-            await bookingRef.update({
-              smoobuReservationId: smoobuResult.id,
-              smoobuSyncedAt: new Date().toISOString(),
-            })
-          }
-        }
-      } catch (smoobuError: any) {
-        console.error("[Webhook] Smoobu error:", smoobuError.message)
-      }
-
       await markProcessed(event.id, { ok: true, bookingId, type: "setup_intent" })
       return NextResponse.json({ received: true, bookingId })
     }
@@ -230,7 +231,7 @@ export async function POST(req: NextRequest) {
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent
       const bookingId = paymentIntent.metadata?.bookingId
-      const type = paymentIntent.metadata?.type || "unknown"
+      const type = paymentIntent.metadata?.type || paymentIntent.metadata?.chargeType || "unknown"
 
       if (!bookingId) {
         await markProcessed(event.id, { ignored: true, reason: "no_bookingId" })
@@ -239,7 +240,25 @@ export async function POST(req: NextRequest) {
 
       const bookingRef = db.doc(`bookings/${bookingId}`)
 
-      if (type === "balance_charge" || type === "balance_fallback") {
+      if (type === "immediate_full_payment") {
+        const bookingSnapshot = await bookingRef.get()
+        if (!bookingSnapshot.exists) {
+          return NextResponse.json({ error: "Booking not found" }, { status: 404 })
+        }
+        await ensureSmoobuReservation(
+          bookingRef,
+          bookingId,
+          bookingSnapshot.data(),
+          paymentIntent.amount_received / 100,
+        )
+        await bookingRef.update({
+          status: "paid",
+          stripePaymentIntentId: paymentIntent.id,
+          paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        })
+        console.log("[Webhook] Immediate booking paid and reserved on Smoobu:", bookingId)
+      } else if (type === "balance_charge" || type === "balance_fallback") {
         await bookingRef.update({
           status: "paid",
           stripePaymentIntentId: paymentIntent.id,

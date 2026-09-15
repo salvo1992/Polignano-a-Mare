@@ -1,195 +1,186 @@
 import { NextResponse } from "next/server"
+import { FieldValue, Timestamp } from "firebase-admin/firestore"
 import { getAdminDb } from "@/lib/firebase-admin"
-import { FieldValue } from "firebase-admin/firestore"
+import { resolveToLocalRoomId } from "@/lib/room-mapping"
+import { smoobuClient } from "@/lib/smoobu-client"
 
-/**
- * Helper: get all unavailable date strings for a given room.
- * Checks bookings, blocked_dates, and smoobu_bookings collections.
- */
-async function getUnavailableDatesForRoom(db: FirebaseFirestore.Firestore, roomId?: string): Promise<Set<string>> {
-  const unavailable = new Set<string>()
+const HOLD_MINUTES = 45
 
-  // 1. Active bookings
-  const bookingsSnap = await db
-    .collection("bookings")
-    .where("status", "in", ["confirmed", "paid", "pending"])
-    .get()
+function getStayDates(checkIn: string, checkOut: string): string[] {
+  const dates: string[] = []
+  const start = new Date(`${checkIn}T00:00:00.000Z`)
+  const end = new Date(`${checkOut}T00:00:00.000Z`)
 
-  bookingsSnap.forEach((doc) => {
-    const booking = doc.data()
-    if (roomId && booking.roomId && booking.roomId !== roomId) return
-
-    const checkIn = new Date(booking.checkIn)
-    const checkOut = new Date(booking.checkOut)
-    if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) return
-
-    for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
-      unavailable.add(d.toISOString().split("T")[0])
-    }
-  })
-
-  // 2. Blocked dates (from Smoobu sync)
-  try {
-    const blockedSnap = await db.collection("blocked_dates").get()
-    blockedSnap.forEach((doc) => {
-      const blocked = doc.data()
-      if (roomId && blocked.roomId && blocked.roomId !== roomId) return
-
-      const from = new Date(blocked.startDate || blocked.from || blocked.arrival)
-      const to = new Date(blocked.endDate || blocked.to || blocked.departure)
-      if (isNaN(from.getTime()) || isNaN(to.getTime())) return
-
-      for (let d = new Date(from); d < to; d.setDate(d.getDate() + 1)) {
-        unavailable.add(d.toISOString().split("T")[0])
-      }
-    })
-  } catch {
-    // collection might not exist
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return dates
+  for (let date = new Date(start); date < end; date.setUTCDate(date.getUTCDate() + 1)) {
+    dates.push(date.toISOString().slice(0, 10))
   }
-
-  // 3. Smoobu-synced bookings
-  try {
-    const smoobuSnap = await db.collection("smoobu_bookings").get()
-    smoobuSnap.forEach((doc) => {
-      const booking = doc.data()
-      if (booking.status === "cancelled" || booking.status === "canceled") return
-      if (roomId && booking.roomId && booking.roomId !== roomId) return
-
-      const arrival = new Date(booking.arrival || booking.checkIn)
-      const departure = new Date(booking.departure || booking.checkOut)
-      if (isNaN(arrival.getTime()) || isNaN(departure.getTime())) return
-
-      for (let d = new Date(arrival); d < departure; d.setDate(d.getDate() + 1)) {
-        unavailable.add(d.toISOString().split("T")[0])
-      }
-    })
-  } catch {
-    // collection might not exist
-  }
-
-  return unavailable
+  return dates
 }
 
-/**
- * Check if a requested date range overlaps with any unavailable dates.
- */
-function hasOverlap(checkIn: string, checkOut: string, unavailable: Set<string>): string[] {
-  const conflicts: string[] = []
-  const start = new Date(checkIn)
-  const end = new Date(checkOut)
+function roomMatches(storedRoomId: unknown, requestedRoomId: string): boolean {
+  if (!storedRoomId) return true
+  return resolveToLocalRoomId(String(storedRoomId)) === resolveToLocalRoomId(requestedRoomId)
+}
 
-  for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().split("T")[0]
-    if (unavailable.has(dateStr)) {
-      conflicts.push(dateStr)
+function timestampMillis(value: unknown): number | null {
+  if (value instanceof Timestamp) return value.toMillis()
+  if (value && typeof value === "object" && "toMillis" in value) {
+    const toMillis = (value as { toMillis?: unknown }).toMillis
+    if (typeof toMillis === "function") return Number(toMillis.call(value))
+  }
+  const parsed = new Date(String(value || "")).getTime()
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+async function getFirestoreConflicts(
+  db: FirebaseFirestore.Firestore,
+  roomId: string,
+  requestedDates: Set<string>,
+): Promise<string[]> {
+  const unavailable = new Set<string>()
+  const now = Date.now()
+  const bookingsSnap = await db
+    .collection("bookings")
+    .where("status", "in", ["confirmed", "paid", "pending", "payment_scheduled"])
+    .get()
+
+  bookingsSnap.forEach((document) => {
+    const booking = document.data()
+    if (!roomMatches(booking.roomId, roomId)) return
+    if (booking.status === "pending") {
+      const expiresAt = timestampMillis(booking.holdExpiresAt)
+      if (expiresAt !== null && expiresAt <= now) return
+    }
+    const start = String(booking.checkIn || "").slice(0, 10)
+    const end = String(booking.checkOut || "").slice(0, 10)
+    for (const date of getStayDates(start, end)) unavailable.add(date)
+  })
+
+  for (const collectionName of ["blocked_dates", "smoobu_bookings"]) {
+    try {
+      const snapshot = await db.collection(collectionName).get()
+      snapshot.forEach((document) => {
+        const item = document.data()
+        if (item.status === "cancelled" || item.status === "canceled") return
+        if (!roomMatches(item.roomId, roomId)) return
+        const start = String(item.startDate || item.from || item.arrival || item.checkIn || "").slice(0, 10)
+        const end = String(item.endDate || item.to || item.departure || item.checkOut || "").slice(0, 10)
+        for (const date of getStayDates(start, end)) unavailable.add(date)
+      })
+    } catch (error) {
+      console.warn(`[Create Booking] Could not read ${collectionName}:`, error)
     }
   }
 
-  return conflicts
+  return [...requestedDates].filter((date) => unavailable.has(date))
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const {
-      email,
-      firstName,
-      lastName,
-      phone,
-      checkIn,
-      checkOut,
-      guests,
-      roomType,
-      roomName,
-      roomId,
-      nights,
-      pricePerNight,
-      subtotal,
-      taxes,
-      serviceFee,
-      totalAmount,
-      specialRequests,
-      userId,
-      isTestBooking, // Admin test bookings can skip availability check
-    } = body
+    const email = String(body.email || "").trim()
+    const firstName = String(body.firstName || "").trim()
+    const lastName = String(body.lastName || "").trim()
+    const checkIn = String(body.checkIn || "").slice(0, 10)
+    const checkOut = String(body.checkOut || "").slice(0, 10)
+    const roomId = String(body.roomId || "").trim()
+    const roomName = String(body.roomName || "").trim()
+    const guests = Number(body.guests)
 
-    // Validate required fields
-    if (!email || !firstName || !lastName || !checkIn || !checkOut || !guests || !roomType) {
-      return NextResponse.json({ error: "Missing required booking fields" }, { status: 400 })
+    if (!email || !firstName || !lastName || !checkIn || !checkOut || !roomId || !guests) {
+      return NextResponse.json({ error: "Compila tutti i campi obbligatori." }, { status: 400 })
     }
 
-    // Validate dates
-    const checkInDate = new Date(checkIn)
-    const checkOutDate = new Date(checkOut)
-    const now = new Date()
-    now.setHours(0, 0, 0, 0)
-
-    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
-      return NextResponse.json({ error: "Date non valide" }, { status: 400 })
+    const checkInDate = new Date(`${checkIn}T00:00:00.000Z`)
+    const checkOutDate = new Date(`${checkOut}T00:00:00.000Z`)
+    const today = new Date()
+    today.setUTCHours(0, 0, 0, 0)
+    if (
+      Number.isNaN(checkInDate.getTime()) ||
+      Number.isNaN(checkOutDate.getTime()) ||
+      checkInDate < today ||
+      checkOutDate <= checkInDate
+    ) {
+      return NextResponse.json({ error: "Le date selezionate non sono valide." }, { status: 400 })
     }
 
-    if (checkInDate < now) {
-      return NextResponse.json({ error: "La data di check-in non puo' essere nel passato" }, { status: 400 })
+    const apartmentId = await smoobuClient.resolveApartmentId(roomId, roomName)
+    if (!apartmentId) {
+      console.error("[Create Booking] No Smoobu apartment mapping for room", roomId, roomName)
+      return NextResponse.json(
+        { error: "Disponibilita non verificabile per questa camera. Riprova tra poco.", code: "ROOM_NOT_MAPPED" },
+        { status: 503 },
+      )
     }
 
-    if (checkOutDate <= checkInDate) {
-      return NextResponse.json({ error: "La data di check-out deve essere dopo il check-in" }, { status: 400 })
+    let availableOnSmoobu: boolean
+    try {
+      availableOnSmoobu = await smoobuClient.checkAvailability(String(apartmentId), checkIn, checkOut)
+    } catch (error) {
+      console.error("[Create Booking] Live Smoobu availability check failed:", error)
+      return NextResponse.json(
+        { error: "Non riusciamo a verificare Smoobu in questo momento. Riprova tra poco.", code: "AVAILABILITY_CHECK_FAILED" },
+        { status: 503 },
+      )
+    }
+    if (!availableOnSmoobu) {
+      return NextResponse.json(
+        { error: "Le date selezionate non sono disponibili.", code: "DATES_UNAVAILABLE" },
+        { status: 409 },
+      )
     }
 
     const db = getAdminDb()
-
-    // SERVER-SIDE ANTI-DOUBLE-BOOKING CHECK
-    // Skip for admin test bookings (they use isTestBooking flag)
-    if (!isTestBooking) {
-      console.log("[Create Booking] Checking availability for dates:", checkIn, "to", checkOut, "room:", roomId)
-
-      const unavailableDates = await getUnavailableDatesForRoom(db, roomId || undefined)
-      const conflicts = hasOverlap(checkIn, checkOut, unavailableDates)
-
-      if (conflicts.length > 0) {
-        console.warn("[Create Booking] BLOCKED - Date conflict detected:", conflicts)
-        return NextResponse.json(
-          {
-            error: "Le date selezionate non sono disponibili. Alcune date sono gia' prenotate.",
-            conflictDates: conflicts,
-            code: "DATES_UNAVAILABLE",
-          },
-          { status: 409 }
-        )
-      }
-
-      console.log("[Create Booking] Availability confirmed, creating booking...")
-    } else {
-      console.log("[Create Booking] Test booking - skipping availability check")
+    const stayDates = getStayDates(checkIn, checkOut)
+    const firestoreConflicts = await getFirestoreConflicts(db, roomId, new Set(stayDates))
+    if (firestoreConflicts.length > 0) {
+      return NextResponse.json(
+        { error: "Le date selezionate non sono disponibili.", code: "DATES_UNAVAILABLE", conflictDates: firestoreConflicts },
+        { status: 409 },
+      )
     }
 
-    // Create booking document
+    const canonicalRoomId = resolveToLocalRoomId(roomId)
     const bookingRef = db.collection("bookings").doc()
-    const bookingId = bookingRef.id
-
-    const totalAmountEuros = Number(totalAmount)
+    const holdExpiresAt = Timestamp.fromMillis(Date.now() + HOLD_MINUTES * 60 * 1000)
+    const lockRefs = stayDates.map((date) =>
+      db.collection("booking_date_locks").doc(`${canonicalRoomId}_${date}`),
+    )
+    const nights = stayDates.length
+    const pricePerNight = Number(body.pricePerNight || 0)
+    const submittedTotal = Number(body.totalAmount)
+    const totalAmount = Number.isFinite(submittedTotal)
+      ? Math.round(submittedTotal * 100) / 100
+      : Math.round(pricePerNight * nights * 100) / 100
     const bookingData = {
-      bookingId,
-      userId: userId || null,
+      bookingId: bookingRef.id,
+      userId: null,
       email,
       firstName,
       lastName,
-      phone: phone || "",
+      phone: String(body.phone || ""),
       checkIn,
       checkOut,
-      guests: Number(guests),
-      roomType,
-      roomName: roomName || roomType,
-      roomId: roomId || null,
-      nights: Number(nights),
-      pricePerNight: Number(pricePerNight),
-      subtotal: Number(subtotal),
-      taxes: Number(taxes),
-      serviceFee: Number(serviceFee || 0),
-      totalAmount: totalAmountEuros, // Amount in euros
-      totalAmountCents: Math.round(totalAmountEuros * 100), // Amount in cents for Stripe
-      specialRequests: specialRequests || "",
+      guests,
+      numberOfChildren: Number(body.numberOfChildren || 0),
+      roomType: String(body.roomType || canonicalRoomId),
+      roomName: roomName || `Camera ${canonicalRoomId}`,
+      roomId: canonicalRoomId,
+      smoobuApartmentId: apartmentId,
+      nights,
+      pricePerNight,
+      subtotal: Number(body.subtotal || pricePerNight * nights),
+      taxes: Number(body.taxes || 0),
+      serviceFee: Number(body.serviceFee || 0),
+      totalAmount,
+      totalAmountCents: Math.round(totalAmount * 100),
+      notes: String(body.notes || body.specialRequests || ""),
+      specialRequests: String(body.specialRequests || body.notes || ""),
       status: "pending",
+      origin: "site",
+      currency: "EUR",
+      holdExpiresAt,
       paymentProvider: null,
       paymentId: null,
       paidAt: null,
@@ -198,17 +189,44 @@ export async function POST(req: Request) {
       updatedAt: FieldValue.serverTimestamp(),
     }
 
-    await bookingRef.set(bookingData)
+    try {
+      await db.runTransaction(async (transaction) => {
+        const lockSnapshots = await Promise.all(lockRefs.map((reference) => transaction.get(reference)))
+        const now = Date.now()
+        const activeConflict = lockSnapshots.find((snapshot) => {
+          if (!snapshot.exists) return false
+          const expiresAt = timestampMillis(snapshot.data()?.expiresAt)
+          return expiresAt === null || expiresAt > now
+        })
+        if (activeConflict) throw new Error("BOOKING_DATE_LOCK_CONFLICT")
 
-    console.log("[Create Booking] Booking created:", bookingId)
+        transaction.set(bookingRef, bookingData)
+        lockRefs.forEach((reference, index) => {
+          transaction.set(reference, {
+            bookingId: bookingRef.id,
+            roomId: canonicalRoomId,
+            date: stayDates[index],
+            expiresAt: holdExpiresAt,
+            createdAt: FieldValue.serverTimestamp(),
+          })
+        })
+      })
+    } catch (error) {
+      if (error instanceof Error && error.message === "BOOKING_DATE_LOCK_CONFLICT") {
+        return NextResponse.json(
+          { error: "Le date sono appena state selezionate da un altro ospite. Scegli altre date.", code: "DATES_UNAVAILABLE" },
+          { status: 409 },
+        )
+      }
+      throw error
+    }
 
-    return NextResponse.json({
-      success: true,
-      bookingId,
-      booking: bookingData,
-    })
-  } catch (error: any) {
+    return NextResponse.json({ success: true, bookingId: bookingRef.id })
+  } catch (error) {
     console.error("[Create Booking Error]:", error)
-    return NextResponse.json({ error: error.message || "Failed to create booking" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Non e stato possibile creare la prenotazione. Riprova tra poco." },
+      { status: 500 },
+    )
   }
 }

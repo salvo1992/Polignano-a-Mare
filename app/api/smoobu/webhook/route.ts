@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server"
-import { db } from "@/lib/firebase"
-import { collection, doc, setDoc, query, where, getDocs } from "firebase/firestore"
+import { getAdminDb } from "@/lib/firebase-admin"
 import { detectSourceFromChannelName } from "@/lib/smoobu-client"
 import {
   getRoomName as centralGetRoomName,
   convertSmoobuApartmentIdToLocal as centralConvert,
-  resolveToLocalRoomId,
+  getRoomIdByName,
 } from "@/lib/room-mapping"
 
 /**
@@ -49,6 +48,7 @@ export async function POST(request: Request) {
 }
 
 async function handleBookingUpdate(reservation: any) {
+  const db = getAdminDb()
   const channelName = reservation.channel?.name || ""
   
   // Determine source from channel NAME (channel IDs are dynamic per Smoobu user)
@@ -63,9 +63,9 @@ async function handleBookingUpdate(reservation: any) {
   const smoobuId = reservation.id?.toString()
 
   // Check if booking already exists
-  const bookingsRef = collection(db, "bookings")
-  const q = query(bookingsRef, where("smoobuId", "==", smoobuId))
-  const existingBookings = await getDocs(q)
+  const existingBookings = await db.collection("bookings").where("smoobuId", "==", smoobuId).get()
+  const roomId = getRoomIdByName(reservation.apartment?.name || "") ||
+    convertSmoobuApartmentIdToLocal(reservation.apartment?.id?.toString())
 
   const firebaseBooking = {
     checkIn: reservation.arrival,
@@ -80,8 +80,8 @@ async function handleBookingUpdate(reservation: any) {
     currency: "EUR",
     status: "confirmed",
     origin: source,
-    roomId: convertSmoobuApartmentIdToLocal(reservation.apartment?.id?.toString()),
-    roomName: getRoomName(convertSmoobuApartmentIdToLocal(reservation.apartment?.id?.toString())),
+    roomId,
+    roomName: getRoomName(roomId),
     smoobuId: smoobuId,
     smoobuApartmentId: reservation.apartment?.id?.toString(),
     channelId: reservation.channel?.id,
@@ -92,14 +92,14 @@ async function handleBookingUpdate(reservation: any) {
 
   if (existingBookings.empty) {
     // Create new booking
-    const bookingRef = doc(collection(db, "bookings"))
-    await setDoc(bookingRef, firebaseBooking)
+    const bookingRef = db.collection("bookings").doc()
+    await bookingRef.set(firebaseBooking)
     console.log(`[Smoobu] Created new booking from webhook: ${smoobuId}`)
 
     // Also create a blocked_dates entry so calendar immediately blocks these dates
     try {
-      const blockRef = doc(collection(db, "blocked_dates"))
-      await setDoc(blockRef, {
+      const blockRef = db.collection("blocked_dates").doc()
+      await blockRef.set({
         roomId: firebaseBooking.roomId,
         from: reservation.arrival,
         to: reservation.departure,
@@ -115,22 +115,20 @@ async function handleBookingUpdate(reservation: any) {
   } else {
     // Update existing booking
     const existingDoc = existingBookings.docs[0]
-    await setDoc(doc(db, "bookings", existingDoc.id), firebaseBooking, { merge: true })
+    await existingDoc.ref.set(firebaseBooking, { merge: true })
     console.log(`[Smoobu] Updated existing booking from webhook: ${smoobuId}`)
   }
 }
 
 async function handleBookingCancellation(reservation: any) {
+  const db = getAdminDb()
   const smoobuId = reservation.id?.toString()
 
-  const bookingsRef = collection(db, "bookings")
-  const q = query(bookingsRef, where("smoobuId", "==", smoobuId))
-  const existingBookings = await getDocs(q)
+  const existingBookings = await db.collection("bookings").where("smoobuId", "==", smoobuId).get()
 
   if (!existingBookings.empty) {
     const existingDoc = existingBookings.docs[0]
-    await setDoc(
-      doc(db, "bookings", existingDoc.id),
+    await existingDoc.ref.set(
       {
         status: "cancelled",
         syncedAt: new Date().toISOString(),

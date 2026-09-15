@@ -228,7 +228,7 @@ export default function PrenotaPage() {
       checkIn: formData.checkIn,
       checkOut: formData.checkOut,
       guests: Number(formData.guests || "1"),
-      children: Number(formData.children || "0"),
+      numberOfChildren: Number(formData.children || "0"),
       firstName: formData.firstName,
       lastName: formData.lastName,
       email: formData.email,

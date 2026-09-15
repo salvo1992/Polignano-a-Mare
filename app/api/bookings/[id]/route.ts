@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getBookingById } from "@/lib/firebase"
+import { getAdminDb } from "@/lib/firebase-admin"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -9,7 +9,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Booking ID is required" }, { status: 400 })
     }
 
-    const booking = await getBookingById(bookingId)
+    const snapshot = await getAdminDb().collection("bookings").doc(bookingId).get()
+    const booking = snapshot.exists ? { id: snapshot.id, ...snapshot.data() } : null
 
     if (!booking) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 })

@@ -1,91 +1,96 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { db } from "@/lib/firebase"
-import { collection, query, where, getDocs } from "firebase/firestore"
+import { Timestamp } from "firebase-admin/firestore"
+import { getAdminDb } from "@/lib/firebase-admin"
 import { resolveToLocalRoomId } from "@/lib/room-mapping"
+import { smoobuClient } from "@/lib/smoobu-client"
 
-/**
- * GET - Fetch all unavailable dates for a given room
- * Combines: confirmed bookings + blocked_dates
- * Uses client-side Firebase SDK (works without Firebase Admin PEM key)
- * Handles room ID mismatches between Smoobu and local IDs
- */
+export const dynamic = "force-dynamic"
+
+function addDateRange(target: Set<string>, fromValue: unknown, toValue: unknown) {
+  const from = new Date(`${String(fromValue || "").slice(0, 10)}T00:00:00.000Z`)
+  const to = new Date(`${String(toValue || "").slice(0, 10)}T00:00:00.000Z`)
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return
+  for (let date = new Date(from); date < to; date.setUTCDate(date.getUTCDate() + 1)) {
+    target.add(date.toISOString().slice(0, 10))
+  }
+}
+
+function roomMatches(storedRoomId: unknown, requestedRoomId: string | null): boolean {
+  if (!requestedRoomId) return true
+  if (!storedRoomId) return true
+  return resolveToLocalRoomId(String(storedRoomId)) === resolveToLocalRoomId(requestedRoomId)
+}
+
+function isExpiredPending(item: FirebaseFirestore.DocumentData): boolean {
+  if (item.status !== "pending" || !item.holdExpiresAt) return false
+  if (item.holdExpiresAt instanceof Timestamp) return item.holdExpiresAt.toMillis() <= Date.now()
+  if (typeof item.holdExpiresAt.toMillis === "function") return item.holdExpiresAt.toMillis() <= Date.now()
+  const parsed = new Date(item.holdExpiresAt).getTime()
+  return !Number.isNaN(parsed) && parsed <= Date.now()
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const roomId = searchParams.get("roomId")
+    const roomId = new URL(request.url).searchParams.get("roomId")
+    if (!roomId) return NextResponse.json({ error: "roomId mancante", dates: [] }, { status: 400 })
 
-    const unavailableDates: Set<string> = new Set()
+    const unavailableDates = new Set<string>()
+    const db = getAdminDb()
+    const bookingsSnap = await db
+      .collection("bookings")
+      .where("status", "in", ["confirmed", "paid", "pending", "payment_scheduled"])
+      .get()
 
-    // Helper: check if a booking's roomId matches the requested room
-    // Handles both local IDs ("1", "2") and Smoobu apartment IDs
-    function roomMatches(bookingRoomId: string | undefined): boolean {
-      if (!roomId) return true // no filter
-      if (!bookingRoomId) return true // no roomId on booking = include it for safety
-      
-      // Direct match
-      if (bookingRoomId === roomId) return true
-      
-      // Resolve both to local IDs and compare
-      const resolvedBooking = resolveToLocalRoomId(bookingRoomId)
-      const resolvedRequest = resolveToLocalRoomId(roomId)
-      
-      return resolvedBooking === resolvedRequest
-    }
+    bookingsSnap.forEach((document) => {
+      const booking = document.data()
+      if (isExpiredPending(booking) || !roomMatches(booking.roomId, roomId)) return
+      addDateRange(unavailableDates, booking.checkIn, booking.checkOut)
+    })
 
-    // 1. Get all active bookings (confirmed, paid, pending)
-    const bookingsRef = collection(db, "bookings")
-    const bookingsQuery = query(
-      bookingsRef,
-      where("status", "in", ["confirmed", "paid", "pending"]),
-    )
-    const bookingsSnap = await getDocs(bookingsQuery)
-
-    bookingsSnap.forEach((docSnap) => {
-      const booking = docSnap.data()
-
-      if (!roomMatches(booking.roomId)) return
-
-      const checkIn = new Date(booking.checkIn)
-      const checkOut = new Date(booking.checkOut)
-
-      if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) return
-
-      for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
-        unavailableDates.add(d.toISOString().split("T")[0])
+    for (const collectionName of ["blocked_dates", "smoobu_bookings"]) {
+      try {
+        const snapshot = await db.collection(collectionName).get()
+        snapshot.forEach((document) => {
+          const item = document.data()
+          if (item.status === "cancelled" || item.status === "canceled") return
+          if (!roomMatches(item.roomId, roomId)) return
+          addDateRange(
+            unavailableDates,
+            item.startDate || item.from || item.arrival || item.checkIn,
+            item.endDate || item.to || item.departure || item.checkOut,
+          )
+        })
+      } catch (error) {
+        console.warn(`[unavailable-dates] Could not read ${collectionName}:`, error)
       }
-    })
-
-    // 2. Get blocked_dates from Firebase
-    try {
-      const blockedRef = collection(db, "blocked_dates")
-      const blockedSnap = await getDocs(blockedRef)
-
-      blockedSnap.forEach((docSnap) => {
-        const blocked = docSnap.data()
-
-        if (!roomMatches(blocked.roomId)) return
-
-        const from = new Date(blocked.startDate || blocked.from || blocked.arrival)
-        const to = new Date(blocked.endDate || blocked.to || blocked.departure)
-
-        if (isNaN(from.getTime()) || isNaN(to.getTime())) return
-
-        for (let d = new Date(from); d < to; d.setDate(d.getDate() + 1)) {
-          unavailableDates.add(d.toISOString().split("T")[0])
-        }
-      })
-    } catch (blockedError) {
-      console.warn("[unavailable-dates] blocked_dates collection error:", blockedError)
     }
 
-    const sortedDates = [...unavailableDates].sort()
+    // Smoobu is the channel manager and therefore the live source of truth.
+    const apartmentId = await smoobuClient.resolveApartmentId(roomId)
+    if (!apartmentId) throw new Error(`No Smoobu mapping for room ${roomId}`)
 
-    return NextResponse.json({
-      dates: sortedDates,
-      count: sortedDates.length,
+    const start = new Date()
+    start.setUTCHours(0, 0, 0, 0)
+    const end = new Date(start)
+    end.setUTCDate(end.getUTCDate() + 550)
+    const startDate = start.toISOString().slice(0, 10)
+    const endDate = end.toISOString().slice(0, 10)
+    const rates = await smoobuClient.getRates(String(apartmentId), startDate, endDate)
+    if (rates.length === 0) throw new Error("Smoobu returned no availability data")
+    rates.forEach((rate) => {
+      if (rate.available <= 0) unavailableDates.add(rate.date)
     })
+
+    const dates = [...unavailableDates].sort()
+    return NextResponse.json(
+      { dates, count: dates.length },
+      { headers: { "Cache-Control": "no-store" } },
+    )
   } catch (error) {
     console.error("[unavailable-dates] Error:", error)
-    return NextResponse.json({ error: "Errore nel recupero delle date", dates: [] }, { status: 500 })
+    return NextResponse.json(
+      { error: "Disponibilita temporaneamente non verificabile", dates: [] },
+      { status: 503 },
+    )
   }
 }

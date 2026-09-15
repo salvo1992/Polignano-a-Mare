@@ -2,7 +2,11 @@ import { NextResponse } from "next/server"
 import { smoobuClient } from "@/lib/smoobu-client"
 import { getAdminDb } from "@/lib/firebase-admin"
 import { Resend } from "resend"
-import { getRoomName as centralGetRoomName, setSmoobuApartmentIds } from "@/lib/room-mapping"
+import {
+  convertSmoobuApartmentIdToLocal,
+  getRoomName as centralGetRoomName,
+  setSmoobuApartmentIds,
+} from "@/lib/room-mapping"
 
 export const dynamic = "force-dynamic"
 
@@ -33,6 +37,8 @@ export async function GET(request: Request) {
 
     const db = getAdminDb()
     const now = new Date()
+    const apartments = await smoobuClient.getApartmentsCached()
+    setSmoobuApartmentIds(apartments)
 
     const from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
       .toISOString()
@@ -69,6 +75,7 @@ export async function GET(request: Request) {
           const checkInDate = new Date(booking.arrival + "T00:00:00.000Z").toISOString()
           const checkOutDate = new Date(booking.departure + "T00:00:00.000Z").toISOString()
 
+          const localRoomId = convertSmoobuApartmentIdToLocal(booking.roomId.toString())
           await db.collection("bookings").add({
             checkIn: checkInDate,
             checkOut: checkOutDate,
@@ -82,8 +89,9 @@ export async function GET(request: Request) {
             currency: "EUR",
             status: booking.status === "confirmed" ? "confirmed" : "pending",
             origin: bookingSource,
-            roomId: booking.roomId.toString(),
-            roomName: getRoomName(booking.roomId.toString()),
+            roomId: localRoomId,
+            roomName: getRoomName(localRoomId),
+            smoobuApartmentId: booking.roomId.toString(),
             smoobuId: booking.id,
             channelId: booking.channelId,
             channelName: booking.channelName,
@@ -134,15 +142,17 @@ export async function GET(request: Request) {
           .get()
 
         if (existingBlock.empty) {
-          let syncedToSmoobu = !!booking.smoobuId
-          let smoobuReservationId = booking.smoobuId || null
+          let syncedToSmoobu = !!(booking.smoobuId || booking.smoobuReservationId)
+          let smoobuReservationId = booking.smoobuId || booking.smoobuReservationId || null
 
           // Block on Smoobu if it's a website booking without smoobuId
-          if (booking.origin === "site" && !booking.smoobuId) {
+          if (booking.origin === "site" && !smoobuReservationId) {
             try {
               console.log(`[Smoobu] Blocking dates on Smoobu for website booking ${booking.id}`)
+              const apartmentId = await smoobuClient.resolveApartmentId(booking.roomId, booking.roomName)
+              if (!apartmentId) throw new Error(`No Smoobu apartment for room ${booking.roomId}`)
               const blockResult = await smoobuClient.blockDates(
-                booking.roomId,
+                String(apartmentId),
                 fromDate,
                 toDate,
                 `website-booking-${booking.id}`
@@ -150,16 +160,17 @@ export async function GET(request: Request) {
                 
               if (blockResult) {
                 syncedToSmoobu = true
-                smoobuReservationId = blockResult
+                smoobuReservationId = blockResult.id
                 smoobuBlocks++
                 
                 await db.collection("bookings").doc(booking.id).update({
-                  smoobuId: blockResult,
+                  smoobuReservationId: blockResult.id,
+                  smoobuApartmentId: apartmentId,
                   syncedToSmoobu: true,
                   smoobuSyncedAt: new Date().toISOString(),
                 })
                 
-                console.log(`[Smoobu] Blocked on Smoobu with ID ${blockResult}`)
+                console.log(`[Smoobu] Blocked on Smoobu with ID ${blockResult.id}`)
               }
             } catch (smoobuError) {
               console.error(`[Smoobu] Error blocking for booking ${booking.id}:`, smoobuError)
@@ -213,7 +224,7 @@ export async function GET(request: Request) {
 
     // Step 4: Block past dates
     console.log("[Smoobu] Step 4: Blocking past dates")
-    const roomIds = ["2", "3"]
+    const roomIds = ["1", "2"]
     let pastBlocks = 0
 
     for (const roomId of roomIds) {

@@ -16,7 +16,6 @@ import {
 import {
   getFirestore,
   collection,
-  addDoc,
   getDocs,
   getDoc,
   setDoc,
@@ -254,19 +253,23 @@ export async function createBooking(payload: BookingPayload) {
 
   const total = payload.totalAmount ?? computeTotalEUR(payload.pricePerNight, nights)
 
-  const colRef = collection(db, BOOKINGS_COL)
-  const docRef = await addDoc(colRef, {
-    ...payload,
-    nights,
-    totalAmount: total,
-    currency: payload.currency ?? "EUR",
-    status: payload.status ?? "pending",
-    origin: payload.origin ?? "site",
-    userId: auth.currentUser?.uid ?? null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const response = await fetch("/api/bookings/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payload,
+      nights,
+      totalAmount: total,
+      currency: payload.currency ?? "EUR",
+    }),
   })
-  return docRef.id
+  const result = await response.json().catch(() => ({}))
+
+  if (!response.ok || !result.bookingId) {
+    throw new Error(result.error || "Impossibile verificare la disponibilita. Riprova tra poco.")
+  }
+
+  return result.bookingId as string
 }
 
 export async function updateBooking(

@@ -20,11 +20,13 @@ export const ROOM_MAPPINGS: RoomMapping[] = [
     localId: "1",
     localName: "Suite Acies con Balcone",
     smoobuName: "Acies",
+    smoobuApartmentId: "3076136",
   },
   {
     localId: "2",
     localName: "Suite Acquaroom con Idromassaggio",
     smoobuName: "Aquarum",
+    smoobuApartmentId: "3075296",
   },
 ]
 
@@ -78,6 +80,10 @@ export function convertSmoobuApartmentIdToLocal(smoobuApartmentId: string | unde
   if (smoobuIdToLocalId[smoobuApartmentId]) {
     return smoobuIdToLocalId[smoobuApartmentId]
   }
+
+  // Stable fallback for cold serverless invocations, before the runtime cache is populated.
+  const configured = ROOM_MAPPINGS.find((r) => r.smoobuApartmentId === smoobuApartmentId)
+  if (configured) return configured.localId
 
   // Fallback: return as-is (might already be a local ID)
   const isLocalId = ROOM_MAPPINGS.some((r) => r.localId === smoobuApartmentId)

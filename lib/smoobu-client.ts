@@ -8,6 +8,7 @@
 
 import { getSmoobuCredentials } from "@/lib/smoobu-credentials"
 import { createSmoobuHmacHeaders } from "@/lib/smoobu-hmac"
+import { getSmoobuName, setSmoobuApartmentIds } from "@/lib/room-mapping"
 
 const SMOOBU_API_URL = "https://login.smoobu.com/api"
 
@@ -26,13 +27,13 @@ export const SMOOBU_CHANNELS = {
  */
 export function detectSourceFromChannelName(channelName: string): string {
   const name = (channelName || "").toLowerCase()
+  if (name.includes("direct") || name.includes("manual") || name.includes("api")) return "direct"
   if (name.includes("booking")) return "booking"
   if (name.includes("airbnb")) return "airbnb"
   if (name.includes("expedia")) return "expedia"
   if (name.includes("vrbo") || name.includes("homeaway")) return "vrbo"
   if (name.includes("tripadvisor")) return "tripadvisor"
   if (name.includes("blocked")) return "blocked"
-  if (name.includes("api") || name.includes("manual")) return "direct"
   return "direct"
 }
 
@@ -161,6 +162,13 @@ export interface SmoobuRate {
   price: number
   minLengthOfStay: number
   available: number
+}
+
+type SmoobuRateApiValue = {
+  price?: number | string
+  min_length_of_stay?: number | string
+  minLengthOfStay?: number | string
+  available?: number | string
 }
 
 class SmoobuClient {
@@ -365,7 +373,35 @@ class SmoobuClient {
    */
   async getApartments(): Promise<SmoobuApartment[]> {
     const response = await this.request<{ apartments: SmoobuApartment[] }>("/apartments")
-    return response.apartments || []
+    const apartments = response.apartments || []
+    setSmoobuApartmentIds(apartments)
+    return apartments
+  }
+
+  /** Resolve a local room ID, Smoobu ID, or room name to a real Smoobu apartment. */
+  async resolveApartmentId(identifier: string, roomName?: string): Promise<number | null> {
+    const apartments = await this.getApartmentsCached()
+    const normalizedIdentifier = String(identifier || "").trim()
+
+    const numericId = Number(normalizedIdentifier)
+    if (Number.isInteger(numericId)) {
+      const exact = apartments.find((apartment) => apartment.id === numericId)
+      if (exact) return exact.id
+    }
+
+    const expectedSmoobuName = getSmoobuName(normalizedIdentifier)
+    const candidates = [expectedSmoobuName, roomName, normalizedIdentifier]
+      .filter((value): value is string => Boolean(value?.trim()))
+      .map((value) => value.toLowerCase())
+
+    const match = apartments.find((apartment) => {
+      const apartmentName = apartment.name.toLowerCase()
+      return candidates.some(
+        (candidate) => apartmentName.includes(candidate) || candidate.includes(apartmentName),
+      )
+    })
+
+    return match?.id ?? null
   }
 
   /**
@@ -375,16 +411,26 @@ class SmoobuClient {
    * @param endDate - End date (YYYY-MM-DD)
    */
   async getRates(apartmentId: string, startDate: string, endDate: string): Promise<SmoobuRate[]> {
-    const params = new URLSearchParams({
-      apartments: `[${apartmentId}]`,
-      start_date: startDate,
-      end_date: endDate,
-    })
+    const params = new URLSearchParams()
+    params.append("apartments[]", apartmentId)
+    params.append("start_date", startDate)
+    params.append("end_date", endDate)
 
     const endpoint = `/rates?${params.toString()}`
-    const response = await this.request<{ data: Record<string, SmoobuRate[]> }>(endpoint)
-    
-    return response.data?.[apartmentId] || []
+    const response = await this.request<{
+      data: Record<string, Record<string, SmoobuRateApiValue> | SmoobuRate[]>
+    }>(endpoint)
+    const apartmentRates = response.data?.[apartmentId]
+
+    if (!apartmentRates) return []
+    if (Array.isArray(apartmentRates)) return apartmentRates
+
+    return Object.entries(apartmentRates).map(([date, rate]) => ({
+      date,
+      price: Number(rate.price || 0),
+      minLengthOfStay: Number(rate.min_length_of_stay ?? rate.minLengthOfStay ?? 1),
+      available: Number(rate.available ?? 0),
+    }))
   }
 
   /**
@@ -569,13 +615,24 @@ class SmoobuClient {
    * Check availability for an apartment
    */
   async checkAvailability(apartmentId: string, from: string, to: string): Promise<boolean> {
-    try {
-      const rates = await this.getRates(apartmentId, from, to)
-      return rates.every(rate => rate.available > 0)
-    } catch (error) {
-      console.error("[Smoobu] Error checking availability:", error)
-      return false
+    const start = new Date(`${from}T00:00:00.000Z`)
+    const checkout = new Date(`${to}T00:00:00.000Z`)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(checkout.getTime()) || checkout <= start) {
+      throw new Error("Intervallo date non valido")
     }
+
+    const lastNight = new Date(checkout)
+    lastNight.setUTCDate(lastNight.getUTCDate() - 1)
+    const lastNightString = lastNight.toISOString().slice(0, 10)
+    const rates = await this.getRates(apartmentId, from, lastNightString)
+    const availabilityByDate = new Map(rates.map((rate) => [rate.date, rate.available]))
+
+    for (let date = new Date(start); date < checkout; date.setUTCDate(date.getUTCDate() + 1)) {
+      const dateString = date.toISOString().slice(0, 10)
+      if ((availabilityByDate.get(dateString) ?? 0) <= 0) return false
+    }
+
+    return true
   }
 
   /**

@@ -7,7 +7,7 @@ import { Footer } from "@/components/footer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/components/language-provider"
-import { getBookingById, loginWithEmail } from "@/lib/firebase"
+import { loginWithEmail } from "@/lib/firebase"
 import { Loader2, CheckCircle2, Mail, Copy, Check, Eye, EyeOff, LogIn } from 'lucide-react'
 import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/hooks/use-toast"
@@ -64,7 +64,8 @@ export default function CheckoutSuccess() {
   const loadBooking = async () => {
     try {
       console.log("[v0] Loading booking:", bookingId)
-      const bookingData = await getBookingById(bookingId)
+      const response = await fetch(`/api/bookings/${encodeURIComponent(bookingId)}`, { cache: "no-store" })
+      const bookingData = response.ok ? await response.json() : null
       console.log("[v0] Booking loaded:", bookingData)
       setBooking(bookingData)
       // Email is already sent by the Stripe webhook - no need to send again here

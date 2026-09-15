@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
+import { getAdminDb } from "@/lib/firebase-admin"
+import { smoobuClient } from "@/lib/smoobu-client"
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY
 
@@ -29,17 +31,69 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const {
-      amount, // total amount in cents
-      currency,
+      amount: submittedAmount,
+      currency: submittedCurrency,
       bookingId,
       successUrl,
       cancelUrl,
-      customerEmail,
-      checkInDate, // ISO date string (YYYY-MM-DD)
+      customerEmail: submittedCustomerEmail,
+      checkInDate: submittedCheckInDate,
     } = body
 
-    if (!amount || !currency || !bookingId || !successUrl || !cancelUrl) {
+    if (!submittedAmount || !submittedCurrency || !bookingId || !successUrl || !cancelUrl) {
       return NextResponse.json({ error: "Parametri mancanti" }, { status: 400 })
+    }
+
+    const db = getAdminDb()
+    const bookingRef = db.collection("bookings").doc(String(bookingId))
+    const bookingSnapshot = await bookingRef.get()
+    if (!bookingSnapshot.exists) {
+      return NextResponse.json({ error: "Prenotazione non trovata" }, { status: 404 })
+    }
+
+    const booking = bookingSnapshot.data()!
+    const holdExpiresAt = booking.holdExpiresAt?.toMillis?.() || new Date(booking.holdExpiresAt || 0).getTime()
+    if (booking.status === "pending" && holdExpiresAt && holdExpiresAt <= Date.now()) {
+      return NextResponse.json(
+        { error: "La selezione delle date e scaduta. Torna alla pagina di prenotazione e riprova." },
+        { status: 409 },
+      )
+    }
+
+    const apartmentId = Number(booking.smoobuApartmentId) ||
+      await smoobuClient.resolveApartmentId(String(booking.roomId || ""), String(booking.roomName || ""))
+    if (!apartmentId) {
+      return NextResponse.json({ error: "Camera non associata a Smoobu" }, { status: 503 })
+    }
+
+    try {
+      const available = await smoobuClient.checkAvailability(
+        String(apartmentId),
+        String(booking.checkIn).slice(0, 10),
+        String(booking.checkOut).slice(0, 10),
+      )
+      if (!available) {
+        await bookingRef.update({ status: "availability_conflict", updatedAt: new Date() })
+        return NextResponse.json(
+          { error: "Le date non sono piu disponibili. Il pagamento non e stato avviato." },
+          { status: 409 },
+        )
+      }
+    } catch (error) {
+      console.error("[Stripe] Smoobu recheck failed:", error)
+      return NextResponse.json(
+        { error: "Disponibilita non verificabile. Il pagamento non e stato avviato." },
+        { status: 503 },
+      )
+    }
+
+    // Never trust price or guest identity sent by the browser.
+    const amount = Number(booking.totalAmountCents || Math.round(Number(booking.totalAmount) * 100))
+    const currency = String(booking.currency || submittedCurrency || "EUR")
+    const customerEmail = String(booking.email || submittedCustomerEmail || "")
+    const checkInDate = String(booking.checkIn || submittedCheckInDate || "")
+    if (!Number.isInteger(amount) || amount <= 0) {
+      return NextResponse.json({ error: "Importo prenotazione non valido" }, { status: 400 })
     }
 
     // Calculate days until check-in to determine payment mode

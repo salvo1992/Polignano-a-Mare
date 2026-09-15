@@ -8,11 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ExtraServicesModal } from "@/components/extra-services-modal"
-import {
-  getBookingById,
-  createStripeCheckout,
-  linkBookingToUser,
-} from "@/lib/firebase"
+import { createStripeCheckout, linkBookingToUser } from "@/lib/firebase"
 import { Loader2, AlertCircle } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
 
@@ -42,8 +38,8 @@ export default function CheckoutPage() {
     if (!bookingId) return
     ;(async () => {
       setLoading(true)
-      const data = await getBookingById(bookingId)
-      setBooking(data)
+      const response = await fetch(`/api/bookings/${encodeURIComponent(bookingId)}`, { cache: "no-store" })
+      setBooking(response.ok ? await response.json() : null)
       setLoading(false)
     })()
   }, [bookingId])

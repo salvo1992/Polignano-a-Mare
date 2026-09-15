@@ -95,15 +95,19 @@ export async function checkBookingConflicts(
  * This is the main function used by the booking widget
  */
 export async function checkRoomAvailability(roomId: string, checkIn: string, checkOut: string): Promise<boolean> {
-  // Check against existing bookings
-  const bookingConflict = await checkBookingConflicts(roomId, checkIn, checkOut, "site")
-  if (bookingConflict.hasConflict) return false
-
-  // Also check against blocked_dates collection
-  const blockedConflict = await checkBlockedDatesConflict(roomId, checkIn, checkOut)
-  if (blockedConflict) return false
-
-  return true
+  try {
+    const params = new URLSearchParams({ roomId, from: checkIn, to: checkOut })
+    const response = await fetch(`/api/smoobu/availability?${params.toString()}`, {
+      cache: "no-store",
+    })
+    if (response.status === 409) return false
+    if (!response.ok) throw new Error(`Availability check failed (${response.status})`)
+    const result = await response.json()
+    return result.available === true
+  } catch (error) {
+    console.error("[Availability] Server check failed; booking blocked for safety:", error)
+    return false
+  }
 }
 
 /**

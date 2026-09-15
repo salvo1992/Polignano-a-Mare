@@ -75,7 +75,7 @@ export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps
         roomName:
           bookingData.roomId === "1" ? "Suite Acies con Balcone" : "Suite Acquaroom con Idromassaggio",
         pricePerNight: Math.round(bookingData.subtotal / bookingData.nights),
-        totalAmount: Math.round(bookingData.total * 100), // Convert to cents
+        totalAmount: Math.round(bookingData.total * 100) / 100,
         currency: "EUR",
         status: "pending",
         origin: "site",
