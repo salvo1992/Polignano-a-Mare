@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation"
+import { isRoomId } from "@/lib/room-content"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { RoomDetails } from "@/components/room-details"
@@ -12,6 +14,7 @@ interface RoomPageProps {
 }
 
 export default function RoomPage({ params }: RoomPageProps) {
+  if (!isRoomId(params.id)) notFound()
   return (
     <main className="min-h-screen">
       <Header />

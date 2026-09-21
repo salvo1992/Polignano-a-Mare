@@ -1,5 +1,7 @@
 "use client"
 
+import { useRoomContent } from "@/components/room-content-provider"
+
 import Image from "next/image"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
@@ -8,46 +10,16 @@ import { Users, Bed, Bath, Mountain, Star } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
 import { useRoomPrices } from "@/hooks/use-room-prices"
 
-const relatedRooms = [
-  {
-    id: 2,
-    roomId: "1",
-    name: "Suite Acies con Balcone",
-    description: "Elegante camera con arredi tradizionali Pugliesi e comfort moderni",
-    image: "/images/room-1.jpg",
-    guests: 4,
-    beds: 2,
-    bathrooms: 2,
-    size: 35,
-    rating: 4.8,
-    reviews: 32,
-    available: true,
-  },
-  {
-    id: 1,
-    roomId: "2",
-    name: "Suite Acquaroom con Idromassaggio",
-    description: "Camera matrimoniale con Vasca Idromassaggio e sauna privata",
-    image: "/images/room-2.jpg",
-    guests: 2,
-    beds: 1,
-    bathrooms: 1,
-    size: 30,
-    rating: 4.9,
-    reviews: 45,
-    available: true,
-  },
-]
-
 interface RelatedRoomsProps {
   currentRoomId: string
 }
 
 export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
   const { t } = useLanguage()
+  const { rooms } = useRoomContent()
   const { prices, loading } = useRoomPrices()
 
-  const filteredRooms = relatedRooms.filter((room) => room.id.toString() !== currentRoomId)
+  const filteredRooms = rooms.filter((room) => room.id.toString() !== currentRoomId)
 
   return (
     <div className="py-12">
@@ -58,14 +30,14 @@ export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
         {filteredRooms.map((room) => {
-          const roomPrice = prices[room.roomId] || 0
+          const roomPrice = prices[room.id] || 0
           const priceDisplay = loading ? "..." : roomPrice
 
           return (
             <Card key={room.id} className="group overflow-hidden hover:shadow-xl transition-all duration-300">
               <div className="relative overflow-hidden">
                 <Image
-                  src={room.image || "/placeholder.svg"}
+                  src={room.images[0] || "/placeholder.svg"}
                   alt={room.name}
                   width={400}
                   height={300}

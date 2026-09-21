@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { useLanguage } from "@/components/language-provider"
+import { useRoomContent } from "@/components/room-content-provider"
 import { createBooking, type BookingPayload } from "@/lib/firebase"
 
 interface BookingModalProps {
@@ -29,6 +30,7 @@ interface BookingModalProps {
 
 export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps) {
   const { t } = useLanguage()
+  const { rooms } = useRoomContent()
   const router = useRouter()
 
   const [step, setStep] = useState(1)
@@ -72,8 +74,7 @@ export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps
         phone: "",
         notes: "",
         roomId: bookingData.roomId,
-        roomName:
-          bookingData.roomId === "1" ? "Suite Acies con Balcone" : "Suite Acquaroom con Idromassaggio",
+        roomName: rooms.find(room => room.id === bookingData.roomId)?.name || bookingData.roomId,
         pricePerNight: Math.round(bookingData.subtotal / bookingData.nights),
         totalAmount: Math.round(bookingData.total * 100) / 100,
         currency: "EUR",

@@ -14,6 +14,7 @@ import { useEffect, useState } from "react"
 import { db } from "@/lib/firebase"
 import { collection, onSnapshot, orderBy, query, doc, setDoc, getDoc } from "firebase/firestore"
 import { BookingCalendar } from "@/components/booking-calendar"
+import { RoomContentManagement } from "@/components/room-content-management"
 import { RoomStatusToggle } from "@/components/room-status-toggle"
 import { GuestsTracking } from "@/components/guests-tracking"
 import { SmoobuSyncPanel } from "@/components/smoobu-sync-panel"
@@ -186,35 +187,35 @@ function AdminInner() {
           </div>
           <Tabs defaultValue="dashboard" className="space-y-4 sm:space-y-6">
             <TabsList className="grid w-full grid-cols-8 h-auto gap-1 p-1">
-              <TabsTrigger value="dashboard" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+              <TabsTrigger aria-label="Dashboard" value="dashboard" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Dashboard</span>
               </TabsTrigger>
-              <TabsTrigger value="bookings" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+              <TabsTrigger aria-label="Prenotazioni" value="bookings" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Calendar className="h-4 w-4" />
                 <span className="hidden sm:inline">Prenotazioni</span>
               </TabsTrigger>
-              <TabsTrigger value="rooms" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+              <TabsTrigger aria-label="Camere" value="rooms" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Home className="h-4 w-4" />
                 <span className="hidden sm:inline">Camere</span>
               </TabsTrigger>
-              <TabsTrigger value="guests" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+              <TabsTrigger aria-label="Ospiti" value="guests" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Ospiti</span>
               </TabsTrigger>
-              <TabsTrigger value="pricing" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+              <TabsTrigger aria-label="Prezzi" value="pricing" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Euro className="h-4 w-4" />
                 <span className="hidden sm:inline">Prezzi</span>
               </TabsTrigger>
-              <TabsTrigger value="services" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+              <TabsTrigger aria-label="Servizi" value="services" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Sparkles className="h-4 w-4" />
                 <span className="hidden sm:inline">Servizi</span>
               </TabsTrigger>
-              <TabsTrigger value="settings" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+              <TabsTrigger aria-label="Impostazioni" value="settings" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Settings className="h-4 w-4" />
                 <span className="hidden sm:inline">Impostazioni</span>
               </TabsTrigger>
-              <TabsTrigger value="cancelled" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
+              <TabsTrigger aria-label="Cancellate" value="cancelled" className="flex-col sm:flex-row gap-1 py-2 text-xs sm:text-sm">
                 <Clock className="h-4 w-4" />
                 <span className="hidden sm:inline">Cancellate</span>
               </TabsTrigger>
@@ -395,7 +396,7 @@ function AdminInner() {
                       <TabsTrigger value="site" className="whitespace-nowrap">
                         Sito / Dirette ({siteAndDirectBookings.length})
                       </TabsTrigger>
-                      <TabsTrigger value="cancelled" className="whitespace-nowrap">
+                      <TabsTrigger aria-label="Cancellate" value="cancelled" className="whitespace-nowrap">
                         Cancellate ({cancelledBookings.length})
                       </TabsTrigger>
                     </TabsList>
@@ -667,6 +668,7 @@ function AdminInner() {
             </TabsContent>
 
             <TabsContent value="rooms" className="space-y-4 sm:space-y-6">
+              <RoomContentManagement />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 {rooms.map((room) => (
                   <RoomStatusToggle key={room.id} room={room} />

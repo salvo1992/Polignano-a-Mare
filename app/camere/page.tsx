@@ -1,10 +1,11 @@
 "use client"
 
+import { useRoomContent } from "@/components/room-content-provider"
+
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
 import { useLanguage } from "@/components/language-provider"
-import { ROOMS } from "@/lib/rooms-data"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -55,43 +56,8 @@ export default function CamerePage() {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
-  const roomDescriptions = {
-    "1": "Immergiti nel lusso della nostra Suite Acies con Balcone, dove l'eleganza incontra il comfort. Perfetta per famiglie o gruppi, questa spaziosa suite di 35m² offre una vista mozzafiato sul mare e sui luoghi storici di Polignano. Rilassati sul tuo balcone privato mentre ammiri il tramonto sulla costa pugliese, o goditi un momento di relax nella piscina panoramica all'ultimo piano. Ogni dettaglio è stato curato per offrirti un'esperienza indimenticabile.",
-    "2": "Scopri il paradiso del relax nella nostra Suite Acquaroom con Idromassaggio. Questa elegante suite di 33m² è un'oasi di tranquillità, dotata di una lussuosa vasca idromassaggio privata e sauna per momenti di puro benessere. La vista panoramica sul mare e sulla città vecchia ti lascerà senza fiato, mentre gli arredi raffinati e i servizi premium garantiscono un soggiorno da sogno. Perfetta per coppie in cerca di romanticismo e relax assoluto.",
-  }
-
-  const roomPhotoGalleries = {
-    "1": [
-      { src: "/images/room-1.jpg", alt: "Suite Acies con Balcone" },
-      { src: "/camera/camera4.jpg", alt: "Vista mare dal balcone" },
-      { src: "/polignano-old-town-view.jpg", alt: "Vista centro storico" },
-      { src: "/camera/camera1.jpg", alt: "Piscina panoramica" },
-      { src: "/polignano-sunset-terrace.jpg", alt: "Terrazza al tramonto" },
-      { src: "/polignano-beach-cliffs.jpg", alt: "Spiaggia e scogliere" },
-      { src: "/polignano-historic-center.jpg", alt: "Centro storico" },
-      { src: "/polignano-adriatic-coast.jpg", alt: "Costa adriatica" },
-      { src: "/camera/camera6.jpg", alt: "Camera spaziosa" },
-      { src: "/camera/camera8.jpg", alt: "Camera spaziosa" },
-      { src: "/camera/camera9.jpg", alt: "Camera spaziosa" },
-      { src: "/camera/camera11.jpg", alt: "Camera spaziosa" },
-      { src: "/camera/camera15.jpg", alt: "Camera con vista" },
-    ],
-    "2": [
-      { src: "/images/room-2.jpg", alt: "Suite Acquaroom con Idromassaggio" },
-      { src: "/images/spa.jpg", alt: "Vasca idromassaggio" },
-      { src: "/camera/camera18.jpg", alt: "Sauna privata" },
-      { src: "/camera/camera17.jpg", alt: "Camera romantica" },
-      { src: "/polignano-sea-panorama.jpg", alt: "Panorama sul mare" },
-      { src: "/polignano-cala-porto.jpg", alt: "Cala Porto" },
-      { src: "/polignano-lama-monachile.jpg", alt: "Lama Monachile" },
-      { src: "/camera/camera5.jpg", alt: "Polignano di notte" },
-      { src: "/camera/camera.jpg", alt: "Camera con vista" },
-      { src: "/camera/camera3.jpg", alt: "Camera con vista" },
-      { src: "/camera/camera6.jpg", alt: "Camera con vista" },
-      { src: "/camera/camera7.jpg", alt: "Camera con vista" },
-      { src: "/camera/camera16.jpg", alt: "Camera con vista" },
-    ],
-  }
+  const { rooms } = useRoomContent()
+  const roomPhotoGalleries: Record<string, { src: string; alt: string }[]> = Object.fromEntries(rooms.map(room => [room.id, room.photos]))
 
   const openGallery = (roomId: string, imageIndex: number) => {
     setCurrentRoomId(roomId)
@@ -113,40 +79,7 @@ export default function CamerePage() {
 
   const currentGallery = currentRoomId ? roomPhotoGalleries[currentRoomId as keyof typeof roomPhotoGalleries] : []
 
-  const sharedAmenities = [
-    { icon: Bed, label: "1 letto matrimoniale large + 1 divano letto" },
-    { icon: Eye, label: "Vista mare" },
-    { icon: Building2, label: "Vista luogo di interesse" },
-    { icon: MapPin, label: "Vista città" },
-    { icon: Waves, label: "Piscina con vista" },
-    { icon: Waves, label: "Piscina all'ultimo piano" },
-    { icon: Wind, label: "Aria condizionata" },
-    { icon: Bath, label: "Bagno privato" },
-    { icon: Tv, label: "TV a schermo piatto" },
-    { icon: MapPin, label: "Terrazza" },
-    { icon: Coffee, label: "Macchina da caffè" },
-    { icon: Wifi, label: "WiFi gratis" },
-    { icon: Bath, label: "Vasca o doccia" },
-    { icon: Check, label: "Bidet" },
-    { icon: Tv, label: "Servizio streaming (es. Netflix)" },
-    { icon: Sofa, label: "Divano" },
-    { icon: Shirt, label: "Asciugamani" },
-    { icon: Bed, label: "Biancheria da letto" },
-    { icon: Zap, label: "Presa elettrica vicino al letto" },
-    { icon: Armchair, label: "Scrivania" },
-    { icon: Sofa, label: "Zona soggiorno" },
-    { icon: ParkingCircle, label: "Parcheggio" },
-    { icon: Refrigerator, label: "Frigorifero" },
-    { icon: Coffee, label: "Bollitore tè/macchina caffè" },
-    { icon: Snowflake, label: "Riscaldamento" },
-    { icon: WashingMachine, label: "Asciugacapelli" },
-    { icon: Armchair, label: "Armadio o guardaroba" },
-    { icon: UtensilsCrossed, label: "Tavolo da pranzo" },
-    { icon: Bed, label: "Divano letto" },
-    { icon: Droplets, label: "Vasca idromassaggio" },
-    { icon: Waves, label: "Sauna" },
-    { icon: Refrigerator, label: "Minibar" },
-  ]
+  const sharedAmenities = Array.from(new Set(rooms.flatMap(room => room.amenities))).map(label => ({ icon: Check, label }))
 
   return (
     <main className="min-h-screen overflow-x-hidden">
@@ -221,7 +154,7 @@ export default function CamerePage() {
       <section className="py-12 bg-gradient-to-b from-background to-secondary/10 overflow-hidden">
         <div className="container mx-auto px-4">
           <div className="grid lg:grid-cols-2 gap-6 lg:gap-8 mb-16">
-            {ROOMS.map((room) => {
+            {rooms.map((room) => {
               const currentPrice = roomPrices[room.id] || 0
               const currentOriginalPrice = room.originalPrice
               const gallery = roomPhotoGalleries[room.id as keyof typeof roomPhotoGalleries]
@@ -238,7 +171,7 @@ export default function CamerePage() {
                   <div className="text-center mb-4">
                     <h2 className="font-cinzel text-xl sm:text-2xl font-bold text-roman-gradient mb-3">{room.name}</h2>
                     <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed text-balance px-2">
-                      {roomDescriptions[room.id as keyof typeof roomDescriptions]}
+                      {room.description}
                     </p>
                   </div>
 

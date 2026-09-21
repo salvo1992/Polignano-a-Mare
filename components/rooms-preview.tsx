@@ -1,5 +1,7 @@
 "use client"
 
+import { useRoomContent } from "@/components/room-content-provider"
+
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -9,40 +11,10 @@ import { Users, Bed, Bath, Star, ArrowRight } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
 import { useRoomPrices } from "@/hooks/use-room-prices"
 
-const rooms = [
-  {
-    id: 1,
-    roomId: "2",
-    name: "Suite Acquaroom con Idromassaggio",
-    description: "Suite di lusso con vasca idromassaggio privata e arredi eleganti",
-    image: "/images/room-2.jpg",
-    guests: 2,
-    beds: 1,
-    bathrooms: 1,
-    amenities: ["Vista panoramica", "Balcone privato", "WiFi gratuito", "Minibar"],
-    rating: 4.9,
-    reviews: 45,
-    featured: true,
-  },
-  {
-    id: 2,
-    roomId: "1",
-    name: "Suite Acies con Balcone",
-    description: "Suite elegante con balcone privato e vista panoramica",
-    image: "/images/room-1.jpg",
-    guests: 2,
-    beds: 1,
-    bathrooms: 1,
-    amenities: ["Aria condizionata", "TV satellitare", "Cassaforte", "Asciugacapelli"],
-    rating: 4.8,
-    reviews: 32,
-    featured: false,
-  },
-]
-
 export function RoomsPreview() {
   const [hoveredRoom, setHoveredRoom] = useState<number | null>(null)
   const { t } = useLanguage()
+  const { rooms } = useRoomContent()
   const { prices: roomPrices, loading } = useRoomPrices()
 
   return (
@@ -55,7 +27,7 @@ export function RoomsPreview() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
           {rooms.map((room, index) => {
-            const roomPrice = roomPrices[room.roomId] || 0
+            const roomPrice = roomPrices[room.id] || 0
             const priceDisplay = loading ? "..." : `€${roomPrice}`
 
             return (
@@ -69,7 +41,7 @@ export function RoomsPreview() {
               >
                 <div className="relative overflow-hidden">
                   <Image
-                    src={room.image || "/placeholder.svg"}
+                    src={room.images[0] || "/placeholder.svg"}
                     alt={room.name}
                     width={400}
                     height={300}
@@ -143,7 +115,7 @@ export function RoomsPreview() {
                       <Link href={`/camere/${room.id}`}>{t("viewDetails")}</Link>
                     </Button>
                     <Button asChild variant="outline" className="flex-1 bg-transparent">
-                      <Link href="/prenota">{t("bookRoom")}</Link>
+                      <Link href={`/prenota?room=${room.id}`}>{t("bookRoom")}</Link>
                     </Button>
                   </div>
                 </div>

@@ -1,5 +1,7 @@
 "use client"
 
+import { useRoomContent } from "@/components/room-content-provider"
+
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
@@ -7,71 +9,20 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Users, Bed, Bath, Mountain, Star, Heart, Share2 } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
-import { useDynamicPrice } from "@/hooks/use-dynamic-price"
+import { useRoomPrices } from "@/hooks/use-room-prices"
 
 const SITE_URL = "https://22suite.ekobit.it" as const
 
-const rooms = [
-  {
-    id: 1,
-    name: "Suite Acies con Balcone",
-    description: "Camera matrimoniale e balcone privato",
-    images: ["/images/room-1.jpg", "/images/room-2.jpg"],
-    originalPrice: 220,
-    guests: 4,
-    beds: 2,
-    bathrooms: 2,
-    size: 35,
-    amenities: [
-      "Vista luogo di interesse",
-      "vista mare",
-      "Balcone privato",
-      "WiFi gratuito",
-      "Minibar",
-      "Aria condizionata",
-      "TV satellitare",
-    ],
-    rating: 4.9,
-    reviews: 56,
-    featured: true,
-    available: true,
-  },
-  {
-    id: 2,
-    name: "Suite Acquaroom con Idromassaggio",
-    description: "Elegante camera con vasca idromassaggio e arredi di lusso",
-    images: ["/images/room-2.jpg", "/images/room-1.jpg"],
-    originalPrice: 180,
-    guests: 4,
-    beds: 2,
-    bathrooms: 1,
-    size: 33,
-    amenities: [
-      "Aria condizionata",
-      "TV satellitare",
-      "Vasca idromassaggio",
-      "Asciugacapelli",
-      "WiFi gratuito",
-      "Minibar",
-    ],
-    rating: 4.9,
-    reviews: 56,
-    featured: false,
-    available: true,
-  },
-]
-
 export function RoomsGrid() {
   const { t } = useLanguage()
-  const today = new Date().toISOString().split("T")[0]
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0]
-  const { calculatePrice, loading } = useDynamicPrice()
+  const { rooms } = useRoomContent()
+  const { prices, loading } = useRoomPrices()
 
-  const [favorites, setFavorites] = useState<number[]>(() => {
+  const [favorites, setFavorites] = useState<string[]>(() => {
     if (typeof window === "undefined") return []
     try {
       const raw = localStorage.getItem("favoritesRooms")
-      return raw ? (JSON.parse(raw) as number[]) : []
+      return raw ? (JSON.parse(raw) as (string | number)[]).map(String) : []
     } catch {
       return []
     }
@@ -83,14 +34,14 @@ export function RoomsGrid() {
     } catch {}
   }, [favorites])
 
-  const toggleFavorite = (roomId: number) => {
+  const toggleFavorite = (roomId: string) => {
     setFavorites((prev) => (prev.includes(roomId) ? prev.filter((id) => id !== roomId) : [...prev, roomId]))
   }
 
-  const getRoomUrl = (roomId: number) => `${SITE_URL}/camere/${roomId}`
+  const getRoomUrl = (roomId: string) => `${SITE_URL}/camere/${roomId}`
 
   const getWhatsAppHref = (room: (typeof rooms)[number]) => {
-    const price = calculatePrice(room.id.toString(), today, tomorrow)
+    const price = prices[room.id] ?? room.price
     const text = `${t("checkAvailability")}: ${room.name}
 ${getRoomUrl(room.id)}
 
@@ -103,7 +54,7 @@ ${t("pricePerNightLabel")} €${price}${t("perNight")}`
       {rooms.map((room) => {
         const isFav = favorites.includes(room.id)
         const waHref = getWhatsAppHref(room)
-        const price = calculatePrice(room.id.toString(), today, tomorrow)
+        const price = prices[room.id] ?? room.price
 
         return (
           <div

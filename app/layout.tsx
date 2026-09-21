@@ -6,6 +6,7 @@ import { Playfair_Display, Cinzel } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import { LanguageProvider } from "@/components/language-provider"
+import { RoomContentProvider } from "@/components/room-content-provider"
 import { AuthProvider } from "@/components/auth-provider"
 import { CookieConsent } from "@/components/cookie-consent"
 import { WhatsAppButton } from "@/components/whatsapp-button"
@@ -98,9 +99,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         </noscript>
         <AuthProvider>
           <LanguageProvider>
-            <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
-            <CookieConsent />
-            <WhatsAppButton />
+            <RoomContentProvider>
+              <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+              <CookieConsent />
+              <WhatsAppButton />
+            </RoomContentProvider>
           </LanguageProvider>
         </AuthProvider>
         <Analytics />

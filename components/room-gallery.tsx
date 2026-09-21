@@ -1,42 +1,27 @@
 "use client"
 
-import { useState } from "react"
+import { useRoomContent } from "@/components/room-content-provider"
+
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, Maximize2, X } from "lucide-react"
-
-// Sample room data - in a real app this would come from props or API
-const roomImages = [
-  "/camera/camera.jpg",
-  "/camera/camera0.jpg",
-  "/camera/camera1.jpg",
-  "/camera/camera2.jpg",
-  "/camera/camera3.jpg",
-  "/camera/camera4.jpg",
-  "/camera/camera5.jpg",
-  "/camera/camera6.jpg",
-  "/camera/camera7.jpg",
-  "/camera/camera8.jpg",
-  "/camera/camera9.jpg",
-  "/camera/camera10.jpg",
-  "/camera/camera11.jpg",
-  "/camera/camera12.jpg",
-  "/camera/camera13.jpg",
-  "/camera/camera14.jpg",
-  "/camera/camera15.jpg",
-  "/camera/camera16.jpg",
-  "/camera/camera17.jpg",
-  "/camera/camera18.jpg",
-]
 
 interface RoomGalleryProps {
   roomId: string
 }
 
 export function RoomGallery({ roomId }: RoomGalleryProps) {
+  const { rooms } = useRoomContent()
+  const room = rooms.find(item => item.id === roomId)
+  const roomImages = room?.images || []
   const [currentImage, setCurrentImage] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => { setCurrentImage(0) }, [roomId, room?.revision])
+
+  if (!room || !roomImages.length) return null
 
   const nextImage = () => {
     setCurrentImage((prev) => (prev + 1) % roomImages.length)
@@ -53,7 +38,7 @@ export function RoomGallery({ roomId }: RoomGalleryProps) {
         <div className="relative aspect-[4/3] overflow-hidden rounded-xl">
           <Image
             src={roomImages[currentImage] || "/placeholder.svg"}
-            alt={`Camera ${roomId} - Immagine ${currentImage + 1}`}
+            alt={room.photos[currentImage]?.alt || room.name}
             fill
             className="object-cover transition-transform duration-500 hover:scale-105"
           />
@@ -63,6 +48,7 @@ export function RoomGallery({ roomId }: RoomGalleryProps) {
             variant="secondary"
             size="icon"
             className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white"
+            aria-label="Foto precedente"
             onClick={prevImage}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -71,6 +57,7 @@ export function RoomGallery({ roomId }: RoomGalleryProps) {
             variant="secondary"
             size="icon"
             className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white"
+            aria-label="Foto successiva"
             onClick={nextImage}
           >
             <ChevronRight className="w-4 h-4" />
@@ -81,6 +68,7 @@ export function RoomGallery({ roomId }: RoomGalleryProps) {
             variant="secondary"
             size="icon"
             className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white"
+            aria-label="Apri foto a schermo intero"
             onClick={() => setIsFullscreen(true)}
           >
             <Maximize2 className="w-4 h-4" />
@@ -97,6 +85,7 @@ export function RoomGallery({ roomId }: RoomGalleryProps) {
           {roomImages.map((image, index) => (
             <button
               key={index}
+              aria-label={`Mostra foto ${index + 1}`}
               onClick={() => setCurrentImage(index)}
               className={`relative flex-shrink-0 w-20 h-16 rounded-lg overflow-hidden border-2 transition-all ${
                 index === currentImage
@@ -116,7 +105,7 @@ export function RoomGallery({ roomId }: RoomGalleryProps) {
           <div className="relative w-full h-full flex items-center justify-center p-4">
             <Image
               src={roomImages[currentImage] || "/placeholder.svg"}
-              alt={`Camera ${roomId} - Fullscreen`}
+              alt={room.photos[currentImage]?.alt || room.name}
               width={1200}
               height={800}
               className="max-w-full max-h-full object-contain"
@@ -127,6 +116,7 @@ export function RoomGallery({ roomId }: RoomGalleryProps) {
               variant="secondary"
               size="icon"
               className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white"
+              aria-label="Chiudi galleria"
               onClick={() => setIsFullscreen(false)}
             >
               <X className="w-4 h-4" />
@@ -137,7 +127,8 @@ export function RoomGallery({ roomId }: RoomGalleryProps) {
               variant="secondary"
               size="icon"
               className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white"
-              onClick={prevImage}
+              aria-label="Foto precedente"
+            onClick={prevImage}
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -145,7 +136,8 @@ export function RoomGallery({ roomId }: RoomGalleryProps) {
               variant="secondary"
               size="icon"
               className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white"
-              onClick={nextImage}
+              aria-label="Foto successiva"
+            onClick={nextImage}
             >
               <ChevronRight className="w-4 h-4" />
             </Button>

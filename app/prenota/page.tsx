@@ -1,5 +1,7 @@
 "use client"
 
+import { useRoomContent } from "@/components/room-content-provider"
+
 import type React from "react"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -50,6 +52,7 @@ export default function PrenotaPage() {
   const router = useRouter()
   const search = useSearchParams()
   const { language, t } = useLanguage()
+  const { rooms: contentRooms } = useRoomContent()
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
 
   // ---- Prezzi / form ----
@@ -240,7 +243,7 @@ export default function PrenotaPage() {
       status: "pending",
       origin: "site",
       roomId: ROOM_IDS[formData.roomType],
-      roomName: ROOM_NAMES[formData.roomType],
+      roomName: contentRooms.find(room => room.id === formData.roomType)?.name || ROOM_NAMES[formData.roomType],
     }
 
     try {
@@ -454,8 +457,7 @@ export default function PrenotaPage() {
                       required
                     >
                       <option value="">{t("bookingFormSelectRoom") || "Seleziona una camera"}</option>
-                      <option value="1">Suite Acies con Balcone</option>
-                      <option value="2">Suite Acquaroom con Idromassaggio</option>
+                      {contentRooms.map(room => <option key={room.id} value={room.id}>{room.name}</option>)}
                     </select>
                   </div>
 

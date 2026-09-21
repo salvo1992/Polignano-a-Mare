@@ -1,7 +1,9 @@
 "use client"
+
+import { useRoomContent } from "@/components/room-content-provider"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Users, Bed, Bath, Mountain, Star, Wifi, Car, Coffee, Tv, Wind, Shield, MapPin, Clock } from "lucide-react"
+import { Users, Bed, Bath, Mountain, Star, Check, MapPin, Clock } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
 
 interface RoomDetailsProps {
@@ -11,23 +13,10 @@ interface RoomDetailsProps {
 export function RoomDetails({ roomId }: RoomDetailsProps) {
   const { t } = useLanguage()
 
-  const amenities = [
-    { icon: Wifi, name: t("amenityWifi"), description: t("amenityWifiDesc") },
-    { icon: Wind, name: t("amenityAC"), description: t("amenityACDesc") },
-    { icon: Tv, name: t("amenityTV"), description: t("amenityTVDesc") },
-    { icon: Coffee, name: t("amenityMinibar"), description: t("amenityMinibarDesc") },
-    { icon: Shield, name: t("amenitySafe"), description: t("amenitySafeDesc") },
-    { icon: Car, name: t("amenityParking"), description: t("amenityParkingDesc") },
-  ]
-
-  const features = [
-    t("featurePanoramicView"),
-    t("featurePrivateBalcony"),
-    t("featureMarbleBathroom"),
-    t("featureLuxuryLinens"),
-    t("featureRoomService"),
-    t("featureDailyCleaning"),
-  ]
+  const { rooms } = useRoomContent()
+  const room = rooms.find(item => item.id === roomId)
+  if (!room) return null
+  const amenities = room.amenities.map(name => ({ icon: Check, name }))
 
   const policies = {
     checkIn: "15:00 - 22:00",
@@ -38,9 +27,9 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
     children: t("policyChildren"),
   }
 
-  const roomName = t("roomDetailName")
-  const roomDescription = t("roomDetailDescription")
-  const roomLongDescription = t("roomDetailLongDescription")
+  const roomName = room.name
+  const roomDescription = room.description
+  const roomLongDescription = room.longDescription
 
   return (
     <div className="space-y-8">
@@ -82,22 +71,22 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div className="text-center">
               <Users className="w-8 h-8 mx-auto mb-2 text-primary" />
-              <div className="font-semibold">4</div>
+              <div className="font-semibold">{room.guests}</div>
               <div className="text-sm text-muted-foreground">{t("guests")}</div>
             </div>
             <div className="text-center">
               <Bed className="w-8 h-8 mx-auto mb-2 text-primary" />
-              <div className="font-semibold">2</div>
+              <div className="font-semibold">{room.beds}</div>
               <div className="text-sm text-muted-foreground">{t("bed")}</div>
             </div>
             <div className="text-center">
               <Bath className="w-8 h-8 mx-auto mb-2 text-primary" />
-              <div className="font-semibold">1</div>
+              <div className="font-semibold">{room.bathrooms}</div>
               <div className="text-sm text-muted-foreground">{t("bathroom")}</div>
             </div>
             <div className="text-center">
               <Mountain className="w-8 h-8 mx-auto mb-2 text-primary" />
-              <div className="font-semibold">{'33 m\u00B2'}</div>
+              <div className="font-semibold">{room.size} m²</div>
               <div className="text-sm text-muted-foreground">{t("size")}</div>
             </div>
           </div>
@@ -116,25 +105,7 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
                 <amenity.icon className="w-5 h-5 text-primary mt-0.5" />
                 <div>
                   <div className="font-medium">{amenity.name}</div>
-                  <div className="text-sm text-muted-foreground">{amenity.description}</div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Features */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("specialFeatures")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {features.map((feature, index) => (
-              <div key={index} className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-primary rounded-full" />
-                <span>{feature}</span>
               </div>
             ))}
           </div>
@@ -190,7 +161,7 @@ export function RoomDetails({ roomId }: RoomDetailsProps) {
           <CardTitle>{t("fullDescription")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground leading-relaxed">{roomLongDescription}</p>
+          <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{roomLongDescription}</p>
         </CardContent>
       </Card>
     </div>

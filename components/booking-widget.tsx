@@ -1,5 +1,7 @@
 "use client"
 
+import { useRoomContent } from "@/components/room-content-provider"
+
 import { useMemo, useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +25,7 @@ interface BookingWidgetProps {
 
 export function BookingWidget({ roomId }: BookingWidgetProps) {
   const { t } = useLanguage()
+  const { rooms } = useRoomContent()
   const { prices } = useRoomPrices()
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
@@ -133,8 +136,7 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
                 onChange={(e) => setSelectedRoomType(e.target.value)}
                 className="w-full px-3 py-2 border border-input rounded-md bg-background"
               >
-                <option value="1">{t("bookingFormPanoramicSuite") || "Suite Acies con Balcone"}</option>
-                <option value="2">{t("bookingFormjacuziRoom") || "Suite Acquaroom con Idromassaggio"}</option>
+                {rooms.map(room => <option key={room.id} value={room.id}>{room.name}</option>)}
               </select>
             </div>
 
