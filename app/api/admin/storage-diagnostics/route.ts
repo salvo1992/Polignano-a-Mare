@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { AdminApiAuthError, requireAdminIdToken } from "@/lib/admin-api-auth"
+import { AdminApiAuthError } from "@/lib/admin-api-auth"
+import { requireStorageOwner } from "@/lib/storage-owner-auth"
 import { getStorageDiagnostics } from "@/lib/storage-diagnostics"
 import { getRoomBlobStatus } from "@/lib/room-blob-credentials"
 
@@ -10,7 +11,7 @@ const headers = { "Cache-Control": "private, no-store", Vary: "Authorization" }
 
 export async function GET(request: Request) {
   try {
-    await requireAdminIdToken(request)
+    await requireStorageOwner(request)
     return NextResponse.json(getStorageDiagnostics(process.env, await getRoomBlobStatus()), { headers })
   } catch (error) {
     return NextResponse.json({

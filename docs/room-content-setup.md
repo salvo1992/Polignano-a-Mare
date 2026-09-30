@@ -10,17 +10,25 @@ Lo storage dedicato è `al22suite`, ID `store_XCl7resVDboCUh6e`, pubblico,
 nel team `ekobitsrl-4449s-projects`. URL del pannello:
 https://vercel.com/ekobitsrl-4449s-projects/~/stores/blob/store_XCl7resVDboCUh6e/guides
 
-1. Aprire **Admin > Camere > Collegamento foto a Vercel Blob**.
+1. Accedere con l'account admin **al22suite@gmail.com**. Aprire **Admin >
+   Impostazioni > Archivio foto — area personale > Mostra configurazione Blob**.
 2. Copiare da Vercel il solo valore `BLOB_READ_WRITE_TOKEN` dello storage dedicato.
    Incollarlo nel campo password; non inviarlo in chat né inserirlo in GitHub.
 3. Premere **Verifica e collega Blob**. Il server controlla che il token appartenga
    allo storage previsto, carica una piccola PNG in `al22/storage-check/`, ne
    verifica la lettura pubblica e la rimuove. Solo dopo salva la configurazione.
-4. Aprire **Modifica camera e foto**, caricare una foto e salvare. La nuova foto
+4. Da **Camere**, aprire **Modifica camera e foto**, caricare una foto e salvare. La nuova foto
    viene salvata in `al22/rooms/<id>/`; le immagini precedenti rimangono invariate.
 5. **Prova caricamento foto** ripete la prova con il token già salvato, senza
    modificare gallerie o configurazione. Il controllo consuma poche operazioni
    Blob; non è un monitoraggio automatico.
+
+Il riquadro tecnico è chiuso per default. **Nascondi configurazione Blob** lo
+richiude e cancella dal campo eventuali token non ancora inviati. Durante un
+collegamento o una prova il pulsante di chiusura è disabilitato. Il riquadro non
+compare per gli altri admin; questi mantengono la possibilità di modificare camere
+e foto senza accedere alla configurazione tecnica. L'area Camere non contiene
+più né il collegamento Blob né la diagnostica dello storage.
 
 Il token viene cifrato con AES-256-GCM nel documento
 `server_credentials/room_blob`, non nella raccolta pubblica `settings`. La chiave
@@ -30,9 +38,13 @@ Una rotazione della chiave Firebase richiede di reinserire il token Blob.
 GET restituisce soltanto stato, ID pubblico dello storage e data della prova;
 nessun token o errore grezzo del provider viene esposto. Non esiste una cache del
 token tra richieste. Il salvataggio di una camera mantiene la stessa credenziale
-per upload e pulizia, anche se un altro admin la cambia nel frattempo.
+per upload e pulizia, anche se il titolare la cambia nel frattempo.
 
-`GET/POST /api/admin/blob-storage` controlla token Firebase e ruolo admin.
+`GET/POST /api/admin/blob-storage` e `GET /api/admin/storage-diagnostics`
+controllano token Firebase, ruolo admin e account attivo con email
+`al22suite@gmail.com`. L'email viene letta da Firebase Authentication sul server,
+non dal profilo Firestore modificabile né dal solo token potenzialmente vecchio.
+La restrizione vale anche chiamando direttamente le API. Non assegna ruoli admin.
 `firestore.rules` nega espressamente l'accesso client a `server_credentials`;
 questa modifica nel repository non pubblica automaticamente le regole. Prima
 dell'attivazione verificare anche quelle effettive. Il controllo anonimo del
@@ -108,9 +120,10 @@ prima di aver predisposto ambiente, bucket e regole.
 
 ### Diagnostica configurazione foto
 
-Da **Admin > Camere > Verifica archivio foto > Verifica configurazione foto**
+Da **Admin > Impostazioni > Archivio foto — area personale > Mostra configurazione
+Blob > Verifica archivio foto > Verifica configurazione foto**
 si interroga `GET /api/admin/storage-diagnostics`. La rotta verifica il token
-Firebase e il ruolo admin prima di leggere la configurazione, non è memorizzabile
+Firebase, il ruolo admin e l'account titolare prima di leggere la configurazione, non è memorizzabile
 in cache e restituisce soltanto booleani e stati predefiniti. Non restituisce
 valori, nomi di bucket, ID di archivio, token o errori dei provider.
 

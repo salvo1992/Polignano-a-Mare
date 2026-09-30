@@ -54,7 +54,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const blobCredentials = files.length ? await getRoomBlobCredentials() : null
     const blobStorage = blobCredentials ? createBlobPhotoStorage(blobCredentials.token) : null
     const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    if (files.length && !blobStorage && !bucketName) throw new RoomContentError("Il caricamento foto non è ancora configurato. Collega Blob dal pannello Camere.", 503)
+    if (files.length && !blobStorage && !bucketName) throw new RoomContentError("Il caricamento foto non è ancora configurato. Chiedi al titolare del sito di collegare Blob da Impostazioni.", 503)
     const room = await saveRoomContent(current, input, files, {
       upload: async (id, photo) => {
         if (blobStorage) return blobStorage.upload(id, photo)

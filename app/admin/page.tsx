@@ -15,6 +15,7 @@ import { db } from "@/lib/firebase"
 import { collection, onSnapshot, orderBy, query, doc, setDoc, getDoc } from "firebase/firestore"
 import { BookingCalendar } from "@/components/booking-calendar"
 import { RoomContentManagement } from "@/components/room-content-management"
+import { OwnerStorageSettings } from "@/components/owner-storage-settings"
 import { RoomStatusToggle } from "@/components/room-status-toggle"
 import { GuestsTracking } from "@/components/guests-tracking"
 import { SmoobuSyncPanel } from "@/components/smoobu-sync-panel"
@@ -729,6 +730,7 @@ function AdminInner() {
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-4 sm:space-y-6">
+              <OwnerStorageSettings />
               <SmoobuCredentialsSettings />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

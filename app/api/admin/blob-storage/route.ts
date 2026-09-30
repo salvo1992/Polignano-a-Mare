@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { AdminApiAuthError, requireAdminIdToken } from "@/lib/admin-api-auth"
+import { AdminApiAuthError } from "@/lib/admin-api-auth"
+import { requireStorageOwner } from "@/lib/storage-owner-auth"
 import { configureRoomBlob, getRoomBlobStatus, recheckRoomBlob } from "@/lib/room-blob-credentials"
 import { RoomBlobError } from "@/lib/room-blob"
 
@@ -30,13 +31,13 @@ async function readInput(request: Request) {
 }
 
 export async function GET(request: Request) {
-  try { await requireAdminIdToken(request); return NextResponse.json(await getRoomBlobStatus(), { headers }) }
+  try { await requireStorageOwner(request); return NextResponse.json(await getRoomBlobStatus(), { headers }) }
   catch (error) { return failure(error) }
 }
 
 export async function POST(request: Request) {
   try {
-    const uid = await requireAdminIdToken(request)
+    const uid = await requireStorageOwner(request)
     const body = await readInput(request)
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new RoomBlobError("Dati non validi.", 400)
     const input = body as { action?: unknown; token?: unknown }

@@ -22,7 +22,10 @@ async function blobRequest(body?: { action: "connect" | "verify"; token?: string
   return data
 }
 
-export function BlobStorageSettings({ onConfigured }: { onConfigured: () => void }) {
+export function BlobStorageSettings({ onConfigured, onBusyChange }: {
+  onConfigured: () => void
+  onBusyChange: (busy: boolean) => void
+}) {
   const [token, setToken] = useState("")
   const [status, setStatus] = useState<RoomBlobStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -38,7 +41,7 @@ export function BlobStorageSettings({ onConfigured }: { onConfigured: () => void
   useEffect(() => { void load() }, [load])
 
   const connect = async (event: FormEvent) => {
-    event.preventDefault(); setBusy(true); setError(""); setMessage("")
+    event.preventDefault(); setBusy(true); onBusyChange(true); setError(""); setMessage("")
     // Never store the token in localStorage, URLs or a GET response.
     const submittedToken = token.trim(); setToken("")
     try {
@@ -46,15 +49,15 @@ export function BlobStorageSettings({ onConfigured }: { onConfigured: () => void
       setMessage("Blob collegato. Prova di caricamento, lettura pubblica e rimozione riuscita. Ora puoi salvare le nuove foto delle camere.")
       onConfigured()
     } catch (e) { setError(e instanceof Error ? e.message : "Collegamento non riuscito.") }
-    finally { setBusy(false) }
+    finally { setBusy(false); onBusyChange(false) }
   }
   const verify = async () => {
-    setBusy(true); setError(""); setMessage("")
+    setBusy(true); onBusyChange(true); setError(""); setMessage("")
     try {
       setStatus(await blobRequest({ action: "verify" }))
       setMessage("Prova foto riuscita: Blob accetta il caricamento e la foto è visibile pubblicamente. Il file di prova è stato rimosso.")
     } catch (e) { setError(e instanceof Error ? e.message : "Prova non riuscita.") }
-    finally { setBusy(false) }
+    finally { setBusy(false); onBusyChange(false) }
   }
 
   return <Card>

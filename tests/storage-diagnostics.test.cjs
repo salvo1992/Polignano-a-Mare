@@ -61,7 +61,7 @@ test('never reads unrelated credentials or serializes values, including identifi
   assert.equal(serialized.includes('FIREBASE_PRIVATE_KEY'), false)
 })
 
-function routeHarness({ role = 'admin', invalidToken = false, databaseFailure = false } = {}) {
+function routeHarness({ role = 'admin', email = 'al22suite@gmail.com', disabled = false, invalidToken = false, databaseFailure = false } = {}) {
   const calls = { verify: 0, role: 0, diagnostics: 0 }
   const auth = load('lib/admin-api-auth.ts', {
     '@/lib/firebase-admin': {
@@ -77,9 +77,18 @@ function routeHarness({ role = 'admin', invalidToken = false, databaseFailure = 
       } }) }) }),
     },
   })
+  const ownerAuth = load('lib/storage-owner-auth.ts', {
+    '@/lib/admin-api-auth': auth,
+    '@/lib/storage-owner': load('lib/storage-owner.ts'),
+    '@/lib/firebase-admin': { getAdminAuth: () => ({ getUser: async uid => {
+      assert.equal(uid, 'test-user')
+      return { email, disabled }
+    } }) },
+  })
   const route = load('app/api/admin/storage-diagnostics/route.ts', {
     'next/server': { NextResponse: { json: (body, options) => Response.json(body, options) } },
     '@/lib/admin-api-auth': auth,
+    '@/lib/storage-owner-auth': ownerAuth,
     '@/lib/room-blob-credentials': { getRoomBlobStatus: async () => ({ configured: false, verifiedAt: null }) },
     '@/lib/storage-diagnostics': { getStorageDiagnostics: () => {
       calls.diagnostics++
@@ -115,7 +124,7 @@ test('ordinary users and missing role documents cannot read configuration', asyn
   }
 })
 
-test('admin receives only safe configuration states, without caching or writes', async () => {
+test('owner admin receives only safe configuration states, without caching or writes', async () => {
   const { route, calls } = routeHarness()
   assert.equal(route.dynamic, 'force-dynamic')
   assert.equal(route.runtime, 'nodejs')
@@ -129,6 +138,15 @@ test('admin receives only safe configuration states, without caching or writes',
   assert.equal(result.blob.configuration, 'read_write_token')
   assert.equal(JSON.stringify(result).includes('sensitive-test'), false)
   assert.equal(calls.diagnostics, 1)
+})
+
+test('other admins and disabled owners cannot inspect storage configuration', async () => {
+  for (const options of [{ email: 'another-admin@example.com' }, { disabled: true }, { email: '' }]) {
+    const { route, calls } = routeHarness(options)
+    const response = await route.GET(request('Bearer test-token'))
+    assert.equal(response.status, 403)
+    assert.equal(calls.diagnostics, 0)
+  }
 })
 
 test('unexpected backend errors do not leak provider messages or configuration', async () => {

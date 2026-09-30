@@ -23,6 +23,7 @@ function loader(mocks = {}, globals = {}) {
         if (name === 'server-only') return {}
         if (name.startsWith('node:')) return require(name)
         if (name === 'zod') return require(name)
+        if (name.startsWith('@/')) return load(`${name.slice(2)}.ts`)
         if (name.startsWith('.')) return load(path.resolve(path.dirname(filename), `${name}.ts`))
         throw new Error(`Unexpected dependency: ${name}`)
       }, ...globals,
@@ -198,13 +199,24 @@ test('real room pipeline cleans new Blob files on conflict but keeps uncertain c
   }
 })
 
-function routeHarness({ unauthorized = false } = {}) {
+function routeHarness({ unauthorized = false, role = 'admin', email = 'al22suite@gmail.com', disabled = false } = {}) {
   const calls = { connect: 0, verify: 0, status: 0 }
-  class AdminApiAuthError extends Error { constructor() { super('Autenticazione richiesta'); this.status = 401 } }
   const { RoomBlobError } = harness().blob
   const load = loader({
     'next/server': { NextResponse: { json: (body, opts) => Response.json(body, opts) } },
-    '@/lib/admin-api-auth': { AdminApiAuthError, requireAdminIdToken: async () => { if (unauthorized) throw new AdminApiAuthError(); return 'admin-test' } },
+    '@/lib/firebase-admin': {
+      getAdminAuth: () => ({
+        verifyIdToken: async () => { if (unauthorized) throw new Error('Invalid token'); return { uid: 'admin-test', email: 'al22suite@gmail.com' } },
+        getUser: async uid => { assert.equal(uid, 'admin-test'); return { email, disabled } },
+      }),
+      getAdminDb: () => ({ collection: name => {
+        assert.equal(name, 'users')
+        return { doc: uid => {
+          assert.equal(uid, 'admin-test')
+          return { get: async () => ({ exists: role !== null, data: () => ({ role, email: 'al22suite@gmail.com' }) }) }
+        } }
+      } }),
+    },
     '@/lib/room-blob': { RoomBlobError },
     '@/lib/room-blob-credentials': {
       getRoomBlobStatus: async () => { calls.status++; return { configured: false } },
@@ -214,15 +226,38 @@ function routeHarness({ unauthorized = false } = {}) {
   })
   return { route: load('app/api/admin/blob-storage/route.ts'), calls }
 }
-const post = (body, contentType = 'application/json') => new Request('https://test.invalid/api/admin/blob-storage', { method: 'POST', headers: { 'Content-Type': contentType }, body })
+const get = () => new Request('https://test.invalid/api/admin/blob-storage', { headers: { Authorization: 'Bearer test-token' } })
+const post = (body, contentType = 'application/json') => new Request('https://test.invalid/api/admin/blob-storage', { method: 'POST', headers: { 'Content-Type': contentType, Authorization: 'Bearer test-token' }, body })
 
 test('both configuration endpoints authenticate before reading credentials or input', async () => {
   const { route, calls } = routeHarness({ unauthorized: true })
-  for (const response of [await route.GET(new Request('https://test.invalid')), await route.POST(post('{invalid'))]) {
+  for (const response of [await route.GET(get()), await route.POST(post('{invalid'))]) {
     assert.equal(response.status, 401)
     assert.equal(response.headers.get('Cache-Control'), 'private, no-store')
   }
   assert.deepEqual(calls, { connect: 0, verify: 0, status: 0 })
+})
+
+test('only the active owner admin can read, connect or test Blob, even with a spoofed profile or stale token email', async () => {
+  for (const options of [
+    { email: 'another-admin@example.com' }, { email: undefined, disabled: true },
+    { email: '' }, { role: 'user' }, { role: null }, { disabled: true },
+  ]) {
+    const { route, calls } = routeHarness(options)
+    for (const response of [
+      await route.GET(get()),
+      await route.POST(post(JSON.stringify({ action: 'connect', token: TOKEN }))),
+      await route.POST(post(JSON.stringify({ action: 'verify' }))),
+      await route.POST(post('{invalid')),
+    ]) assert.equal(response.status, 403)
+    assert.deepEqual(calls, { connect: 0, verify: 0, status: 0 })
+  }
+})
+
+test('owner matching is case-insensitive and still requires admin authorization', async () => {
+  const { route, calls } = routeHarness({ email: 'Al22Suite@Gmail.com' })
+  assert.equal((await route.GET(get())).status, 200)
+  assert.equal(calls.status, 1)
 })
 
 test('configuration rejects oversize/invalid requests and never returns the submitted token', async () => {
