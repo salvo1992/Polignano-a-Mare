@@ -69,12 +69,12 @@ export function BlobStorageSettings({ onConfigured, onBusyChange }: {
       <p className="text-sm">Apri lo <a className="underline" href={ROOM_BLOB_GUIDE_URL} target="_blank" rel="noopener noreferrer">storage al22suite su Vercel</a> e copia il valore di BLOB_READ_WRITE_TOKEN.</p>
       <p className="text-xs text-muted-foreground break-all">Archivio: {ROOM_BLOB_STORE_ID}</p>
       <form onSubmit={connect} className="space-y-3">
-        <Label htmlFor="room-blob-token">Token Blob (BLOB_READ_WRITE_TOKEN)</Label>
+        <Label htmlFor="room-blob-token" className="break-all">Token Blob (BLOB_READ_WRITE_TOKEN)</Label>
         <Input id="room-blob-token" type="password" value={token} onChange={event => setToken(event.target.value)} autoComplete="new-password" spellCheck={false} maxLength={2048} placeholder="Incolla soltanto il valore del token" disabled={busy} required />
         <p className="text-xs text-muted-foreground">Il collegamento esegue una prova con una piccola immagine temporanea, poi la rimuove. Non modifica le gallerie.</p>
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={busy || loading || !token.trim()}>{busy ? "Operazione in corso…" : status?.configured ? "Verifica e sostituisci token" : "Verifica e collega Blob"}</Button>
-          {status?.configured && <Button type="button" variant="outline" onClick={verify} disabled={busy || loading}>Prova caricamento foto</Button>}
+          <Button type="submit" className="h-auto min-h-9 max-w-full whitespace-normal" disabled={busy || loading || !token.trim()}>{busy ? "Operazione in corso…" : status?.configured ? "Verifica e sostituisci token" : "Verifica e collega Blob"}</Button>
+          {status?.configured && <Button type="button" variant="outline" className="h-auto min-h-9 max-w-full whitespace-normal" onClick={verify} disabled={busy || loading}>Prova caricamento foto</Button>}
           <Button type="button" variant="outline" onClick={load} disabled={busy || loading}>Ricarica stato</Button>
         </div>
       </form>

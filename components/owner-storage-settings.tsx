@@ -28,24 +28,27 @@ function StorageSettingsPanel() {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const contentId = useId()
-  return <Card>
+  return <section aria-label="Archivio foto personale" className="space-y-4">
+    <Card>
     <CardHeader>
       <CardTitle>Archivio foto — area personale</CardTitle>
       <CardDescription>Configurazione tecnica riservata al tuo account. Gli altri admin continuano a gestire le foto da Camere.</CardDescription>
     </CardHeader>
     <CardContent className="space-y-4">
       <Button type="button" variant="outline" aria-expanded={open} aria-controls={contentId}
+        className="h-auto min-h-9 max-w-full whitespace-normal"
         disabled={busy} onClick={() => setOpen(value => !value)}>
         {open ? <ChevronUp aria-hidden="true" className="mr-2 h-4 w-4" /> : <ChevronDown aria-hidden="true" className="mr-2 h-4 w-4" />}
         {open ? "Nascondi configurazione Blob" : "Mostra configurazione Blob"}
       </Button>
       {busy && <p role="status" className="text-sm text-muted-foreground">Attendi la fine dell’operazione prima di nascondere il riquadro.</p>}
-      <div id={contentId} hidden={!open}>
-        {/* Unmount on close: discard unsent tokens and avoid background requests. */}
-        {open && <StorageSettingsContent onBusyChange={setBusy} />}
-      </div>
     </CardContent>
-  </Card>
+    </Card>
+    <div id={contentId} hidden={!open}>
+      {/* Unmount on close: discard unsent tokens and avoid background requests. */}
+      {open && <StorageSettingsContent onBusyChange={setBusy} />}
+    </div>
+  </section>
 }
 
 function StorageSettingsContent({ onBusyChange }: { onBusyChange: (busy: boolean) => void }) {
@@ -75,7 +78,7 @@ function StorageSettingsContent({ onBusyChange }: { onBusyChange: (busy: boolean
       <CardHeader><CardTitle>Verifica archivio foto</CardTitle>
         <CardDescription>Controllo riservato al tuo account. Non salva modifiche, non carica foto e non mostra chiavi segrete.</CardDescription></CardHeader>
       <CardContent className="space-y-3">
-        <Button type="button" variant="outline" onClick={checkStorage} disabled={checking}>
+        <Button type="button" variant="outline" className="h-auto min-h-9 max-w-full whitespace-normal" onClick={checkStorage} disabled={checking}>
           {checking && <Loader2 aria-hidden="true" className="mr-2 h-4 w-4 animate-spin" />}
           {checking ? "Verifica in corso…" : "Verifica configurazione foto"}
         </Button>
