@@ -56,6 +56,29 @@ prima di aver predisposto ambiente, bucket e regole.
 
 ## Verifica ripetibile
 
+### Diagnostica configurazione foto
+
+Da **Admin > Camere > Verifica archivio foto > Verifica configurazione foto**
+si interroga `GET /api/admin/storage-diagnostics`. La rotta verifica il token
+Firebase e il ruolo admin prima di leggere la configurazione, non è memorizzabile
+in cache e restituisce soltanto booleani e stati predefiniti. Non restituisce
+valori, nomi di bucket, ID di archivio, token o errori dei provider.
+
+Vengono controllate esclusivamente `BLOB_READ_WRITE_TOKEN`, `BLOB_STORE_ID`,
+`VERCEL_OIDC_TOKEN`, `FIREBASE_STORAGE_BUCKET` e
+`NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`. Eventuali nomi personalizzati non sono
+rilevati. Un token OIDC senza identificativo Blob non indica un archivio collegato.
+
+La verifica non effettua chiamate a Blob/Storage né scritture: **presenza delle
+variabili non significa credenziali valide o permessi di caricamento**. Il provider
+delle foto resta Firebase Storage; nessuna migrazione o modifica alle immagini.
+Se Blob risulta configurato, prima di utilizzarlo occorre una verifica separata
+del collegamento, dell'accesso pubblico previsto per le foto e dei permessi.
+
+`node --test tests/storage-diagnostics.test.cjs`
+
+### Salvataggio delle camere
+
 `node --test tests/room-content.test.cjs`
 
 I test coprono galleria e copertina, caricamenti, validazione, conflitti,
