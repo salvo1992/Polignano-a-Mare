@@ -10,6 +10,7 @@ import type { StorageDiagnostics } from "@/lib/storage-diagnostics"
 import { RoomContentEditor, type SaveRoom } from "@/components/room-content-editor"
 import { useRoomContent } from "@/components/room-content-provider"
 import { ImagePlus, Loader2 } from "lucide-react"
+import { BlobStorageSettings } from "@/components/blob-storage-settings"
 
 async function adminRequest(path: string, options: RequestInit = {}) {
   const user = auth.currentUser
@@ -46,6 +47,7 @@ export function RoomContentManagement() {
     finally { setCheckingStorage(false) }
   }
   const blobMessages = {
+    saved_token: "Blob collegato tramite il token salvato nel pannello admin.",
     oidc: "Configurazione Blob presente tramite collegamento Vercel (OIDC).",
     read_write_token: "Configurazione Blob presente tramite token server.",
     incomplete: "Configurazione Blob incompleta: identificativo archivio presente, ma credenziali non disponibili.",
@@ -55,6 +57,7 @@ export function RoomContentManagement() {
   return <section className="space-y-4" aria-labelledby="room-content-heading">
     <div><h2 id="room-content-heading" className="text-2xl font-semibold">Foto e descrizioni delle camere</h2>
       <p className="text-muted-foreground">Aggiorna le schede visibili nella home, nell’elenco camere e nelle pagine di dettaglio.</p></div>
+    <BlobStorageSettings onConfigured={() => setStorage(null)} />
     <Card>
       <CardHeader><CardTitle>Verifica archivio foto</CardTitle>
         <CardDescription>Controllo riservato all’admin. Non salva modifiche, non carica foto e non mostra chiavi segrete.</CardDescription></CardHeader>
@@ -66,11 +69,12 @@ export function RoomContentManagement() {
         {storageError && <p role="alert" className="text-red-700">{storageError}</p>}
         {storage && <div role="status" className="rounded border bg-muted/40 p-4 space-y-2 text-sm">
           <p className="font-medium">{blobMessages[storage.blob.configuration]}</p>
-          <p>Il caricamento delle nuove foto usa ancora Firebase Storage, non Blob.</p>
-          <p>{storage.firebase.bucketConfigured
+          <p>{storage.uploadProvider === "vercel-blob" ? "Le nuove foto vengono caricate su Vercel Blob." : "Le nuove foto usano ancora Firebase Storage: collega Blob nel riquadro qui sopra."}</p>
+          {storage.uploadProvider === "firebase-storage" && <p>{storage.firebase.bucketConfigured
             ? `Archivio Firebase indicato nella configurazione ${storage.firebase.bucketSource === "server" ? "server" : "pubblica"}. Esistenza e permessi non verificati.`
-            : "Archivio Firebase non indicato: manca la configurazione per caricare nuove foto."}</p>
-          <p>Questo controllo rileva solo la presenza delle variabili. Accesso e caricamento su Blob non sono stati provati: non conferma che il problema di salvataggio sia risolto.</p>
+            : "Archivio Firebase non indicato: manca la configurazione per caricare nuove foto."}</p>}
+          <p>{storage.blob.verifiedAt ? `Prova di caricamento completata al collegamento: ${new Date(storage.blob.verifiedAt).toLocaleString("it-IT")}. Per un controllo attuale premi “Prova caricamento foto”.`
+            : "Questo controllo rileva solo la configurazione. Per verificare un caricamento reale usa il collegamento Blob qui sopra."}</p>
         </div>}
       </CardContent>
     </Card>

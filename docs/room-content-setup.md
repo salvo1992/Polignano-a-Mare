@@ -4,6 +4,56 @@ L'editor si apre da **Admin > Camere > Modifica camera e foto**. Gestisce le due
 camere esistenti (ID 1 Acies, ID 2 Acquaroom), senza cambiare gli ID collegati alle
 prenotazioni e a Smoobu. Non aggiunge nuove camere e non modifica la capienza.
 
+## Foto su Vercel Blob (senza nuove variabili nel vecchio hosting)
+
+Lo storage dedicato è `al22suite`, ID `store_XCl7resVDboCUh6e`, pubblico,
+nel team `ekobitsrl-4449s-projects`. URL del pannello:
+https://vercel.com/ekobitsrl-4449s-projects/~/stores/blob/store_XCl7resVDboCUh6e/guides
+
+1. Aprire **Admin > Camere > Collegamento foto a Vercel Blob**.
+2. Copiare da Vercel il solo valore `BLOB_READ_WRITE_TOKEN` dello storage dedicato.
+   Incollarlo nel campo password; non inviarlo in chat né inserirlo in GitHub.
+3. Premere **Verifica e collega Blob**. Il server controlla che il token appartenga
+   allo storage previsto, carica una piccola PNG in `al22/storage-check/`, ne
+   verifica la lettura pubblica e la rimuove. Solo dopo salva la configurazione.
+4. Aprire **Modifica camera e foto**, caricare una foto e salvare. La nuova foto
+   viene salvata in `al22/rooms/<id>/`; le immagini precedenti rimangono invariate.
+5. **Prova caricamento foto** ripete la prova con il token già salvato, senza
+   modificare gallerie o configurazione. Il controllo consuma poche operazioni
+   Blob; non è un monitoraggio automatico.
+
+Il token viene cifrato con AES-256-GCM nel documento
+`server_credentials/room_blob`, non nella raccolta pubblica `settings`. La chiave
+di cifratura è derivata, con HKDF e contesto dedicato, dalla chiave privata Firebase
+già presente sul server. La chiave non viene copiata o restituita al browser.
+Una rotazione della chiave Firebase richiede di reinserire il token Blob.
+GET restituisce soltanto stato, ID pubblico dello storage e data della prova;
+nessun token o errore grezzo del provider viene esposto. Non esiste una cache del
+token tra richieste. Il salvataggio di una camera mantiene la stessa credenziale
+per upload e pulizia, anche se un altro admin la cambia nel frattempo.
+
+`GET/POST /api/admin/blob-storage` controlla token Firebase e ruolo admin.
+`firestore.rules` nega espressamente l'accesso client a `server_credentials`;
+questa modifica nel repository non pubblica automaticamente le regole. Prima
+dell'attivazione verificare anche quelle effettive. Il controllo anonimo del
+30/09/2026 ha restituito 403 sul documento `server_credentials/room_blob` e 200
+sulla camera pubblica usata come controllo.
+
+Chi possiede hosting/database conserva privilegi amministrativi: questa soluzione
+non sostituisce il trasferimento del sito su account controllati dal cliente.
+Il Blob dedicato non deve contenere documenti personali o altri dati riservati.
+
+Fino al collegamento viene mantenuto il vecchio backend Firebase Storage.
+Dopo il collegamento un errore Blob o una credenziale non leggibile blocca i nuovi
+upload: **nessun fallback silenzioso**. I salvataggi senza nuove foto non dipendono
+dallo storage. Un token nuovo non sostituisce quello precedente se la prova fallisce.
+In caso di timeout di un upload possono restare file orfani: non vengono eliminati
+oggetti di cui non è certa l'appartenenza alla richiesta. La pulizia ordinaria
+non cancella mai immagini già pubblicate o altri file dello storage.
+
+L'SDK è fissato a `@vercel/blob@2.8.0` (Node.js >=20), con token esplicito per questo
+storage. Non richiede di collegare al nuovo team il vecchio progetto Vercel.
+
 ## Prima della pubblicazione
 
 Configurare sull'ambiente di esecuzione le variabili Firebase già usate dal sito:
@@ -13,7 +63,7 @@ Configurare sull'ambiente di esecuzione le variabili Firebase già usate dal sit
 Sul server servono `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
 `FIREBASE_PRIVATE_KEY`. La chiave privata deve rimanere sul server.
 
-Il bucket può essere indicato in `FIREBASE_STORAGE_BUCKET`; in alternativa viene
+Solo per il backend Firebase precedente, il bucket può essere indicato in `FIREBASE_STORAGE_BUCKET`; in alternativa viene
 usato `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`. Deve esistere ed essere accessibile
 all'account di servizio per creare e rimuovere oggetti. Le foto pubblicate hanno
 URL pubblici con token, necessari per mostrarle ai visitatori del sito.
@@ -70,12 +120,19 @@ Vengono controllate esclusivamente `BLOB_READ_WRITE_TOKEN`, `BLOB_STORE_ID`,
 rilevati. Un token OIDC senza identificativo Blob non indica un archivio collegato.
 
 La verifica non effettua chiamate a Blob/Storage né scritture: **presenza delle
-variabili non significa credenziali valide o permessi di caricamento**. Il provider
-delle foto resta Firebase Storage; nessuna migrazione o modifica alle immagini.
-Se Blob risulta configurato, prima di utilizzarlo occorre una verifica separata
-del collegamento, dell'accesso pubblico previsto per le foto e dei permessi.
+variabili non significa credenziali valide o permessi di caricamento**. Legge anche
+la configurazione Blob salvata: se presente, indica il provider attivo e la data
+della prova effettuata al collegamento. Per un controllo attuale usare **Prova
+caricamento foto**. Non migra o modifica le gallerie.
 
 `node --test tests/storage-diagnostics.test.cjs`
+
+`node --test tests/room-blob.test.cjs`
+
+I test Blob usano un provider simulato: verificano cifratura, token errati,
+autenticazione, limiti richieste, errori, pulizia limitata ai file nuovi e mancata
+sostituzione delle credenziali su errore. La prova live richiede il token inserito
+dall'amministratore: una build riuscita non prova il caricamento reale.
 
 ### Salvataggio delle camere
 

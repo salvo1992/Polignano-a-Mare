@@ -28,5 +28,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    // Server-only credentials. Admin SDK access is controlled by the API routes.
+    match /server_credentials/{doc} {
+      allow read, write: if false;
+    }
   }
 }

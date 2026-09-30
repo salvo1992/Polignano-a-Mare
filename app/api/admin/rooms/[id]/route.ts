@@ -5,9 +5,12 @@ import { AdminApiAuthError, requireAdminIdToken } from "@/lib/admin-api-auth"
 import { isRoomId, resolveRoomContent } from "@/lib/room-content"
 import { ROOMS } from "@/lib/rooms-data"
 import { RoomContentError, saveRoomContent, type PhotoUpload } from "@/lib/room-content-save"
+import { getRoomBlobCredentials } from "@/lib/room-blob-credentials"
+import { createBlobPhotoStorage, RoomBlobError } from "@/lib/room-blob"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
+export const maxDuration = 60
 
 async function readForm(request: Request) {
   if (!request.headers.get("content-type")?.startsWith("multipart/form-data")) throw new RoomContentError("Formato del salvataggio non valido")
@@ -46,10 +49,15 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const ref = db.collection("rooms").doc(params.id)
     const snapshot = await ref.get()
     const current = resolveRoomContent(params.id, snapshot.data()?.content)
+    // Read once per save so cleanup always uses the same store and credential.
+    // Text-only saves must not depend on the photo provider being available.
+    const blobCredentials = files.length ? await getRoomBlobCredentials() : null
+    const blobStorage = blobCredentials ? createBlobPhotoStorage(blobCredentials.token) : null
     const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    if (files.length && !bucketName) throw new RoomContentError("Il caricamento foto non è ancora configurato. Contatta chi gestisce il sito.", 503)
+    if (files.length && !blobStorage && !bucketName) throw new RoomContentError("Il caricamento foto non è ancora configurato. Collega Blob dal pannello Camere.", 503)
     const room = await saveRoomContent(current, input, files, {
       upload: async (id, photo) => {
+        if (blobStorage) return blobStorage.upload(id, photo)
         const extension = photo.type === "image/jpeg" ? "jpg" : photo.type === "image/png" ? "png" : "webp"
         const path = `rooms/${id}/${randomUUID()}.${extension}`
         const token = randomUUID()
@@ -59,7 +67,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         })
         return { path, src: `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucketName!)}/o/${encodeURIComponent(path)}?alt=media&token=${token}` }
       },
-      removeUpload: async path => { await admin.storage().bucket(bucketName!).file(path).delete({ ignoreNotFound: true }) },
+      removeUpload: async path => {
+        if (blobStorage) return blobStorage.removeUpload(path)
+        await admin.storage().bucket(bucketName!).file(path).delete({ ignoreNotFound: true })
+      },
       commit: async (content, expectedRevision) => {
         await db.runTransaction(async transaction => {
           const latest = await transaction.get(ref)
@@ -76,7 +87,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     })
     return NextResponse.json({ room }, { headers: { "Cache-Control": "no-store" } })
   } catch (error) {
-    const known = error instanceof AdminApiAuthError || error instanceof RoomContentError
+    const known = error instanceof AdminApiAuthError || error instanceof RoomContentError || error instanceof RoomBlobError
     if (!known) console.error("[Rooms] Save failed", error instanceof Error ? error.name : "Unknown error")
     return NextResponse.json({ error: known ? error.message : "Salvataggio non riuscito. Le modifiche restano aperte: riprova." },
       { status: known ? error.status : 500, headers: { "Cache-Control": "no-store" } })

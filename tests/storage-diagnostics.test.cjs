@@ -80,6 +80,7 @@ function routeHarness({ role = 'admin', invalidToken = false, databaseFailure = 
   const route = load('app/api/admin/storage-diagnostics/route.ts', {
     'next/server': { NextResponse: { json: (body, options) => Response.json(body, options) } },
     '@/lib/admin-api-auth': auth,
+    '@/lib/room-blob-credentials': { getRoomBlobStatus: async () => ({ configured: false, verifiedAt: null }) },
     '@/lib/storage-diagnostics': { getStorageDiagnostics: () => {
       calls.diagnostics++
       return getStorageDiagnostics({ BLOB_READ_WRITE_TOKEN: 'sensitive-test-token' })
@@ -137,4 +138,12 @@ test('unexpected backend errors do not leak provider messages or configuration',
   assert.equal(response.headers.get('Cache-Control'), 'private, no-store')
   assert.equal((await response.text()).includes('sensitive-test'), false)
   assert.equal(calls.diagnostics, 0)
+})
+
+test('saved Blob configuration changes the effective provider without exposing the token', () => {
+  const result = getStorageDiagnostics({}, { configured: true, verifiedAt: '2026-09-30T18:00:00.000Z' })
+  assert.equal(result.uploadProvider, 'vercel-blob')
+  assert.equal(result.blob.configuration, 'saved_token')
+  assert.equal(result.blob.uploadVerified, true)
+  assert.equal(result.blob.verifiedAt, '2026-09-30T18:00:00.000Z')
 })
