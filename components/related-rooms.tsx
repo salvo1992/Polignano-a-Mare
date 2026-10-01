@@ -31,7 +31,7 @@ export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
         {filteredRooms.map((room) => {
           const roomPrice = prices[room.id] || 0
-          const priceDisplay = loading ? "..." : roomPrice
+          const priceDisplay = loading ? "..." : roomPrice > 0 ? `€${roomPrice}` : "Verifica tariffa"
 
           return (
             <Card key={room.id} className="group overflow-hidden hover:shadow-xl transition-all duration-300">
@@ -47,7 +47,7 @@ export function RelatedRooms({ currentRoomId }: RelatedRoomsProps) {
                 <div className="absolute bottom-4 right-4 bg-black/80 text-white px-3 py-2 rounded-lg">
                   <div className="text-right">
                     <div className="font-bold">
-                      €{priceDisplay}
+                      {priceDisplay}
                       {t("perNight")}
                     </div>
                   </div>

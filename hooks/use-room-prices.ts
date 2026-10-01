@@ -1,59 +1,29 @@
 "use client"
-
 import { useEffect, useState } from "react"
-import { getAllRooms } from "@/lib/firebase"
+import { ROOM_MAPPINGS } from "@/lib/room-mapping"
 
 export function useRoomPrices() {
-  const [prices, setPrices] = useState<Record<string, number>>({
-    "1": 180, // Suite Acies con Balcone (default)
-    "2": 150, // Suite Acquaroom con Idromassaggio (default)
-  })
+  const [prices, setPrices] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
-
   useEffect(() => {
-    const fetchPrices = async () => {
+    const controller = new AbortController()
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
+    const tomorrow = new Date(Date.parse(today) + 86400000).toISOString().slice(0, 10)
+    void Promise.all(ROOM_MAPPINGS.map(async room => {
       try {
-        const rooms = await getAllRooms()
-        const priceMap: Record<string, number> = {}
-
-        // Calculate today's dynamic price for each room
-        const today = new Date().toISOString().split("T")[0]
-        const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0]
-
-        for (const room of rooms) {
-          try {
-            // Call the calculate-price API to get today's dynamic price
-            const response = await fetch("/api/bookings/calculate-price", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                roomId: room.id,
-                checkIn: today,
-                checkOut: tomorrow,
-              }),
-            })
-
-            if (response.ok) {
-              const data = await response.json()
-              priceMap[room.id] = data.pricePerNight || room.price
-            } else {
-              priceMap[room.id] = room.price
-            }
-          } catch (error) {
-            console.error(`[v0] Error fetching dynamic price for room ${room.id}:`, error)
-            priceMap[room.id] = room.price
-          }
-        }
-
-        setPrices(priceMap)
-      } catch (error) {
-        console.error("[v0] Error fetching room prices:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchPrices()
+        const response = await fetch("/api/bookings/calculate-price", {
+          method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+          body: JSON.stringify({ roomId: room.localId, checkIn: today, checkOut: tomorrow }),
+        })
+        const data = await response.json()
+        return response.ok && data.pricePerNight > 0 ? [room.localId, data.pricePerNight] as const : null
+      } catch { return null }
+    })).then(results => {
+      if (controller.signal.aborted) return
+      setPrices(Object.fromEntries(results.filter((entry): entry is readonly [string, number] => entry !== null)))
+      setLoading(false)
+    })
+    return () => controller.abort()
   }, [])
-
   return { prices, loading }
 }

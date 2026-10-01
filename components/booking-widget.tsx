@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Users, AlertCircle } from "lucide-react"
 import { useLanguage } from "@/components/language-provider"
@@ -43,31 +42,28 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
     return `${y}-${m}-${day}`
   }
 
-  const { pricePerNight: dynamicPrice, loading: priceLoading } = useDynamicPrice(
+  const { pricePerNight: dynamicPrice, totalPrice: quotedSubtotal, totalAmount: quotedTotal, loading: priceLoading, error: priceError } = useDynamicPrice(
     selectedRoomType,
     dateRange?.from ? toInputDate(dateRange.from) : "",
     dateRange?.to ? toInputDate(dateRange.to) : "",
-    guests,
+    guests, 0, "widget",
   )
 
-  const basePrice = dynamicPrice || prices[selectedRoomType] || 180
-  const originalPrice = selectedRoomType === "1" ? 220 : 180
-  const discount = originalPrice - basePrice
+  const basePrice = dateRange?.to ? dynamicPrice : (prices[selectedRoomType] || 0)
 
   const checkIn = dateRange?.from ? toInputDate(dateRange.from) : ""
   const checkOut = dateRange?.to ? toInputDate(dateRange.to) : ""
 
   const nights = useMemo(() => {
-    if (!dateRange?.from || !dateRange?.to) return 0
-    const ms = dateRange.to.getTime() - dateRange.from.getTime()
-    const diff = Math.ceil(ms / (1000 * 60 * 60 * 24))
+    if (!checkIn || !checkOut) return 0
+    const diff = (Date.parse(checkOut) - Date.parse(checkIn)) / 86400000
     return isFinite(diff) && diff > 0 ? diff : 0
-  }, [dateRange])
+  }, [checkIn, checkOut])
 
-  const subtotal = basePrice * (nights || 0)
-  const touristTax = nights * guests * 2
-  const serviceFee = 10
-  const total = subtotal + touristTax + serviceFee
+  const subtotal = quotedSubtotal
+  const touristTax = quotedSubtotal > 0 ? nights * guests * 2 : 0
+  const serviceFee = quotedSubtotal > 0 ? 10 : 0
+  const total = quotedTotal
 
   useEffect(() => {
     const checkAvailability = async () => {
@@ -108,23 +104,13 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
             <CardTitle className="flex items-center justify-between">
               <span>{t("bookNow")}</span>
               <div className="text-right">
-                {originalPrice > basePrice && (
-                  <div className="text-sm line-through text-muted-foreground">
-                    {formatMoney(originalPrice)}/{t("night")}
-                  </div>
-                )}
                 <div className="text-2xl font-bold text-primary">
-                  {formatMoney(basePrice)}
+                  {priceLoading ? "…" : basePrice > 0 ? formatMoney(basePrice) : "Seleziona le date"}
                   <span className="text-sm font-normal text-muted-foreground">/{t("night")}</span>
                 </div>
               </div>
             </CardTitle>
 
-            {originalPrice > basePrice && (
-              <Badge className="w-fit bg-green-600 text-white">
-                {t("save")} {formatMoney(discount)}
-              </Badge>
-            )}
           </CardHeader>
 
           <CardContent className="space-y-4">
@@ -192,6 +178,7 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
               </Alert>
             )}
 
+            {priceError && <Alert variant="destructive"><AlertDescription>{priceError}</AlertDescription></Alert>}
             <Separator />
 
             <div className="space-y-2">
@@ -212,7 +199,7 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
               <Separator />
               <div className="flex justify-between font-bold text-lg">
                 <span>{t("total")}</span>
-                <span className="text-primary">{formatMoney(total)}</span>
+                <span className="text-primary">{quotedSubtotal > 0 ? formatMoney(total) : "—"}</span>
               </div>
             </div>
 
@@ -221,7 +208,7 @@ export function BookingWidget({ roomId }: BookingWidgetProps) {
               className="w-full"
               size="lg"
               disabled={
-                !availabilityStatus?.available || isCheckingAvailability || !checkIn || !checkOut || nights <= 0
+                !availabilityStatus?.available || isCheckingAvailability || priceLoading || Boolean(priceError) || quotedSubtotal <= 0 || !checkIn || !checkOut || nights <= 0
               }
             >
               {t("bookNow")}

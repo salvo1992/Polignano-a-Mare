@@ -65,6 +65,7 @@ export function BookingModal({ isOpen, onClose, bookingData }: BookingModalProps
     try {
       // Create booking data
       const payload: BookingPayload = {
+        pricingContext: "widget",
         checkIn: bookingData.checkIn,
         checkOut: bookingData.checkOut,
         guests: bookingData.guests,

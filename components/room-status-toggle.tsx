@@ -1,13 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Home, Wrench, CheckCircle } from 'lucide-react'
-import { db } from "@/lib/firebase"
-import { collection, query, where, onSnapshot ,doc, updateDoc } from "firebase/firestore"
 import type { Room } from "@/lib/booking-utils"
-import { resolveToLocalRoomId } from "@/lib/room-mapping"
+import { useRoomStatuses } from "@/hooks/use-room-statuses"
 
 interface RoomStatusToggleProps {
   room: Room
@@ -15,128 +12,11 @@ interface RoomStatusToggleProps {
 
 type RoomStatus = "available" | "booked" | "maintenance"
 
-type RoomType = "balcony" | "spa" | "other"
-
-const getRoomType = (room: Room): RoomType => {
-  const name = (room.name || "").toLowerCase()
-
-  if (name.includes("balcone") || name.includes("familiare")) {
-    return "balcony"
-  }
-
-  if (name.includes("vasca") || name.includes("idromassaggio") || name.includes("suite")) {
-    return "spa"
-  }
-
-  return "other"
-}
-
 export function RoomStatusToggle({ room }: RoomStatusToggleProps) {
-  const [currentStatus, setCurrentStatus] = useState<RoomStatus>(room.status)
-  const roomType = getRoomType(room)
+  const getStatus = useRoomStatuses()
+  const currentStatus = getStatus(String(room.id))
 
-  useEffect(() => {
-    let bookings: any[] = []
-    let blockedDates: any[] = []
-
-    // Use centralized room mapping: resolve any ID to local room ID
-    const localRoomId = resolveToLocalRoomId(String(room.id))
-
-    const matchesRoomBooking = (booking: any): boolean => {
-      const bookingRoomId = resolveToLocalRoomId(String(booking.roomId ?? ""))
-      return bookingRoomId === localRoomId
-    }
-
-    const matchesRoomBlock = (blocked: any): boolean => {
-      const blockedRoomId = resolveToLocalRoomId(String(blocked.roomId ?? ""))
-      return blockedRoomId === localRoomId
-    }
-
-    const calculateStatus = () => {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-
-      const hasActiveBooking = bookings.some((booking) => {
-  if (!matchesRoomBooking(booking)) return false
-
-  const status = String(booking.status ?? "").toLowerCase()
-  // consideriamo attive sia le confermate che le in attesa
-  if (!(status === "confirmed" || status === "pending")) {
-    return false
-  }
-
-  const checkIn = new Date(booking.checkIn as string)
-  const checkOut = new Date(booking.checkOut as string)
-  checkIn.setHours(0, 0, 0, 0)
-  checkOut.setHours(0, 0, 0, 0)
-
-  return today >= checkIn && today < checkOut
-})
-
-
-      const isBlockedToday = blockedDates.some((blocked) => {
-        if (!matchesRoomBlock(blocked)) return false
-
-        const from = new Date(blocked.from as string)
-        const to = new Date(blocked.to as string)
-        from.setHours(0, 0, 0, 0)
-        to.setHours(0, 0, 0, 0)
-
-        return today >= from && today < to
-      })
-
-      const newStatus: RoomStatus =
-        isBlockedToday ? "maintenance"
-        : hasActiveBooking ? "booked"
-        : "available"
-
-      setCurrentStatus(newStatus)
-    }
-
-    // 🔹 Prenotazioni confermate (tutte), filtrate in JS
-    const bookingsQuery = query(
-      collection(db, "bookings"),
-      
-    )
-
-    const blockedRef = collection(db, "blocked_dates")
-
-    const unsubBookings = onSnapshot(bookingsQuery, (snapshot) => {
-      bookings = snapshot.docs.map((doc) => doc.data())
-      calculateStatus()
-    })
-
-    const unsubBlocked = onSnapshot(blockedRef, (snapshot) => {
-      blockedDates = snapshot.docs.map((doc) => doc.data())
-      calculateStatus()
-    })
-
-    return () => {
-      unsubBookings()
-      unsubBlocked()
-    }
-  }, [room, roomType])
-
-
-   useEffect(() => {
-    const syncStatus = async () => {
-      try {
-        // Se non è cambiato rispetto a quello salvato, non scriviamo niente
-        if (room.status === currentStatus) return
-
-        const roomRef = doc(db, "rooms", String(room.id))
-        await updateDoc(roomRef, { status: currentStatus })
-      } catch (error) {
-        console.error("[RoomStatusToggle] Errore aggiornando lo stato della stanza:", error)
-      }
-    }
-
-    if (room.id) {
-      syncStatus()
-    }
-  }, [room.id, room.status, currentStatus])
-
-  const getStatusColor = (status: RoomStatus) => {
+  const getStatusColor = (status: RoomStatus | null) => {
     switch (status) {
       case "available":
         return "bg-green-600 text-white"
@@ -149,7 +29,7 @@ export function RoomStatusToggle({ room }: RoomStatusToggleProps) {
     }
   }
 
-  const getStatusIcon = (status: RoomStatus) => {
+  const getStatusIcon = (status: RoomStatus | null) => {
     switch (status) {
       case "available":
         return <CheckCircle className="w-4 h-4" />
@@ -162,7 +42,7 @@ export function RoomStatusToggle({ room }: RoomStatusToggleProps) {
     }
   }
 
-  const getStatusLabel = (status: RoomStatus) => {
+  const getStatusLabel = (status: RoomStatus | null) => {
     switch (status) {
       case "available":
         return "Disponibile"
@@ -171,7 +51,7 @@ export function RoomStatusToggle({ room }: RoomStatusToggleProps) {
       case "maintenance":
         return "Manutenzione"
       default:
-        return status
+        return status || "Verifica stato…"
     }
   }
 
@@ -203,7 +83,9 @@ export function RoomStatusToggle({ room }: RoomStatusToggleProps) {
               ? "Camera occupata da prenotazione attiva"
               : currentStatus === "maintenance"
               ? "Camera in manutenzione - gestisci dalla sezione Blocca Date"
-              : "Nessuna prenotazione per oggi"}
+              : currentStatus === "available"
+              ? "Nessuna prenotazione per oggi"
+              : "Verifica del calendario in corso"}
           </p>
         </div>
 
@@ -214,7 +96,7 @@ export function RoomStatusToggle({ room }: RoomStatusToggleProps) {
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Prezzo:</span>
-            <span className="font-medium">€{room.price}/notte</span>
+            <span className="font-medium">Gestito da Smoobu</span>
           </div>
         </div>
       </CardContent>

@@ -96,6 +96,7 @@ export interface SmoobuReservation {
 }
 
 export interface SmoobuBooking {
+  isBlocked?: boolean
   id: string
   roomId: string
   arrival: string
@@ -214,6 +215,8 @@ class SmoobuClient {
     const response = await fetch(url, {
       ...options,
       headers,
+      cache: "no-store",
+      signal: options.signal || AbortSignal.timeout(20_000),
     })
 
     if (!response.ok) {
@@ -246,7 +249,8 @@ class SmoobuClient {
       email: reservation.email || "",
       phone: reservation.phone || "",
       price: reservation.price || 0,
-      status: reservation["is-blocked-booking"] ? "blocked" : "confirmed",
+      isBlocked: reservation["is-blocked-booking"] === true,
+      status: reservation.type === "cancellation" ? "cancelled" : reservation["is-blocked-booking"] ? "blocked" : "confirmed",
       referer,
       apiSourceId: reservation.channel?.id,
       apiSource,
@@ -264,7 +268,7 @@ class SmoobuClient {
    * @param to - End date (YYYY-MM-DD)
    * @param apartmentId - Optional apartment ID to filter by
    */
-  async getBookings(from?: string, to?: string, apartmentId?: string): Promise<SmoobuBooking[]> {
+  async getBookings(from?: string, to?: string, apartmentId?: string, includeCancelled = false): Promise<SmoobuBooking[]> {
     const allReservations: SmoobuReservation[] = []
     let page = 1
     let hasMore = true
@@ -274,6 +278,7 @@ class SmoobuClient {
       if (from) params.append("from", from)
       if (to) params.append("to", to)
       if (apartmentId) params.append("apartmentId", apartmentId)
+      if (includeCancelled) params.append("showCancellation", "true")
       params.append("pageSize", "100")
       params.append("page", String(page))
 

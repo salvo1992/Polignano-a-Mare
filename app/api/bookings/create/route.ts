@@ -3,6 +3,9 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore"
 import { getAdminDb } from "@/lib/firebase-admin"
 import { resolveToLocalRoomId } from "@/lib/room-mapping"
 import { smoobuClient } from "@/lib/smoobu-client"
+import { getSmoobuQuote } from "@/lib/smoobu-pricing"
+import { bookingAmounts, QuoteError } from "@/lib/stay-quote"
+import { isProviderOccupancy } from "@/lib/room-status"
 
 const HOLD_MINUTES = 45
 
@@ -47,6 +50,7 @@ async function getFirestoreConflicts(
 
   bookingsSnap.forEach((document) => {
     const booking = document.data()
+    if (isProviderOccupancy(booking, "bookings")) return
     if (!roomMatches(booking.roomId, roomId)) return
     if (booking.status === "pending") {
       const expiresAt = timestampMillis(booking.holdExpiresAt)
@@ -62,6 +66,7 @@ async function getFirestoreConflicts(
       const snapshot = await db.collection(collectionName).get()
       snapshot.forEach((document) => {
         const item = document.data()
+        if (isProviderOccupancy(item, collectionName)) return
         if (item.status === "cancelled" || item.status === "canceled") return
         if (!roomMatches(item.roomId, roomId)) return
         const start = String(item.startDate || item.from || item.arrival || item.checkIn || "").slice(0, 10)
@@ -70,6 +75,7 @@ async function getFirestoreConflicts(
       })
     } catch (error) {
       console.warn(`[Create Booking] Could not read ${collectionName}:`, error)
+      throw new QuoteError("Non riusciamo a verificare i blocchi del calendario. Riprova tra poco.", "AVAILABILITY_CHECK_FAILED")
     }
   }
 
@@ -148,11 +154,18 @@ export async function POST(req: Request) {
       db.collection("booking_date_locks").doc(`${canonicalRoomId}_${date}`),
     )
     const nights = stayDates.length
-    const pricePerNight = Number(body.pricePerNight || 0)
-    const submittedTotal = Number(body.totalAmount)
-    const totalAmount = Number.isFinite(submittedTotal)
-      ? Math.round(submittedTotal * 100) / 100
-      : Math.round(pricePerNight * nights * 100) / 100
+    // Reprice on the server immediately before creating the hold. Never trust
+    // a browser total or silently charge a changed tariff.
+    const quote = await getSmoobuQuote(roomId, checkIn, checkOut)
+    if (!quote.available) return NextResponse.json({ error: "Date non disponibili", code: "DATES_UNAVAILABLE" }, { status: 409 })
+    if (!quote.minimumStayMet) return NextResponse.json({ error: `Soggiorno minimo: ${quote.minimumStay} notti.` }, { status: 400 })
+    const pricingContext = body.pricingContext === "widget" ? "widget" : "booking-page"
+    const amounts = bookingAmounts(quote.newPrice, nights, guests, Number(body.numberOfChildren || 0), pricingContext)
+    const { totalAmount } = amounts
+    const pricePerNight = quote.pricePerNight
+    if (!Number.isFinite(Number(body.totalAmount)) || Math.round(Number(body.totalAmount) * 100) !== Math.round(totalAmount * 100)) {
+      return NextResponse.json({ error: "La tariffa è cambiata. Aggiorna il preventivo prima di confermare.", code: "PRICE_CHANGED" }, { status: 409 })
+    }
     const bookingData = {
       bookingId: bookingRef.id,
       userId: null,
@@ -170,9 +183,13 @@ export async function POST(req: Request) {
       smoobuApartmentId: apartmentId,
       nights,
       pricePerNight,
-      subtotal: Number(body.subtotal || pricePerNight * nights),
-      taxes: Number(body.taxes || 0),
-      serviceFee: Number(body.serviceFee || 0),
+      subtotal: amounts.subtotal,
+      taxes: amounts.taxes,
+      serviceFee: amounts.serviceFee,
+      guestSupplement: amounts.guestSupplement,
+      pricingContext,
+      pricingSource: "smoobu",
+      nightlyRates: quote.nightlyRates,
       totalAmount,
       totalAmountCents: Math.round(totalAmount * 100),
       notes: String(body.notes || body.specialRequests || ""),
@@ -223,6 +240,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, bookingId: bookingRef.id })
   } catch (error) {
+    if (error instanceof QuoteError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
     console.error("[Create Booking Error]:", error)
     return NextResponse.json(
       { error: "Non e stato possibile creare la prenotazione. Riprova tra poco." },

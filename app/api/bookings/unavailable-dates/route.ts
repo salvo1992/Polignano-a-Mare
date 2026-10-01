@@ -3,6 +3,7 @@ import { Timestamp } from "firebase-admin/firestore"
 import { getAdminDb } from "@/lib/firebase-admin"
 import { resolveToLocalRoomId } from "@/lib/room-mapping"
 import { smoobuClient } from "@/lib/smoobu-client"
+import { isProviderOccupancy } from "@/lib/room-status"
 
 export const dynamic = "force-dynamic"
 
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
 
     bookingsSnap.forEach((document) => {
       const booking = document.data()
+      if (isProviderOccupancy(booking, "bookings")) return
       if (isExpiredPending(booking) || !roomMatches(booking.roomId, roomId)) return
       addDateRange(unavailableDates, booking.checkIn, booking.checkOut)
     })
@@ -52,6 +54,7 @@ export async function GET(request: NextRequest) {
         const snapshot = await db.collection(collectionName).get()
         snapshot.forEach((document) => {
           const item = document.data()
+          if (isProviderOccupancy(item, collectionName)) return
           if (item.status === "cancelled" || item.status === "canceled") return
           if (!roomMatches(item.roomId, roomId)) return
           addDateRange(
@@ -62,6 +65,7 @@ export async function GET(request: NextRequest) {
         })
       } catch (error) {
         console.warn(`[unavailable-dates] Could not read ${collectionName}:`, error)
+        throw error
       }
     }
 
@@ -77,9 +81,11 @@ export async function GET(request: NextRequest) {
     const endDate = end.toISOString().slice(0, 10)
     const rates = await smoobuClient.getRates(String(apartmentId), startDate, endDate)
     if (rates.length === 0) throw new Error("Smoobu returned no availability data")
-    rates.forEach((rate) => {
-      if (rate.available <= 0) unavailableDates.add(rate.date)
-    })
+    const byDate = new Map(rates.map(rate => [rate.date, rate.available]))
+    for (let day = new Date(start); day <= end; day.setUTCDate(day.getUTCDate() + 1)) {
+      const date = day.toISOString().slice(0, 10)
+      if (!(Number(byDate.get(date)) > 0)) unavailableDates.add(date)
+    }
 
     const dates = [...unavailableDates].sort()
     return NextResponse.json(

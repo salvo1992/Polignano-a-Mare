@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { smoobuClient } from "@/lib/smoobu-client"
 import { getAdminDb } from "@/lib/firebase-admin"
+import { syncSmoobuBookings } from "@/lib/smoobu-reconciliation"
 import { Resend } from "resend"
 import {
   convertSmoobuApartmentIdToLocal,
@@ -47,64 +48,8 @@ export async function GET(request: Request) {
       .toISOString()
       .split("T")[0]
 
-    // Step 1: Fetch bookings from Smoobu
-    console.log(`[Smoobu] Step 1: Fetching bookings from Smoobu (${from} to ${to})`)
-    const smoobuBookings = await smoobuClient.getBookings(from, to)
-    console.log(`[Smoobu] Retrieved ${smoobuBookings.length} bookings from Smoobu`)
-
-    let syncedBookings = 0
-    for (const booking of smoobuBookings) {
-      try {
-        const departureDate = new Date(booking.departure)
-        if (departureDate < now) continue
-
-        // Source is already correctly set from channel name detection in smoobu-client
-        const bookingSource = booking.referer || "other"
-        
-        // Skip blocked and unknown bookings
-        if (bookingSource === "blocked" || bookingSource === "other") continue
-
-        // Check if already exists by smoobuId or beds24Id (backward compat)
-        const existingBySmoobu = await db
-          .collection("bookings")
-          .where("smoobuId", "==", booking.id)
-          .limit(1)
-          .get()
-
-        if (existingBySmoobu.empty) {
-          const checkInDate = new Date(booking.arrival + "T00:00:00.000Z").toISOString()
-          const checkOutDate = new Date(booking.departure + "T00:00:00.000Z").toISOString()
-
-          const localRoomId = convertSmoobuApartmentIdToLocal(booking.roomId.toString())
-          await db.collection("bookings").add({
-            checkIn: checkInDate,
-            checkOut: checkOutDate,
-            guests: booking.numAdult + booking.numChild,
-            firstName: booking.firstName,
-            lastName: booking.lastName,
-            email: booking.email || "",
-            phone: booking.phone || "",
-            notes: booking.notes || "",
-            totalAmount: booking.price || 0,
-            currency: "EUR",
-            status: booking.status === "confirmed" ? "confirmed" : "pending",
-            origin: bookingSource,
-            roomId: localRoomId,
-            roomName: getRoomName(localRoomId),
-            smoobuApartmentId: booking.roomId.toString(),
-            smoobuId: booking.id,
-            channelId: booking.channelId,
-            channelName: booking.channelName,
-            createdAt: booking.created || new Date().toISOString(),
-            syncedAt: new Date().toISOString(),
-          })
-          syncedBookings++
-          console.log(`[Smoobu] Synced new booking ${booking.id} from ${bookingSource}`)
-        }
-      } catch (error) {
-        console.error(`[Smoobu] Error syncing booking ${booking.id}:`, error)
-      }
-    }
+    const sync = await syncSmoobuBookings(from, to)
+    const syncedBookings = sync.synced
 
     // Step 2: Auto-block dates for confirmed bookings
     console.log("[Smoobu] Step 2: Reading all confirmed bookings from database")
@@ -134,14 +79,15 @@ export async function GET(request: Request) {
 
         const existingBlock = await db
           .collection("blocked_dates")
-          .where("roomId", "==", booking.roomId)
-          .where("from", "==", fromDate)
-          .where("to", "==", toDate)
           .where("bookingId", "==", booking.id)
-          .limit(1)
           .get()
 
-        if (existingBlock.empty) {
+        const hasActiveBlock = existingBlock.docs.some(doc => {
+          const block = doc.data()
+          return block.status !== "cancelled" && block.status !== "canceled" &&
+            String(block.from || "").slice(0, 10) === fromDate && String(block.to || "").slice(0, 10) === toDate
+        })
+        if (!hasActiveBlock) {
           let syncedToSmoobu = !!(booking.smoobuId || booking.smoobuReservationId)
           let smoobuReservationId = booking.smoobuId || booking.smoobuReservationId || null
 
@@ -196,31 +142,8 @@ export async function GET(request: Request) {
       }
     }
 
-    // Step 3: Remove blocks for cancelled bookings
-    console.log("[Smoobu] Step 3: Removing blocks for cancelled bookings")
-    const autoBlocksSnapshot = await db
-      .collection("blocked_dates")
-      .where("autoBlocked", "==", true)
-      .get()
-
-    let removedBlocks = 0
-    for (const blockDoc of autoBlocksSnapshot.docs) {
-      const block = blockDoc.data()
-      
-      if (block.bookingId) {
-        const bookingSnapshot = await db
-          .collection("bookings")
-          .doc(block.bookingId)
-          .get()
-
-        if (!bookingSnapshot.exists || 
-            bookingSnapshot.data()?.status === "cancelled") {
-          await blockDoc.ref.delete()
-          removedBlocks++
-          console.log(`[Smoobu] Removed auto-block for cancelled booking ${block.bookingId}`)
-        }
-      }
-    }
+    // Cancellations were soft-released by explicit Smoobu ID during sync.
+    const removedBlocks = sync.cancelled
 
     // Step 4: Block past dates
     console.log("[Smoobu] Step 4: Blocking past dates")

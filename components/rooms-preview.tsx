@@ -28,7 +28,7 @@ export function RoomsPreview() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
           {rooms.map((room, index) => {
             const roomPrice = roomPrices[room.id] || 0
-            const priceDisplay = loading ? "..." : `€${roomPrice}`
+            const priceDisplay = loading ? "..." : roomPrice > 0 ? `€${roomPrice}` : "Verifica tariffa"
 
             return (
               <div

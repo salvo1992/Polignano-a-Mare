@@ -211,6 +211,7 @@ export async function secureDeleteAccount(email: string, currentPassword: string
 
 // ---------- BOOKINGS ----------
 export type BookingPayload = {
+  pricingContext?: "booking-page" | "widget"
   checkIn: string
   checkOut: string
   guests: number // Now represents adults only

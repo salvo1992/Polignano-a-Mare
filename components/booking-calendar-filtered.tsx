@@ -35,7 +35,7 @@ export function BookingCalendarFiltered({ bookings, roomId, roomName }: BookingC
 
   const filteredBookings = bookings.filter((booking) => {
     const bookingLocalId = resolveToLocalRoomId(String(booking.roomId ?? ""))
-    return bookingLocalId === localRoomId
+      return bookingLocalId === localRoomId && booking.status !== "cancelled"
   })
 
   const todayStart = new Date()
@@ -54,7 +54,7 @@ export function BookingCalendarFiltered({ bookings, roomId, roomName }: BookingC
         resolveToLocalRoomId(String(blocked.roomId)) === localRoomId
       ) as BlockedDate[]
         
-        setBlockedDates(blockedData)
+        setBlockedDates(blockedData.filter((block: any) => block.status !== "cancelled" && block.status !== "canceled"))
       }
     )
 

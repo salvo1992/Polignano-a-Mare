@@ -41,11 +41,11 @@ export function RoomsGrid() {
   const getRoomUrl = (roomId: string) => `${SITE_URL}/camere/${roomId}`
 
   const getWhatsAppHref = (room: (typeof rooms)[number]) => {
-    const price = prices[room.id] ?? room.price
+    const price = prices[room.id] || 0
     const text = `${t("checkAvailability")}: ${room.name}
 ${getRoomUrl(room.id)}
 
-${t("pricePerNightLabel")} €${price}${t("perNight")}`
+${price > 0 ? `${t("pricePerNightLabel")} €${price}${t("perNight")}` : "Verifica tariffa per le date selezionate"}`
     return `https://wa.me/?text=${encodeURIComponent(text)}`
   }
 
@@ -54,7 +54,7 @@ ${t("pricePerNightLabel")} €${price}${t("perNight")}`
       {rooms.map((room) => {
         const isFav = favorites.includes(room.id)
         const waHref = getWhatsAppHref(room)
-        const price = prices[room.id] ?? room.price
+        const price = prices[room.id] || 0
 
         return (
           <div
@@ -73,7 +73,7 @@ ${t("pricePerNightLabel")} €${price}${t("perNight")}`
               <div className="absolute top-4 left-4 flex flex-col gap-2">
                 {room.featured && <Badge className="bg-primary text-primary-foreground">{t("mostRequested")}</Badge>}
                 {!room.available && <Badge variant="destructive">{t("notAvailable")}</Badge>}
-                {room.originalPrice > price && <Badge className="bg-green-600 text-white">{t("specialOffer")}</Badge>}
+                {false /* Smoobu has no comparison price */ && <Badge className="bg-green-600 text-white">{t("specialOffer")}</Badge>}
               </div>
 
               <div className="absolute top-4 right-4 flex flex-col gap-2">
@@ -103,11 +103,11 @@ ${t("pricePerNightLabel")} €${price}${t("perNight")}`
 
               <div className="absolute bottom-4 right-4 bg-black/80 text-white px-3 py-2 rounded-lg">
                 <div className="text-right">
-                  {room.originalPrice > price && (
+                  {false /* Smoobu has no comparison price */ && (
                     <div className="text-xs line-through opacity-75">€{room.originalPrice}</div>
                   )}
                   <div className="font-bold">
-                    €{loading ? "..." : price}
+                    {loading ? "..." : price > 0 ? `€${price}` : "Verifica tariffa"}
                     {t("perNight")}
                   </div>
                 </div>

@@ -1,265 +1,37 @@
 import { NextResponse } from "next/server"
 import { smoobuClient } from "@/lib/smoobu-client"
-import { db } from "@/lib/firebase"
-import { collection, doc, setDoc, getDocs, query, where } from "firebase/firestore"
-import {
-  getRoomName as centralGetRoomName,
-  convertSmoobuApartmentIdToLocal as centralConvert,
-  setSmoobuApartmentIds,
-} from "@/lib/room-mapping"
+import { syncSmoobuBookings } from "@/lib/smoobu-reconciliation"
+import { AdminApiAuthError, requireAdminIdToken } from "@/lib/admin-api-auth"
+import { stayDates } from "@/lib/stay-quote"
 
-/**
- * Sync bookings from Smoobu to Firebase
- * This endpoint fetches all reservations from Smoobu and syncs them to Firebase
- * Prevents double bookings by checking existing bookings
- * Supports filtering by source: booking or airbnb
- */
+export const dynamic = "force-dynamic"
+export const maxDuration = 60
+
 export async function POST(request: Request) {
   try {
+    await requireAdminIdToken(request)
     const body = await request.json()
-    const { from, to, source } = body
-
-    console.log(`[Smoobu] Fetching bookings - Source: ${source || "all"}`)
-
-    // Preload Smoobu apartments to populate the room ID mapping
-    try {
-      const apartments = await smoobuClient.getApartmentsCached()
-      setSmoobuApartmentIds(apartments)
-      console.log(`[Smoobu] Loaded ${apartments.length} apartment mappings`)
-    } catch (err) {
-      console.warn("[Smoobu] Could not preload apartment mappings:", err)
-    }
-
-    let smoobuBookings: any[] = []
-
-    if (source === "booking") {
-      smoobuBookings = await smoobuClient.getBookingComBookings(from, to)
-    } else if (source === "airbnb") {
-      smoobuBookings = await smoobuClient.getAirbnbBookings(from, to)
-    } else if (source === "expedia") {
-      smoobuBookings = await smoobuClient.getExpediaBookings(from, to)
-    } else if (source === "direct") {
-      smoobuBookings = await smoobuClient.getDirectBookings(from, to)
-    } else {
-      smoobuBookings = await smoobuClient.getBookings(from, to)
-    }
-
-    console.log(`[Smoobu] Retrieved ${smoobuBookings.length} bookings`)
-
-    // Count bookings by source (using referer which is based on channel NAME)
-    const breakdown = smoobuBookings.reduce(
-      (acc, booking) => {
-        const source = booking.referer || "other"
-        acc[source] = (acc[source] || 0) + 1
-        return acc
-      },
-      {} as Record<string, number>,
-    )
-
-    console.log(`[Smoobu] Bookings by source:`, breakdown)
-
-    const bookingCount = breakdown["booking"] || 0
-    const airbnbCount = breakdown["airbnb"] || 0
-    const expediaCount = breakdown["expedia"] || 0
-    const directCount = breakdown["direct"] || 0
-    const otherCount = Object.entries(breakdown)
-      .filter(([src]) => !["booking", "airbnb", "expedia", "direct", "blocked"].includes(src))
-      .reduce((sum, [, count]) => sum + count, 0)
-
-    console.log(
-      `[Smoobu] Breakdown - Booking.com: ${bookingCount}, Airbnb: ${airbnbCount}, Expedia: ${expediaCount}, Direct: ${directCount}, Other: ${otherCount}`,
-    )
-
-    let syncedCount = 0
-    let skippedCount = 0
-
-    for (const booking of smoobuBookings) {
-      try {
-        // Source is already correctly set in referer (from channel name detection)
-        const bookingSource = booking.referer || "other"
-        
-        // Skip blocked bookings
-        if (bookingSource === "blocked" || booking.status === "blocked") {
-          skippedCount++
-          continue
-        }
-
-        const checkInDate = parseDate(booking.arrival)
-        const checkOutDate = parseDate(booking.departure)
-
-        if (!checkInDate || !checkOutDate) {
-          skippedCount++
-          continue
-        }
-
-        const bookingsRef = collection(db, "bookings")
-
-        // Check if booking already exists by smoobuId
-        const q = query(bookingsRef, where("smoobuId", "==", booking.id))
-        const existingBookings = await getDocs(q)
-
-        if (!existingBookings.empty) {
-          skippedCount++
-          continue
-        }
-
-        // Check if booking already exists by date, room, and guest name
-        const q2 = query(
-          bookingsRef,
-          where("checkIn", "==", checkInDate),
-          where("checkOut", "==", checkOutDate),
-          where("roomId", "==", booking.roomId),
-          where("guestLast", "==", booking.lastName),
-        )
-        const existingBookings2 = await getDocs(q2)
-
-        if (!existingBookings2.empty) {
-          skippedCount++
-          continue
-        }
-
-        // Convert Smoobu apartment ID to local room ID
-        const localRoomId = convertSmoobuApartmentIdToLocal(booking.roomId)
-        console.log(`[Smoobu] Processing booking ${booking.id} - Smoobu apartmentId: ${booking.roomId}, Local roomId: ${localRoomId}`)
-
-        const firebaseBooking = {
-          checkIn: checkInDate,
-          checkOut: checkOutDate,
-          guests: booking.numAdult + booking.numChild,
-          guestFirst: booking.firstName,
-          guestLast: booking.lastName,
-          email: booking.email,
-          phone: booking.phone,
-          notes: booking.notes || "",
-          total: booking.price,
-          currency: "EUR",
-          status: booking.status === "blocked" ? "blocked" : "confirmed",
-          origin: bookingSource,
-          roomId: localRoomId,
-          roomName: getRoomName(localRoomId),
-          smoobuId: booking.id,
-          smoobuApartmentId: booking.roomId,
-          channelId: booking.apiSourceId,
-          channelName: booking.apiSource,
-          createdAt: parseDate(booking.created) || new Date().toISOString(),
-          syncedAt: new Date().toISOString(),
-        }
-
-        const bookingRef = doc(collection(db, "bookings"))
-        await setDoc(bookingRef, firebaseBooking)
-
-        // Also create a blocked_dates entry so calendar blocks these dates immediately
-        try {
-          const blockRef = doc(collection(db, "blocked_dates"))
-          await setDoc(blockRef, {
-            roomId: localRoomId,
-            from: checkInDate,
-            to: checkOutDate,
-            reason: `auto-booking: ${booking.firstName} ${booking.lastName} (Smoobu: ${booking.id})`,
-            syncedToSmoobu: true,
-            smoobuReservationId: booking.id,
-            createdAt: new Date().toISOString(),
-          })
-        } catch (blockErr) {
-          console.error(`[Smoobu] Error creating blocked_dates entry for booking ${booking.id}:`, blockErr)
-        }
-
-        console.log(`[Smoobu] Synced booking ${booking.id} from ${bookingSource} (channelId: ${booking.apiSourceId})`)
-        syncedCount++
-      } catch (bookingError) {
-        console.error(`[Smoobu] Error processing booking ${booking.id}:`, bookingError)
-        skippedCount++
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      synced: syncedCount,
-      skipped: skippedCount,
-      total: smoobuBookings.length,
-      source: source || "all",
-      breakdown: {
-        booking: bookingCount,
-        airbnb: airbnbCount,
-        expedia: expediaCount,
-        direct: directCount,
-        other: otherCount,
-      },
-    })
+    const from = body.from || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+    const to = body.to || new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10)
+    stayDates(from, to)
+    return NextResponse.json(await syncSmoobuBookings(from, to, body.source))
   } catch (error) {
-    console.error("[Smoobu] Error syncing bookings:", error)
-    return NextResponse.json(
-      {
-        error: "Failed to sync bookings",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    )
+    if (error instanceof AdminApiAuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("[Smoobu Sync] Failed", error)
+    return NextResponse.json({ error: "Sincronizzazione non completata. Nessun blocco viene rilasciato per dati mancanti." }, { status: 503 })
   }
 }
 
-/**
- * Get bookings from Smoobu (without syncing)
- */
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const from = searchParams.get("from") || undefined
-    const to = searchParams.get("to") || undefined
-    const source = searchParams.get("source") || undefined
-
-    let bookings
-
-    if (source === "booking") {
-      bookings = await smoobuClient.getBookingComBookings(from, to)
-    } else if (source === "airbnb") {
-      bookings = await smoobuClient.getAirbnbBookings(from, to)
-    } else if (source === "expedia") {
-      bookings = await smoobuClient.getExpediaBookings(from, to)
-    } else if (source === "direct") {
-      bookings = await smoobuClient.getDirectBookings(from, to)
-    } else {
-      bookings = await smoobuClient.getBookings(from, to)
-    }
-
-    return NextResponse.json({
-      success: true,
-      bookings,
-      count: bookings.length,
-      source: source || "all",
-    })
+    await requireAdminIdToken(request)
+    const params = new URL(request.url).searchParams
+    const source = params.get("source")
+    const all = await smoobuClient.getBookings(params.get("from") || undefined, params.get("to") || undefined)
+    const bookings = all.filter(booking => !source || source === "all" || booking.referer === source)
+    return NextResponse.json({ success: true, bookings, count: bookings.length, source: source || "all" })
   } catch (error) {
-    console.error("[Smoobu] Error fetching bookings:", error)
-    return NextResponse.json(
-      { error: "Failed to fetch bookings", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 },
-    )
+    if (error instanceof AdminApiAuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: "Impossibile leggere Smoobu" }, { status: 503 })
   }
-}
-
-function getRoomName(roomId: string): string {
-  return centralGetRoomName(roomId)
-}
-
-function parseDate(dateString: string | undefined): string | null {
-  if (!dateString) return null
-
-  try {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-      const date = new Date(dateString + "T00:00:00.000Z")
-      if (isNaN(date.getTime())) return null
-      return date.toISOString()
-    }
-
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return null
-    return date.toISOString()
-  } catch (error) {
-    console.error(`[Smoobu] Error parsing date: ${dateString}`, error)
-    return null
-  }
-}
-
-function convertSmoobuApartmentIdToLocal(smoobuApartmentId: string): string {
-  return centralConvert(smoobuApartmentId)
 }

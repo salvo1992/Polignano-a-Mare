@@ -1,4 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { getSmoobuQuote } from "@/lib/smoobu-pricing"
+import { QuoteError } from "@/lib/stay-quote"
 import { getAdminDb } from "@/lib/firebase-admin"
 import { FieldValue } from "firebase-admin/firestore"
 import Stripe from "stripe"
@@ -11,14 +13,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
 })
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://al22suite.com"
-
-function isDateInRecurringSeason(date: Date, startMMDD: string, endMMDD: string): boolean {
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  const dateMMDD = `${month}-${day}`
-  if (startMMDD > endMMDD) return dateMMDD >= startMMDD || dateMMDD <= endMMDD
-  return dateMMDD >= startMMDD && dateMMDD <= endMMDD
-}
 
 export async function PUT(request: NextRequest) {
   try {
@@ -72,61 +66,9 @@ export async function PUT(request: NextRequest) {
     const roomId = booking.roomId
     const nights = calculateNights(checkIn, checkOut)
 
-    const roomRef = db.collection("rooms").doc(roomId)
-    const roomSnap = await roomRef.get()
-    if (!roomSnap.exists) {
-      return NextResponse.json({ error: "Camera non trovata" }, { status: 404 })
-    }
-
-    const basePrice = roomSnap.data()?.price || 0
-
-    // Fetch pricing rules
-    const [seasonsSnap, periodsSnap, overridesSnap] = await Promise.all([
-      db.collection("pricing_seasons").get(),
-      db.collection("pricing_special_periods").get(),
-      db.collection("pricing_overrides").where("roomId", "==", roomId).get(),
-    ])
-
-    const seasons = seasonsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
-    const specialPeriods = periodsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
-    const overrides = overridesSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
-
-    // Calculate price for each night
-    let roomTotalPrice = 0
-    const currentDate = new Date(checkInDate)
-
-    while (currentDate < checkOutDate) {
-      const dateStr = currentDate.toISOString().split("T")[0]
-
-      const override = overrides.find((o: any) => o.date === dateStr)
-      if (override) {
-        roomTotalPrice += (override as any).price
-        currentDate.setDate(currentDate.getDate() + 1)
-        continue
-      }
-
-      const specialPeriod = specialPeriods.find((p: any) => {
-        const pStart = p.startDate?.split("T")[0]
-        const pEnd = p.endDate?.split("T")[0]
-        return dateStr >= pStart && dateStr <= pEnd
-      })
-
-      if (specialPeriod) {
-        roomTotalPrice += Math.round(basePrice * (specialPeriod as any).priceMultiplier)
-        currentDate.setDate(currentDate.getDate() + 1)
-        continue
-      }
-
-      const season = seasons.find((s: any) => isDateInRecurringSeason(currentDate, s.startDate, s.endDate))
-      if (season) {
-        roomTotalPrice += Math.round(basePrice * (season as any).priceMultiplier)
-        currentDate.setDate(currentDate.getDate() + 1)
-        continue
-      }
-
-      roomTotalPrice += basePrice
-      currentDate.setDate(currentDate.getDate() + 1)
-    }
+    const quote = await getSmoobuQuote(String(roomId), checkIn, checkOut)
+    if (!quote.minimumStayMet) return NextResponse.json({ error: `Soggiorno minimo: ${quote.minimumStay} notti.` }, { status: 400 })
+    const roomTotalPrice = quote.newPrice
 
     // Extra guest costs
     const adults = booking.adults || 2

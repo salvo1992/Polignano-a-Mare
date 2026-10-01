@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { RefreshCw, Download, Calendar, AlertCircle, CheckCircle2, AlertTriangle, Clock, Zap } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { getCurrentIdToken } from "@/lib/firebase"
 
 const AUTO_SYNC_INTERVAL = 10 * 60 * 1000 // 10 minuti
 
@@ -45,7 +46,7 @@ export function SmoobuSyncPanel() {
 
       const response = await fetch("/api/smoobu/sync-bookings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await getCurrentIdToken()}` },
         body: JSON.stringify({
           from: from.toISOString().split("T")[0],
           to: to.toISOString().split("T")[0],
@@ -197,9 +198,9 @@ export function SmoobuSyncPanel() {
               <div className="space-y-1">
                 <p className="font-medium">Sincronizzazione automatica attiva</p>
                 <div className="text-xs space-y-0.5">
-                  <p>Cron job server: ogni 2 ore (Smoobu &rarr; Firebase)</p>
-                  <p>Auto-sync pannello: ogni 10 minuti mentre sei online</p>
-                  <p>Webhook real-time: aggiornamenti istantanei da Smoobu</p>
+                  <p>Auto-sync pannello: all'apertura e ogni 10 minuti mentre questo pannello è aperto</p>
+                  <p>Importa anche modifiche e cancellazioni confermate da Smoobu</p>
+                  <p>Il sito verifica prezzi e disponibilità su Smoobu durante la prenotazione</p>
                   {nextAutoSync && (
                     <p className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
@@ -218,11 +219,11 @@ export function SmoobuSyncPanel() {
             </div>
             <div className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <p>Previene automaticamente doppie prenotazioni (dedup per smoobuId)</p>
+              <p>Aggiorna le prenotazioni esistenti tramite il loro ID Smoobu, senza duplicarle</p>
             </div>
             <div className="flex items-start gap-2">
               <RefreshCw className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <p>Webhook real-time: aggiornamenti istantanei da Booking.com, Airbnb, Expedia</p>
+              <p>I blocchi manuali restano separati dalle prenotazioni importate</p>
             </div>
           </div>
 

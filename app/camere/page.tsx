@@ -178,14 +178,12 @@ export default function CamerePage() {
                   {/* Price Section */}
                   <div className="mb-4 flex items-center justify-between p-3 sm:p-4 bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5 rounded-lg border border-cyan-200/40 dark:border-cyan-800/40">
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">A partire da</p>
+                      <p className="text-xs text-muted-foreground mb-1">Tariffa Smoobu di oggi · varia in base alle date</p>
                       <div className="flex items-baseline gap-2 flex-wrap">
                         <span className="text-2xl sm:text-3xl font-bold text-primary">
-                          €{loading ? "..." : currentPrice}
+                          {loading ? "..." : currentPrice > 0 ? `€${currentPrice}` : "Verifica tariffa"}
                         </span>
-                        <span className="text-base sm:text-lg text-muted-foreground line-through">
-                          €{currentOriginalPrice}
-                        </span>
+
                         <span className="text-xs sm:text-sm text-muted-foreground">/ notte</span>
                       </div>
                     </div>

@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { CalendarIcon, Users, MapPin, Clock, AlertCircle } from "lucide-react"
 import { useScrollAnimation } from "@/hooks/use-scroll-animation"
-import { createBooking, type BookingPayload, getAllRooms } from "@/lib/firebase"
+import { createBooking, type BookingPayload } from "@/lib/firebase"
 import { checkRoomAvailability } from "@/lib/booking-utils"
 import {
   AlertDialog,
@@ -56,7 +56,6 @@ export default function PrenotaPage() {
   const { ref: heroRef, isVisible: heroVisible } = useScrollAnimation()
 
   // ---- Prezzi / form ----
-  const [roomPrices, setRoomPrices] = useState<Record<string, number>>({ "1": 180, "2": 150 })
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -92,24 +91,6 @@ export default function PrenotaPage() {
     const d = new Date(s)
     return isNaN(d.getTime()) ? undefined : d
   }
-
-  // ---- Fetch prezzi camere ----
-  useEffect(() => {
-    const fetchPrices = async () => {
-      try {
-        const rooms = await getAllRooms()
-        const prices: Record<string, number> = {}
-        rooms.forEach((room) => {
-          if (room.id === "1") prices["1"] = room.price
-          if (room.id === "2") prices["2"] = room.price
-        })
-        setRoomPrices((prev) => ({ ...prev, ...prices }))
-      } catch (error) {
-        console.error("[booking] Error fetching room prices:", error)
-      }
-    }
-    fetchPrices()
-  }, [])
 
   // ---- Payment error da QS ----
   useEffect(() => {
@@ -171,11 +152,12 @@ export default function PrenotaPage() {
   }, [formData.checkIn, formData.checkOut, formData.roomType, t])
 
   // ---- Calculate dynamic price based on selected dates and room ----
-  const { pricePerNight: dynamicPrice, loading: priceLoading } = useDynamicPrice(
+  const { pricePerNight: dynamicPrice, totalPrice: quotedSubtotal, totalAmount: quotedTotal, loading: priceLoading, error: priceError } = useDynamicPrice(
     ROOM_IDS[formData.roomType] || "",
     formData.checkIn,
     formData.checkOut,
     Number(formData.guests || "2"),
+    Number(formData.children || "0"),
   )
 
   // ---- Notti e totale ----
@@ -187,7 +169,7 @@ export default function PrenotaPage() {
     return diff > 0 ? diff : 0
   }, [formData.checkIn, formData.checkOut])
 
-  const basePrice = dynamicPrice || roomPrices[formData.roomType] || 0
+  const basePrice = dynamicPrice
   const adults = Number(formData.guests || "1")
   const children = Number(formData.children || "0")
   const totalGuests = adults + children
@@ -195,7 +177,7 @@ export default function PrenotaPage() {
   const extraAdults = Math.max(0, adults - 2)
   const extraChildren = totalGuests <= 2 ? 0 : Math.max(0, children - Math.max(0, 2 - adults))
   const extraFeePerNight = extraAdults * 60 + extraChildren * 48
-  const total = nights * (basePrice + extraFeePerNight)
+  const total = quotedTotal
 
   // ---- Submit ----
   const handleSubmit = async (e: React.FormEvent) => {
@@ -210,6 +192,11 @@ export default function PrenotaPage() {
     const checkOutDate = new Date(formData.checkOut)
     if (checkOutDate <= checkInDate) {
       setErrorMessage(t("invalidDateRange") || "La data di check-out deve essere successiva al check-in.")
+      setShowErrorModal(true)
+      return
+    }
+    if (priceLoading || priceError || quotedSubtotal <= 0) {
+      setErrorMessage(priceError || "Attendi la verifica della tariffa Smoobu.")
       setShowErrorModal(true)
       return
     }
@@ -238,7 +225,7 @@ export default function PrenotaPage() {
       phone: formData.phone,
       notes: formData.specialRequests,
       pricePerNight: basePrice,
-      totalAmount: Math.round(total),
+      totalAmount: total,
       currency: "EUR",
       status: "pending",
       origin: "site",
@@ -252,7 +239,7 @@ export default function PrenotaPage() {
       router.push(`/checkout?${qs}`)
     } catch (err) {
       console.error("[booking] Create booking error:", err)
-      setErrorMessage(t("bookingErrorDescription") || "Si è verificato un problema con la prenotazione.")
+      setErrorMessage(err instanceof Error ? err.message : "Si è verificato un problema con la prenotazione.")
       setShowErrorModal(true)
     }
   }
@@ -488,6 +475,7 @@ export default function PrenotaPage() {
                     </p>
                   </div>
 
+                  {priceError && <Alert variant="destructive"><AlertDescription>{priceError}</AlertDescription></Alert>}
                   {/* Riepilogo totale */}
                   <div className="flex items-center justify-between bg-muted/40 rounded-lg px-4 py-3">
                     <div className="text-sm text-muted-foreground">
@@ -498,14 +486,14 @@ export default function PrenotaPage() {
                         : t("bookingSummaryCompleteDates") || "Completa date e camera"}
                     </div>
                     <div className="text-xl font-semibold">
-                      {t("bookingSummaryTotal") || "Totale"}: €{isFinite(total) ? total.toFixed(2) : "0.00"}
+                      {t("bookingSummaryTotal") || "Totale"}: {priceLoading ? "…" : quotedSubtotal > 0 ? `€${total.toFixed(2)}` : "Seleziona le date"}
                     </div>
                   </div>
 
                   <Button
                     type="submit"
                     className="w-full text-lg py-6"
-                    disabled={!availabilityStatus?.available || isCheckingAvailability}
+                    disabled={!availabilityStatus?.available || isCheckingAvailability || priceLoading || Boolean(priceError) || quotedSubtotal <= 0}
                     onClick={handleSubmit}
                   >
                     {t("bookingConfirmButton") || "Conferma Prenotazione"}

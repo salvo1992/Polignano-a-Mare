@@ -22,6 +22,7 @@ export async function GET() {
         ...doc.data(),
       }))
       .filter((block: any) => {
+        if (block.status === "cancelled" || block.status === "canceled") return false
         // Keep future blocks and current blocks
         // Also keep blocks where "to" date is today or later
         return block.to >= now || block.reason === "past-dates"

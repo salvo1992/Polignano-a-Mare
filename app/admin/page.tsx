@@ -24,9 +24,10 @@ import { SmoobuCredentialsSettings } from "@/components/smoobu-credentials-setti
 import { BookingBlockDates } from "@/components/booking-block-dates"
 import { BookingCalendarFiltered } from "@/components/booking-calendar-filtered"
 import { AdminSecuritySettings } from "@/components/admin-security-settings"
-import { DynamicPricingManagement } from "@/components/dynamic-pricing-management"
 import { ExtraServicesRequestsAdmin } from "@/components/extra-services-requests-admin"
 import type { Booking, Room } from "@/lib/booking-utils"
+import { useRoomStatuses } from "@/hooks/use-room-statuses"
+import { useRoomPrices } from "@/hooks/use-room-prices"
 
 interface BnBSettings {
   checkInTime: string
@@ -50,7 +51,10 @@ export default function AdminPage() {
 
 function AdminInner() {
   const [bookings, setBookings] = useState<Booking[]>([])
-  const [rooms, setRooms] = useState<Room[]>([])
+  const [storedRooms, setRooms] = useState<Room[]>([])
+  const getRoomStatus = useRoomStatuses()
+  const { prices: livePrices } = useRoomPrices()
+  const rooms = storedRooms.map(room => ({ ...room, status: getRoomStatus(room.id) || room.status }))
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
   const [bnbSettings, setBnbSettings] = useState<BnBSettings>({
     checkInTime: "15:00",
@@ -223,6 +227,7 @@ function AdminInner() {
             </TabsList>
 
             <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
+              <SmoobuSyncPanel />
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
@@ -345,7 +350,7 @@ function AdminInner() {
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{r.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {r.capacity} ospiti • €{r.price}/notte
+                              {r.capacity} ospiti • {livePrices[r.id] ? `€${livePrices[r.id]}/notte oggi · Smoobu` : "Tariffa da verificare"}
                             </p>
                           </div>
                           <Badge
@@ -722,7 +727,7 @@ function AdminInner() {
             </TabsContent>
 
             <TabsContent value="pricing" className="space-y-4 sm:space-y-6">
-              <DynamicPricingManagement />
+              <Card><CardHeader><CardTitle>Tariffe gestite da Smoobu</CardTitle></CardHeader><CardContent>Modifica prezzi e soggiorno minimo nella sezione Prezzi di Smoobu. Il sito legge le tariffe per ogni notte del soggiorno; stagioni e sconti del vecchio listino locale non vengono più applicati. I supplementi già previsti dal sito restano separati.</CardContent></Card>
             </TabsContent>
 
             <TabsContent value="services" className="space-y-4 sm:space-y-6">
